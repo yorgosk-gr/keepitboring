@@ -197,25 +197,27 @@ export function PositionsTable({
         <table className="w-full text-sm">
           <thead className="text-xs text-muted-foreground uppercase tracking-wide border-b border-border">
             <tr>
-              <th className="pb-3 pr-2">
+              <th className="pb-3 pr-2 w-8">
                 <Checkbox
                   checked={selectedIds.length === positions.length && positions.length > 0}
                   onCheckedChange={toggleSelectAll}
                 />
               </th>
               <SortHeader field="ticker">Ticker</SortHeader>
-              <th className="text-left pb-3 font-medium">Name</th>
-              <th className="text-left pb-3 font-medium">Type</th>
-              <th className="text-left pb-3 font-medium">Category</th>
-              <th className="text-right pb-3 font-medium">Shares</th>
-              <th className="text-right pb-3 font-medium">Avg Cost</th>
-              <th className="text-right pb-3 font-medium">Price</th>
-              <SortHeader field="market_value">Value</SortHeader>
+              <th className="text-left pb-3 font-medium w-32">Name</th>
+              <th className="text-left pb-3 font-medium w-16">Type</th>
+              <th className="text-left pb-3 font-medium w-20">Category</th>
+              <th className="text-right pb-3 font-medium w-16">Shares</th>
+              <th className="text-right pb-3 font-medium w-20">Avg Cost</th>
+              <th className="text-right pb-3 font-medium w-20">Price</th>
+              <SortHeader field="market_value">
+                <span className="text-foreground">Value</span>
+              </SortHeader>
               <SortHeader field="weight_percent">Weight</SortHeader>
               <SortHeader field="pnl_percent">P&L</SortHeader>
-              <th className="text-left pb-3 font-medium">Bet Type</th>
-              <SortHeader field="confidence_level">Confidence</SortHeader>
-              <th className="text-right pb-3 font-medium">Actions</th>
+              <th className="text-left pb-3 font-medium w-16">Bet</th>
+              <SortHeader field="confidence_level">Conf.</SortHeader>
+              <th className="text-right pb-3 font-medium w-24">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -238,28 +240,28 @@ export function PositionsTable({
                     </td>
                     <td className="py-3">
                       <button
-                        className="font-bold text-foreground hover:text-primary transition-colors flex items-center gap-1"
+                        className="font-bold text-foreground hover:text-primary transition-colors flex items-center gap-1 text-base"
                         onClick={() => setExpandedId(isExpanded ? null : position.id)}
                       >
                         {position.ticker}
                         {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                       </button>
                     </td>
-                    <td className="py-3 text-muted-foreground max-w-[150px] truncate">
+                    <td className="py-3 text-muted-foreground max-w-[120px] truncate text-xs">
                       {position.name || "—"}
                     </td>
                     <td className="py-3">{getTypeBadge(position.position_type)}</td>
-                    <td className="py-3 text-muted-foreground capitalize">{position.category || "—"}</td>
-                    <td className="py-3 text-right font-mono">
-                      {position.shares?.toLocaleString("de-DE", { maximumFractionDigits: 4 }) || "—"}
+                    <td className="py-3 text-muted-foreground capitalize text-xs">{position.category || "—"}</td>
+                    <td className="py-3 text-right font-mono text-xs">
+                      {position.shares?.toLocaleString("de-DE", { maximumFractionDigits: 2 }) || "—"}
                     </td>
-                    <td className="py-3 text-right font-mono">
+                    <td className="py-3 text-right font-mono text-xs">
                       €{position.avg_cost?.toLocaleString("de-DE", { minimumFractionDigits: 2 }) || "—"}
                     </td>
-                    <td className="py-3 text-right font-mono">
+                    <td className="py-3 text-right font-mono text-xs">
                       €{position.current_price?.toLocaleString("de-DE", { minimumFractionDigits: 2 }) || "—"}
                     </td>
-                    <td className="py-3 text-right font-mono font-medium">
+                    <td className="py-3 text-right font-mono font-semibold text-base text-foreground">
                       €{position.market_value?.toLocaleString("de-DE", { minimumFractionDigits: 0 }) || "—"}
                     </td>
                     <td className="py-3">
