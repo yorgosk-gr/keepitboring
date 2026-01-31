@@ -4,12 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePositions, type Position, type PositionFormData } from "@/hooks/usePositions";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { useTickerVerification } from "@/hooks/useTickerVerification";
 import { AllocationSummary } from "@/components/portfolio/AllocationSummary";
 import { PositionsTable } from "@/components/portfolio/PositionsTable";
 import { PositionModal } from "@/components/portfolio/PositionModal";
 import { DeleteConfirmModal } from "@/components/portfolio/DeleteConfirmModal";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import { UploadScreenshotModal } from "@/components/portfolio/UploadScreenshotModal";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 export default function Portfolio() {
@@ -27,6 +30,11 @@ export default function Portfolio() {
 
   // Get cash balance and correct allocation percentages from dashboard data
   const { cashBalance, stocksPercent, etfsPercent, totalValue } = useDashboardData();
+  
+  // Ticker verification
+  const { verifySinglePosition, isVerifying } = useTickerVerification();
+  const queryClient = useQueryClient();
+  const [verifyingPositionId, setVerifyingPositionId] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -83,6 +91,61 @@ export default function Portfolio() {
   const handleRecalculateWeights = async () => {
     await recalculateWeights();
     toast.success("Weights recalculated successfully");
+  };
+
+  // Handle position verification via web search
+  const handleVerifyPosition = async (position: Position) => {
+    setVerifyingPositionId(position.id);
+    
+    const result = await verifySinglePosition({
+      ticker: position.ticker,
+      name: position.name,
+      current_price: position.current_price,
+      market_value: position.market_value,
+    });
+
+    if (result) {
+      // Update the position with verified data
+      const updates: Partial<Position> = {};
+      
+      if (result.current_price !== null) {
+        updates.current_price = result.current_price;
+        updates.market_value = (position.shares ?? 0) * result.current_price;
+      }
+      
+      if (result.name) {
+        updates.name = result.name;
+      }
+      
+      if (result.category) {
+        updates.category = result.category;
+      }
+      
+      if (result.asset_type) {
+        updates.position_type = result.asset_type;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        const { error } = await supabase
+          .from("positions")
+          .update(updates)
+          .eq("id", position.id);
+
+        if (error) {
+          toast.error("Failed to update position with verified data");
+        } else {
+          queryClient.invalidateQueries({ queryKey: ["positions"] });
+          
+          if (result.verification_status === "confirmed") {
+            toast.success(`${position.ticker} verified successfully`);
+          } else if (result.verification_status === "corrected") {
+            toast.info(`${position.ticker} may need attention: ${result.notes}`);
+          }
+        }
+      }
+    }
+    
+    setVerifyingPositionId(null);
   };
 
   return (
@@ -188,6 +251,9 @@ export default function Portfolio() {
           onEdit={setEditingPosition}
           onDelete={setDeletingPosition}
           onLogDecision={setLoggingDecisionFor}
+          onVerify={handleVerifyPosition}
+          isVerifying={isVerifying}
+          verifyingId={verifyingPositionId}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
         />

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Trash2, AlertCircle, CheckCircle2, AlertTriangle, Info, Pencil, Check } from "lucide-react";
+import { Loader2, Trash2, AlertCircle, CheckCircle2, AlertTriangle, Info, Check, Search, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,12 +26,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { useTickerVerification, type VerifiedPosition } from "@/hooks/useTickerVerification";
 
 export interface ExtractedPosition {
   ticker: string;
@@ -55,6 +57,9 @@ interface EditablePosition extends ExtractedPosition {
   selected: boolean;
   verified: boolean;
   originalTicker?: string;
+  verification_status?: "confirmed" | "corrected" | "uncertain";
+  corrected_ticker?: string;
+  verification_notes?: string;
 }
 
 export interface ExtractionMetadata {
@@ -86,6 +91,7 @@ export function ScreenshotPreviewTable({
   const queryClient = useQueryClient();
   const [isImporting, setIsImporting] = useState(false);
   const [hasReviewed, setHasReviewed] = useState(false);
+  const { verifyPositions, verifySinglePosition, isVerifying, progress } = useTickerVerification();
 
   const hasSourcePages = positions.some(p => p.source_page !== undefined && p.source_page > 1);
   const hasVerificationNeeded = positions.some(p => p.needs_verification);
@@ -108,9 +114,43 @@ export function ScreenshotPreviewTable({
     );
   };
 
-  const verifyPosition = (id: string) => {
+  const verifyPositionManual = (id: string) => {
     setEditablePositions((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, verified: true, needs_verification: false } : p))
+      prev.map((p) => (p.id === id ? { ...p, verified: true, needs_verification: false, verification_status: "confirmed" } : p))
+    );
+  };
+
+  const acceptCorrection = (id: string) => {
+    setEditablePositions((prev) =>
+      prev.map((p) => {
+        if (p.id === id && p.corrected_ticker) {
+          return { 
+            ...p, 
+            ticker: p.corrected_ticker, 
+            verified: true, 
+            needs_verification: false,
+            verification_status: "confirmed"
+          };
+        }
+        return p;
+      })
+    );
+  };
+
+  const keepOriginal = (id: string) => {
+    setEditablePositions((prev) =>
+      prev.map((p) => {
+        if (p.id === id) {
+          return { 
+            ...p, 
+            verified: true, 
+            needs_verification: false,
+            verification_status: "confirmed",
+            corrected_ticker: undefined
+          };
+        }
+        return p;
+      })
     );
   };
 
@@ -124,9 +164,81 @@ export function ScreenshotPreviewTable({
 
   const selectedCount = editablePositions.filter((p) => p.selected).length;
   const unverifiedCount = editablePositions.filter((p) => p.selected && p.needs_verification && !p.verified).length;
+  const pendingCorrectionCount = editablePositions.filter(
+    (p) => p.selected && p.verification_status === "corrected" && !p.verified
+  ).length;
 
   // Check if import is allowed
-  const canImport = selectedCount > 0 && hasReviewed && unverifiedCount === 0;
+  const canImport = selectedCount > 0 && hasReviewed && unverifiedCount === 0 && pendingCorrectionCount === 0;
+
+  // Verify all positions needing verification
+  const handleVerifyAll = async () => {
+    const positionsToVerify = editablePositions
+      .filter(p => p.selected && (p.needs_verification || !p.verified))
+      .map(p => ({
+        ticker: p.ticker,
+        name: p.name,
+        isin: p.isin,
+        shares: p.shares,
+        current_price: p.current_price,
+        market_value: p.market_value,
+      }));
+
+    if (positionsToVerify.length === 0) {
+      toast.info("No positions to verify");
+      return;
+    }
+
+    const verified = await verifyPositions(positionsToVerify);
+    applyVerificationResults(verified);
+  };
+
+  // Verify a single position via web search
+  const handleVerifySingle = async (id: string) => {
+    const pos = editablePositions.find(p => p.id === id);
+    if (!pos) return;
+
+    const result = await verifySinglePosition({
+      ticker: pos.ticker,
+      name: pos.name,
+      isin: pos.isin,
+      shares: pos.shares,
+      current_price: pos.current_price,
+      market_value: pos.market_value,
+    });
+
+    if (result) {
+      applyVerificationResults([result]);
+    }
+  };
+
+  // Apply verification results to positions
+  const applyVerificationResults = (verified: VerifiedPosition[]) => {
+    setEditablePositions((prev) =>
+      prev.map((p) => {
+        const match = verified.find(v => 
+          v.original_ticker.toUpperCase() === p.ticker.toUpperCase()
+        );
+        
+        if (!match) return p;
+
+        const wasCorrect = match.verified_ticker.toUpperCase() === p.ticker.toUpperCase();
+        
+        return {
+          ...p,
+          name: match.name || p.name,
+          position_type: match.asset_type || p.position_type,
+          category: match.category || p.category,
+          current_price: match.current_price ?? p.current_price,
+          verification_status: match.verification_status,
+          verification_notes: match.notes,
+          verified: wasCorrect || match.verification_status === "confirmed",
+          needs_verification: match.verification_status === "corrected" || match.verification_status === "uncertain",
+          corrected_ticker: wasCorrect ? undefined : match.verified_ticker,
+        };
+      })
+    );
+  };
 
   const handleImport = async () => {
     if (!user) {
@@ -140,7 +252,7 @@ export function ScreenshotPreviewTable({
       return;
     }
 
-    if (unverifiedCount > 0) {
+    if (unverifiedCount > 0 || pendingCorrectionCount > 0) {
       toast.error("Please verify all positions marked for review");
       return;
     }
@@ -234,6 +346,34 @@ export function ScreenshotPreviewTable({
     (p) => p.selected && (p.shares === null || p.market_value === null)
   );
 
+  const getVerificationStatusBadge = (pos: EditablePosition) => {
+    if (!pos.verification_status) return null;
+
+    switch (pos.verification_status) {
+      case "confirmed":
+        return (
+          <Badge variant="default" className="bg-emerald-500/20 text-emerald-500 border-emerald-500/30 gap-1">
+            <CheckCircle2 className="w-3 h-3" />
+            Verified
+          </Badge>
+        );
+      case "corrected":
+        return (
+          <Badge variant="outline" className="border-amber-500/50 text-amber-500 gap-1">
+            <RefreshCw className="w-3 h-3" />
+            Corrected
+          </Badge>
+        );
+      case "uncertain":
+        return (
+          <Badge variant="outline" className="border-destructive/50 text-destructive gap-1">
+            <AlertCircle className="w-3 h-3" />
+            Uncertain
+          </Badge>
+        );
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Metadata badges */}
@@ -276,7 +416,23 @@ export function ScreenshotPreviewTable({
         </div>
       )}
 
-      {/* Summary */}
+      {/* Verification progress */}
+      {isVerifying && (
+        <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Verifying positions with web search...
+            </span>
+            <span className="text-sm text-muted-foreground">
+              {progress.current} of {progress.total}
+            </span>
+          </div>
+          <Progress value={(progress.current / progress.total) * 100} className="h-2" />
+        </div>
+      )}
+
+      {/* Summary and actions */}
       <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-4">
           <span className="text-muted-foreground">
@@ -289,14 +445,26 @@ export function ScreenshotPreviewTable({
             Deselect All
           </Button>
         </div>
-        {cashBalances && Object.keys(cashBalances).length > 0 && (
-          <div className="text-muted-foreground">
-            Cash:{" "}
-            {Object.entries(cashBalances)
-              .map(([currency, amount]) => `${currency} ${amount.toLocaleString()}`)
-              .join(" | ")}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleVerifyAll}
+            disabled={isVerifying}
+            className="gap-2"
+          >
+            <Search className="w-4 h-4" />
+            Verify All with Web Search
+          </Button>
+          {cashBalances && Object.keys(cashBalances).length > 0 && (
+            <span className="text-muted-foreground">
+              Cash:{" "}
+              {Object.entries(cashBalances)
+                .map(([currency, amount]) => `${currency} ${amount.toLocaleString()}`)
+                .join(" | ")}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Warning for incomplete data */}
@@ -310,11 +478,11 @@ export function ScreenshotPreviewTable({
       )}
 
       {/* Warning for unverified positions */}
-      {unverifiedCount > 0 && (
+      {(unverifiedCount > 0 || pendingCorrectionCount > 0) && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
           <AlertTriangle className="w-4 h-4 text-amber-500" />
           <span className="text-sm text-amber-500">
-            {unverifiedCount} position{unverifiedCount !== 1 ? "s" : ""} need{unverifiedCount === 1 ? "s" : ""} verification. Please review the highlighted rows.
+            {unverifiedCount + pendingCorrectionCount} position{(unverifiedCount + pendingCorrectionCount) !== 1 ? "s" : ""} need{(unverifiedCount + pendingCorrectionCount) === 1 ? "s" : ""} review. Please verify the highlighted rows.
           </span>
         </div>
       )}
@@ -333,6 +501,7 @@ export function ScreenshotPreviewTable({
               <TableHead>Category</TableHead>
               <TableHead className="text-right">Shares</TableHead>
               <TableHead className="text-right">Avg Price</TableHead>
+              <TableHead className="text-right">Current</TableHead>
               <TableHead className="text-right">Value</TableHead>
               <TableHead className="w-10"></TableHead>
             </TableRow>
@@ -344,7 +513,8 @@ export function ScreenshotPreviewTable({
                 className={cn(
                   "border-border",
                   !pos.selected && "opacity-50",
-                  pos.needs_verification && !pos.verified && "bg-amber-500/5"
+                  (pos.needs_verification && !pos.verified) && "bg-amber-500/5",
+                  pos.verification_status === "uncertain" && "bg-destructive/5"
                 )}
               >
                 <TableCell>
@@ -359,8 +529,10 @@ export function ScreenshotPreviewTable({
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div>
-                          {pos.needs_verification && !pos.verified ? (
+                        <div className="flex items-center gap-1">
+                          {pos.verification_status ? (
+                            getVerificationStatusBadge(pos)
+                          ) : pos.needs_verification && !pos.verified ? (
                             <AlertTriangle className="w-4 h-4 text-amber-500" />
                           ) : (
                             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
@@ -368,33 +540,75 @@ export function ScreenshotPreviewTable({
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
-                        {pos.needs_verification && !pos.verified
+                        {pos.verification_notes || (pos.needs_verification && !pos.verified
                           ? `AI guessed "${pos.originalTicker || pos.ticker}" - please verify`
-                          : "Verified"}
+                          : "Verified")}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-1">
-                    <Input
-                      value={pos.ticker}
-                      onChange={(e) => updatePosition(pos.id, "ticker", e.target.value)}
-                      className={cn(
-                        "h-8 w-20 font-mono font-semibold",
-                        pos.needs_verification && !pos.verified && "border-amber-500/50"
-                      )}
-                    />
-                    {pos.needs_verification && !pos.verified && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10"
-                        onClick={() => verifyPosition(pos.id)}
-                        title="Confirm this ticker"
-                      >
-                        <Check className="w-4 h-4" />
-                      </Button>
+                  <div className="flex flex-col gap-1">
+                    {pos.corrected_ticker && pos.verification_status === "corrected" ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1">
+                          <span className="line-through text-muted-foreground text-xs">{pos.ticker}</span>
+                          <span className="text-xs">→</span>
+                          <span className="font-bold text-primary">{pos.corrected_ticker}</span>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10"
+                            onClick={() => acceptCorrection(pos.id)}
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => keepOriginal(pos.id)}
+                          >
+                            Keep Original
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          value={pos.ticker}
+                          onChange={(e) => updatePosition(pos.id, "ticker", e.target.value)}
+                          className={cn(
+                            "h-8 w-20 font-mono font-semibold",
+                            pos.needs_verification && !pos.verified && "border-amber-500/50"
+                          )}
+                        />
+                        {pos.needs_verification && !pos.verified && (
+                          <div className="flex gap-0.5">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10"
+                              onClick={() => verifyPositionManual(pos.id)}
+                              title="Confirm this ticker"
+                            >
+                              <Check className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                              onClick={() => handleVerifySingle(pos.id)}
+                              disabled={isVerifying}
+                              title="Verify with web search"
+                            >
+                              <Search className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 </TableCell>
@@ -470,6 +684,17 @@ export function ScreenshotPreviewTable({
                   <Input
                     type="number"
                     step="0.01"
+                    value={pos.current_price ?? ""}
+                    onChange={(e) =>
+                      updatePosition(pos.id, "current_price", e.target.value ? parseFloat(e.target.value) : null)
+                    }
+                    className="h-8 w-24 text-right"
+                  />
+                </TableCell>
+                <TableCell className="text-right">
+                  <Input
+                    type="number"
+                    step="0.01"
                     value={pos.market_value ?? ""}
                     onChange={(e) =>
                       updatePosition(pos.id, "market_value", e.target.value ? parseFloat(e.target.value) : null)
@@ -518,12 +743,12 @@ export function ScreenshotPreviewTable({
           )}
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={onCancel} disabled={isImporting}>
+          <Button variant="outline" onClick={onCancel} disabled={isImporting || isVerifying}>
             Cancel
           </Button>
           <Button
             onClick={handleImport}
-            disabled={!canImport || isImporting}
+            disabled={!canImport || isImporting || isVerifying}
             className="gap-2"
           >
             {isImporting && <Loader2 className="w-4 h-4 animate-spin" />}
