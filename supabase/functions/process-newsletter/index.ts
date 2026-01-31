@@ -175,24 +175,24 @@ Rules:
       });
     }
 
-    // Macro views
+    // Macro views - use "macro" type
     for (const macro of insights.macro_views || []) {
       insightsToInsert.push({
         newsletter_id: newsletterId,
-        insight_type: `macro_${macro.topic}`,
-        content: macro.view,
+        insight_type: "macro",
+        content: `${macro.topic}: ${macro.view}`,
         sentiment: macro.sentiment,
         tickers_mentioned: [],
         confidence_words: [],
       });
     }
 
-    // Sector views
+    // Sector views - use "recommendation" type
     for (const sector of insights.sector_views || []) {
       insightsToInsert.push({
         newsletter_id: newsletterId,
-        insight_type: `sector_${sector.sector}`,
-        content: sector.view,
+        insight_type: "recommendation",
+        content: `${sector.sector}: ${sector.view}`,
         sentiment: sector.sentiment,
         tickers_mentioned: [],
         confidence_words: [],
@@ -211,11 +211,11 @@ Rules:
       });
     }
 
-    // Key takeaways
+    // Key takeaways - use "sentiment" type for overall takeaways
     for (const takeaway of insights.key_takeaways || []) {
       insightsToInsert.push({
         newsletter_id: newsletterId,
-        insight_type: "key_takeaway",
+        insight_type: "sentiment",
         content: takeaway,
         sentiment: insights.overall_sentiment || "neutral",
         tickers_mentioned: [],
