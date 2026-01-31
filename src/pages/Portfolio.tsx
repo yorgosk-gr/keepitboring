@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from "react";
-import { Upload, Plus, Search, Briefcase, RefreshCw, DollarSign, Clock } from "lucide-react";
+import { Upload, Plus, Search, Briefcase, RefreshCw, DollarSign, Clock, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePositions, type Position, type PositionFormData } from "@/hooks/usePositions";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useTickerVerification } from "@/hooks/useTickerVerification";
 import { usePriceRefresh, type PriceUpdate } from "@/hooks/usePriceRefresh";
+import { useETFClassification } from "@/hooks/useETFClassification";
 import { AllocationSummary } from "@/components/portfolio/AllocationSummary";
 import { PositionsTable } from "@/components/portfolio/PositionsTable";
 import { PositionModal } from "@/components/portfolio/PositionModal";
@@ -38,6 +39,9 @@ export default function Portfolio() {
   
   // Ticker verification
   const { verifySinglePosition, isVerifying } = useTickerVerification();
+  
+  // ETF classification
+  const { classifyETFs, updatePositionCategories, isClassifying } = useETFClassification();
   
   // Price refresh
   const { fetchPrices, isFetching: isFetchingPrices, progress: priceProgress } = usePriceRefresh();
@@ -198,6 +202,25 @@ export default function Portfolio() {
     setNotFoundTickers(notFound);
   };
 
+  // Handle ETF reclassification
+  const handleReclassifyETFs = async () => {
+    const etfs = positions
+      .filter(p => p.position_type === "etf")
+      .map(p => ({ ticker: p.ticker, name: p.name || undefined }));
+
+    if (etfs.length === 0) {
+      toast.info("No ETFs to classify");
+      return;
+    }
+
+    const classifications = await classifyETFs(etfs, { forceReclassify: true });
+    
+    if (classifications.length > 0 && user) {
+      await updatePositionCategories(classifications, user.id);
+      toast.success(`Reclassified ${classifications.length} ETFs`);
+    }
+  };
+
   // Apply price updates
   const handleApplyPriceUpdates = async (updates: { id: string; current_price: number }[]) => {
     if (!user) return;
@@ -281,6 +304,15 @@ export default function Portfolio() {
         </div>
         
         <div className="flex flex-wrap gap-2">
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={handleReclassifyETFs}
+            disabled={positions.filter(p => p.position_type === "etf").length === 0 || isClassifying}
+          >
+            <Tags className="w-4 h-4" />
+            {isClassifying ? "Classifying..." : "Reclassify ETFs"}
+          </Button>
           <Button 
             variant="outline" 
             className="gap-2"

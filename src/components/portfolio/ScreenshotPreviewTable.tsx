@@ -34,6 +34,7 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useTickerVerification, type VerifiedPosition } from "@/hooks/useTickerVerification";
+import { useETFClassification } from "@/hooks/useETFClassification";
 
 export interface ExtractedPosition {
   ticker: string;
@@ -92,6 +93,7 @@ export function ScreenshotPreviewTable({
   const [isImporting, setIsImporting] = useState(false);
   const [hasReviewed, setHasReviewed] = useState(false);
   const { verifyPositions, verifySinglePosition, isVerifying, progress } = useTickerVerification();
+  const { classifyETFs, updatePositionCategories, isClassifying } = useETFClassification();
 
   const hasSourcePages = positions.some(p => p.source_page !== undefined && p.source_page > 1);
   const hasVerificationNeeded = positions.some(p => p.needs_verification);
@@ -332,6 +334,19 @@ export function ScreenshotPreviewTable({
 
       queryClient.invalidateQueries({ queryKey: ["positions"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+
+      // Auto-classify ETFs after import
+      const importedETFs = toImport
+        .filter(p => p.position_type === "etf")
+        .map(p => ({ ticker: p.ticker, name: p.name || undefined }));
+
+      if (importedETFs.length > 0 && user) {
+        toast.info(`Classifying ${importedETFs.length} ETFs...`);
+        const classifications = await classifyETFs(importedETFs);
+        if (classifications.length > 0) {
+          await updatePositionCategories(classifications, user.id);
+        }
+      }
 
       onImportComplete();
       navigate("/portfolio");
@@ -743,16 +758,16 @@ export function ScreenshotPreviewTable({
           )}
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={onCancel} disabled={isImporting || isVerifying}>
+          <Button variant="outline" onClick={onCancel} disabled={isImporting || isVerifying || isClassifying}>
             Cancel
           </Button>
           <Button
             onClick={handleImport}
-            disabled={!canImport || isImporting || isVerifying}
+            disabled={!canImport || isImporting || isVerifying || isClassifying}
             className="gap-2"
           >
-            {isImporting && <Loader2 className="w-4 h-4 animate-spin" />}
-            Import {selectedCount} Position{selectedCount !== 1 ? "s" : ""}
+            {(isImporting || isClassifying) && <Loader2 className="w-4 h-4 animate-spin" />}
+            {isClassifying ? "Classifying ETFs..." : `Import ${selectedCount} Position${selectedCount !== 1 ? "s" : ""}`}
           </Button>
         </div>
       </div>
