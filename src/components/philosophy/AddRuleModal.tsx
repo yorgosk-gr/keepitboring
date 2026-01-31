@@ -33,9 +33,18 @@ const formSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   description: z.string().min(1, "Description is required").max(500),
   rule_type: z.enum(["allocation", "position_size", "quality", "decision", "market"]),
-  threshold_min: z.number().nullable().optional(),
-  threshold_max: z.number().nullable().optional(),
+  threshold_min: z.number().min(0, "Threshold cannot be negative").max(100, "Threshold cannot exceed 100%").nullable().optional(),
+  threshold_max: z.number().min(0, "Threshold cannot be negative").max(100, "Threshold cannot exceed 100%").nullable().optional(),
   source_books: z.string().optional(),
+}).refine((data) => {
+  if (data.threshold_min !== null && data.threshold_min !== undefined && 
+      data.threshold_max !== null && data.threshold_max !== undefined) {
+    return data.threshold_max >= data.threshold_min;
+  }
+  return true;
+}, {
+  message: "Max threshold must be greater than or equal to min threshold",
+  path: ["threshold_max"],
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -151,6 +160,9 @@ export function AddRuleModal({ open, onClose, onSubmit, isLoading }: AddRuleModa
                     <FormControl>
                       <Input
                         type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
                         placeholder="e.g., 10"
                         value={field.value ?? ""}
                         onChange={(e) =>
@@ -172,6 +184,9 @@ export function AddRuleModal({ open, onClose, onSubmit, isLoading }: AddRuleModa
                     <FormControl>
                       <Input
                         type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
                         placeholder="e.g., 25"
                         value={field.value ?? ""}
                         onChange={(e) =>
