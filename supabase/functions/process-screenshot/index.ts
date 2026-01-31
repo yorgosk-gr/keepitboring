@@ -5,17 +5,33 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+interface ImageData {
+  base64: string;
+  mimeType: string;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const { imageBase64, mimeType } = await req.json();
+    const body = await req.json();
     
-    if (!imageBase64) {
+    // Support both single image (legacy) and multiple images
+    let images: ImageData[] = [];
+    
+    if (body.images && Array.isArray(body.images)) {
+      // New multi-image format
+      images = body.images;
+    } else if (body.imageBase64) {
+      // Legacy single image format
+      images = [{ base64: body.imageBase64, mimeType: body.mimeType || "image/png" }];
+    }
+    
+    if (images.length === 0) {
       return new Response(
-        JSON.stringify({ error: "No image provided" }),
+        JSON.stringify({ error: "No images provided" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -29,9 +45,13 @@ serve(async (req) => {
       );
     }
 
-    console.log("Processing screenshot with Lovable AI...");
+    console.log(`Processing ${images.length} screenshot(s) with Lovable AI...`);
 
-    const systemPrompt = `You are extracting portfolio data from a broker screenshot (likely Interactive Brokers or similar).
+    // Different prompts for single vs multiple images
+    const isSingleImage = images.length === 1;
+    
+    const systemPrompt = isSingleImage
+      ? `You are extracting portfolio data from a broker screenshot (likely Interactive Brokers or similar).
 
 Extract all visible positions and return ONLY valid JSON (no markdown, no explanation, no code blocks):
 {
@@ -60,7 +80,71 @@ Rules:
 - Numbers without currency symbols or thousand separators
 - If unsure about a value, use null
 - For ETFs, try to identify the short ticker (e.g., "VWCE" not "IE00BK5BQT80")
+- Return ONLY the JSON object, nothing else`
+      : `You are extracting portfolio data from multiple Interactive Brokers screenshots. 
+These images are pages from the SAME portfolio view — the full position list did not fit on one screen.
+
+Extract ALL positions across ALL images. Deduplicate if any position appears in more than one image (use the most complete data).
+
+Return ONLY valid JSON (no markdown, no explanation, no code blocks):
+{
+  "positions": [
+    {
+      "ticker": "AAPL",
+      "name": "Apple Inc",
+      "shares": 100,
+      "avg_price": 150.50,
+      "current_price": 155.00,
+      "market_value": 15500,
+      "pnl": 450,
+      "source_page": 1
+    }
+  ],
+  "cash_balances": {
+    "USD": 10000,
+    "EUR": 5000
+  },
+  "total_value": 500000
+}
+
+Rules:
+- Combine positions from ALL images into one list
+- Deduplicate: if same ticker appears twice, keep the row with more data
+- Include source_page (1, 2, 3, etc.) indicating which image the position was primarily extracted from
+- Use null for values you cannot clearly read
+- Ticker symbols only (no exchange suffixes like .DE or .L)
+- Numbers without currency symbols or thousand separators
+- If unsure about a value, use null
+- For ETFs, try to identify the short ticker (e.g., "VWCE" not "IE00BK5BQT80")
 - Return ONLY the JSON object, nothing else`;
+
+    // Build the content array with all images
+    const userContent: Array<{ type: string; image_url?: { url: string }; text?: string }> = [];
+    
+    images.forEach((img, index) => {
+      userContent.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${img.mimeType || "image/png"};base64,${img.base64}`,
+        },
+      });
+      
+      // Add page label for multi-image
+      if (!isSingleImage) {
+        userContent.push({
+          type: "text",
+          text: `[This is Page ${index + 1} of ${images.length}]`,
+        });
+      }
+    });
+    
+    // Add final instruction
+    userContent.push({
+      type: "text",
+      text: isSingleImage
+        ? "Extract all portfolio positions from this broker screenshot. Return only valid JSON."
+        : `Extract all portfolio positions from these ${images.length} broker screenshots. Combine and deduplicate positions. Return only valid JSON with source_page for each position.`,
+    });
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -72,23 +156,9 @@ Rules:
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: [
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${mimeType || "image/png"};base64,${imageBase64}`,
-                },
-              },
-              {
-                type: "text",
-                text: "Extract all portfolio positions from this broker screenshot. Return only valid JSON.",
-              },
-            ],
-          },
+          { role: "user", content: userContent },
         ],
-        max_tokens: 4096,
+        max_tokens: 8192, // Increased for multi-image responses
       }),
     });
 
@@ -148,7 +218,7 @@ Rules:
       console.error("Failed to parse AI response as JSON:", content);
       return new Response(
         JSON.stringify({ 
-          error: "Could not parse extracted data. Please try with a clearer screenshot.",
+          error: "Could not parse extracted data. Please try with clearer screenshots.",
           raw: content 
         }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -166,7 +236,7 @@ Rules:
       );
     }
 
-    console.log(`Successfully extracted ${extractedData.positions.length} positions`);
+    console.log(`Successfully extracted ${extractedData.positions.length} positions from ${images.length} image(s)`);
 
     return new Response(
       JSON.stringify({ 
