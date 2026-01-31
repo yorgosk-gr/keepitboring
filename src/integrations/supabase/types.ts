@@ -160,6 +160,48 @@ export type Database = {
           },
         ]
       }
+      etf_metadata: {
+        Row: {
+          asset_class_details: string | null
+          category: string | null
+          classified_at: string
+          expense_ratio: number | null
+          full_name: string | null
+          geography: string | null
+          is_broad_market: boolean | null
+          issuer: string | null
+          sub_category: string | null
+          ticker: string
+          tracks: string | null
+        }
+        Insert: {
+          asset_class_details?: string | null
+          category?: string | null
+          classified_at?: string
+          expense_ratio?: number | null
+          full_name?: string | null
+          geography?: string | null
+          is_broad_market?: boolean | null
+          issuer?: string | null
+          sub_category?: string | null
+          ticker: string
+          tracks?: string | null
+        }
+        Update: {
+          asset_class_details?: string | null
+          category?: string | null
+          classified_at?: string
+          expense_ratio?: number | null
+          full_name?: string | null
+          geography?: string | null
+          is_broad_market?: boolean | null
+          issuer?: string | null
+          sub_category?: string | null
+          ticker?: string
+          tracks?: string | null
+        }
+        Relationships: []
+      }
       insights: {
         Row: {
           confidence_words: string[] | null
@@ -322,6 +364,7 @@ export type Database = {
           current_price: number | null
           id: string
           last_review_date: string | null
+          manually_classified: boolean | null
           market_value: number | null
           name: string | null
           position_type: string | null
@@ -341,6 +384,7 @@ export type Database = {
           current_price?: number | null
           id?: string
           last_review_date?: string | null
+          manually_classified?: boolean | null
           market_value?: number | null
           name?: string | null
           position_type?: string | null
@@ -360,6 +404,7 @@ export type Database = {
           current_price?: number | null
           id?: string
           last_review_date?: string | null
+          manually_classified?: boolean | null
           market_value?: number | null
           name?: string | null
           position_type?: string | null

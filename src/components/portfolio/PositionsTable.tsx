@@ -11,6 +11,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { Position } from "@/hooks/usePositions";
+import { ETFInfoTooltip } from "./ETFInfoTooltip";
+import { useETFMetadata } from "@/hooks/useETFMetadata";
 
 type SortField = "ticker" | "market_value" | "weight_percent" | "pnl_percent" | "confidence_level";
 type SortDirection = "asc" | "desc";
@@ -114,6 +116,13 @@ export function PositionsTable({
   const [sortField, setSortField] = useState<SortField>("market_value");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Get ETF tickers for metadata lookup
+  const etfTickers = useMemo(() => 
+    positions.filter(p => p.position_type === "etf").map(p => p.ticker),
+    [positions]
+  );
+  const { data: etfMetadata = {} } = useETFMetadata(etfTickers);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -256,6 +265,9 @@ export function PositionsTable({
                         onClick={() => setExpandedId(isExpanded ? null : position.id)}
                       >
                         {position.ticker}
+                        {position.position_type === "etf" && (
+                          <ETFInfoTooltip metadata={etfMetadata[position.ticker] || null} />
+                        )}
                         {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                       </button>
                     </td>

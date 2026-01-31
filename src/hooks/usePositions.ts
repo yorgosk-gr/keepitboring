@@ -76,6 +76,8 @@ export function usePositions() {
           thesis_notes: formData.thesis_notes 
             ? `${formData.thesis_notes}${formData.invalidation_triggers ? `\n\n**Invalidation Triggers:**\n${formData.invalidation_triggers}` : ""}`
             : null,
+          // Mark as manually classified since user set the category
+          manually_classified: true,
         })
         .select()
         .single();
@@ -112,6 +114,8 @@ export function usePositions() {
           thesis_notes: formData.thesis_notes 
             ? `${formData.thesis_notes}${formData.invalidation_triggers ? `\n\n**Invalidation Triggers:**\n${formData.invalidation_triggers}` : ""}`
             : null,
+          // Mark as manually classified when user edits the category
+          manually_classified: true,
         })
         .eq("id", id)
         .select()
