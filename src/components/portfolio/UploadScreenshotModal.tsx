@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Upload, X, Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { Upload, X, Loader2, AlertCircle, CheckCircle, GripVertical, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,23 +19,33 @@ interface UploadScreenshotModalProps {
 
 type ProcessingState = "idle" | "uploading" | "processing" | "preview" | "importing" | "error";
 
+interface UploadedImage {
+  id: string;
+  file: File;
+  preview: string;
+  pageNumber: number;
+}
+
 interface ExtractedData {
   positions: ExtractedPosition[];
   cash_balances?: Record<string, number>;
   total_value?: number | null;
 }
 
+const MAX_IMAGES = 5;
+
 export function UploadScreenshotModal({ open, onClose, onImportComplete }: UploadScreenshotModalProps) {
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [images, setImages] = useState<UploadedImage[]>([]);
   const [state, setState] = useState<ProcessingState>("idle");
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [rawResponse, setRawResponse] = useState<string | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   const handleClose = () => {
-    setFile(null);
-    setPreview(null);
+    // Clean up preview URLs
+    images.forEach(img => URL.revokeObjectURL(img.preview));
+    setImages([]);
     setState("idle");
     setExtractedData(null);
     setErrorMessage(null);
@@ -43,50 +53,120 @@ export function UploadScreenshotModal({ open, onClose, onImportComplete }: Uploa
     onClose();
   };
 
-  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile && (droppedFile.type === "image/png" || droppedFile.type === "image/jpeg")) {
-      setFile(droppedFile);
-      setPreview(URL.createObjectURL(droppedFile));
-      setState("idle");
-      setErrorMessage(null);
-    } else {
-      toast.error("Please upload a PNG or JPG image");
+  const addImages = useCallback((files: FileList | File[]) => {
+    const validFiles: File[] = [];
+    
+    for (const file of Array.from(files)) {
+      if (file.type === "image/png" || file.type === "image/jpeg") {
+        validFiles.push(file);
+      }
     }
+    
+    if (validFiles.length === 0) {
+      toast.error("Please upload PNG or JPG images");
+      return;
+    }
+
+    setImages(prev => {
+      const currentCount = prev.length;
+      const remainingSlots = MAX_IMAGES - currentCount;
+      
+      if (remainingSlots <= 0) {
+        toast.error(`Maximum ${MAX_IMAGES} images allowed`);
+        return prev;
+      }
+
+      const filesToAdd = validFiles.slice(0, remainingSlots);
+      
+      if (validFiles.length > remainingSlots) {
+        toast.warning(`Only added ${remainingSlots} image(s). Maximum is ${MAX_IMAGES}.`);
+      }
+
+      const newImages: UploadedImage[] = filesToAdd.map((file, i) => ({
+        id: `img-${Date.now()}-${i}`,
+        file,
+        preview: URL.createObjectURL(file),
+        pageNumber: currentCount + i + 1,
+      }));
+
+      return [...prev, ...newImages];
+    });
+
+    setState("idle");
+    setErrorMessage(null);
   }, []);
 
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    addImages(e.dataTransfer.files);
+  }, [addImages]);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile && (selectedFile.type === "image/png" || selectedFile.type === "image/jpeg")) {
-      setFile(selectedFile);
-      setPreview(URL.createObjectURL(selectedFile));
-      setState("idle");
-      setErrorMessage(null);
-    } else {
-      toast.error("Please upload a PNG or JPG image");
+    if (e.target.files && e.target.files.length > 0) {
+      addImages(e.target.files);
+      e.target.value = ""; // Reset to allow re-selecting same files
     }
   };
 
+  const removeImage = (id: string) => {
+    setImages(prev => {
+      const filtered = prev.filter(img => {
+        if (img.id === id) {
+          URL.revokeObjectURL(img.preview);
+          return false;
+        }
+        return true;
+      });
+      // Re-number pages
+      return filtered.map((img, i) => ({ ...img, pageNumber: i + 1 }));
+    });
+  };
+
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+
+    setImages(prev => {
+      const newImages = [...prev];
+      const [dragged] = newImages.splice(draggedIndex, 1);
+      newImages.splice(index, 0, dragged);
+      // Re-number pages
+      return newImages.map((img, i) => ({ ...img, pageNumber: i + 1 }));
+    });
+    setDraggedIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+  };
+
   const processWithAI = async () => {
-    if (!file) return;
+    if (images.length === 0) return;
 
     setState("uploading");
     setErrorMessage(null);
 
     try {
-      // Convert to base64
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          // Remove the data URL prefix to get pure base64
-          const base64Data = result.split(",")[1];
-          resolve(base64Data);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      // Convert all images to base64
+      const imageData: { base64: string; mimeType: string }[] = [];
+      
+      for (const img of images) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            const base64Data = result.split(",")[1];
+            resolve(base64Data);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(img.file);
+        });
+        imageData.push({ base64, mimeType: img.file.type });
+      }
 
       setState("processing");
 
@@ -99,8 +179,10 @@ export function UploadScreenshotModal({ open, onClose, onImportComplete }: Uploa
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
           body: JSON.stringify({
-            imageBase64: base64,
-            mimeType: file.type,
+            images: imageData,
+            // Legacy support for single image
+            imageBase64: imageData.length === 1 ? imageData[0].base64 : undefined,
+            mimeType: imageData.length === 1 ? imageData[0].mimeType : undefined,
           }),
         }
       );
@@ -117,14 +199,13 @@ export function UploadScreenshotModal({ open, onClose, onImportComplete }: Uploa
       if (result.success && result.data) {
         setExtractedData(result.data);
         setState("preview");
-        toast.success(`Extracted ${result.data.positions.length} positions!`);
+        toast.success(`Extracted ${result.data.positions.length} positions from ${images.length} page(s)!`);
       } else {
         setErrorMessage("Unexpected response format");
         setState("error");
       }
     } catch (error) {
-      console.error("Error processing screenshot:", error);
-      setErrorMessage(error instanceof Error ? error.message : "Failed to process screenshot");
+      setErrorMessage(error instanceof Error ? error.message : "Failed to process screenshots");
       setState("error");
     }
   };
@@ -139,68 +220,101 @@ export function UploadScreenshotModal({ open, onClose, onImportComplete }: Uploa
     <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className={cn(
         "bg-card border-border",
-        state === "preview" ? "max-w-4xl" : "max-w-lg"
+        state === "preview" ? "max-w-4xl" : "max-w-2xl"
       )}>
         <DialogHeader>
           <DialogTitle className="text-foreground">
-            {state === "preview" ? "Review Extracted Positions" : "Upload Broker Screenshot"}
+            {state === "preview" ? "Review Extracted Positions" : "Upload Broker Screenshots"}
           </DialogTitle>
         </DialogHeader>
 
         {state !== "preview" ? (
           <div className="space-y-4">
+            {/* Info Note */}
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+              <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              <p className="text-sm text-muted-foreground">
+                Upload all pages of your portfolio. If your positions span multiple screenshots, upload them all at once (up to {MAX_IMAGES} images).
+              </p>
+            </div>
+
+            {/* Image Thumbnails */}
+            {images.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">
+                  {images.length} image{images.length !== 1 ? "s" : ""} selected
+                </p>
+                <div className="flex gap-3 overflow-x-auto pb-2">
+                  {images.map((img, index) => (
+                    <div
+                      key={img.id}
+                      draggable
+                      onDragStart={() => handleDragStart(index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDragEnd={handleDragEnd}
+                      className={cn(
+                        "relative shrink-0 group rounded-lg border-2 transition-all cursor-grab active:cursor-grabbing",
+                        draggedIndex === index
+                          ? "border-primary opacity-50"
+                          : "border-border hover:border-primary/50"
+                      )}
+                    >
+                      <div className="absolute top-1 left-1 z-10">
+                        <GripVertical className="w-4 h-4 text-muted-foreground/60" />
+                      </div>
+                      <img
+                        src={img.preview}
+                        alt={`Page ${img.pageNumber}`}
+                        className="w-28 h-20 object-cover rounded-lg"
+                      />
+                      <div className="absolute bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-background/90 rounded text-xs font-medium">
+                        Page {img.pageNumber} of {images.length}
+                      </div>
+                      <button
+                        onClick={() => removeImage(img.id)}
+                        className="absolute -top-2 -right-2 p-1 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/90"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Drop Zone */}
             <div
               onDrop={handleDrop}
               onDragOver={(e) => e.preventDefault()}
               className={cn(
-                "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
+                "relative border-2 border-dashed rounded-lg p-6 text-center transition-colors",
                 "hover:border-primary/50 hover:bg-primary/5",
-                file ? "border-primary bg-primary/5" : "border-border"
+                images.length > 0 ? "border-border" : "border-border"
               )}
             >
-              {preview ? (
-                <div className="space-y-4">
-                  <div className="relative inline-block">
-                    <img
-                      src={preview}
-                      alt="Screenshot preview"
-                      className="max-h-48 rounded-lg shadow-md"
-                    />
-                    <button
-                      onClick={() => {
-                        setFile(null);
-                        setPreview(null);
-                        setState("idle");
-                      }}
-                      className="absolute -top-2 -right-2 p-1 bg-destructive text-destructive-foreground rounded-full hover:bg-destructive/90"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{file?.name}</p>
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                  <Upload className="w-6 h-6 text-primary" />
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                    <Upload className="w-8 h-8 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-foreground font-medium">
-                      Drag and drop your screenshot here
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      or click to browse (PNG, JPG)
-                    </p>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    onChange={handleFileSelect}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
+                <div>
+                  <p className="text-foreground font-medium">
+                    {images.length === 0
+                      ? "Drag and drop your screenshots here"
+                      : "Add more screenshots"}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    or click to browse (PNG, JPG) • {images.length}/{MAX_IMAGES} images
+                  </p>
                 </div>
-              )}
+              </div>
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                multiple
+                onChange={handleFileSelect}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                disabled={images.length >= MAX_IMAGES}
+              />
             </div>
 
             {/* Error State */}
@@ -230,7 +344,9 @@ export function UploadScreenshotModal({ open, onClose, onImportComplete }: Uploa
               <div className="flex items-center justify-center gap-3 p-4 rounded-lg bg-primary/10">
                 <Loader2 className="w-5 h-5 text-primary animate-spin" />
                 <p className="text-sm text-primary">
-                  {state === "uploading" ? "Uploading image..." : "AI is analyzing your screenshot..."}
+                  {state === "uploading"
+                    ? `Uploading ${images.length} image${images.length !== 1 ? "s" : ""}...`
+                    : `AI is analyzing ${images.length} screenshot${images.length !== 1 ? "s" : ""}...`}
                 </p>
               </div>
             )}
@@ -241,14 +357,14 @@ export function UploadScreenshotModal({ open, onClose, onImportComplete }: Uploa
                 Cancel
               </Button>
               {state === "error" && (
-                <Button onClick={processWithAI} disabled={!file}>
+                <Button onClick={processWithAI} disabled={images.length === 0}>
                   Retry
                 </Button>
               )}
               {state === "idle" && (
                 <Button
                   onClick={processWithAI}
-                  disabled={!file}
+                  disabled={images.length === 0}
                   className="gap-2"
                 >
                   <CheckCircle className="w-4 h-4" />

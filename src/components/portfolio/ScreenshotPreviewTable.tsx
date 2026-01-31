@@ -33,6 +33,7 @@ export interface ExtractedPosition {
   current_price: number | null;
   market_value: number | null;
   pnl: number | null;
+  source_page?: number;
 }
 
 interface EditablePosition extends ExtractedPosition {
@@ -61,6 +62,9 @@ export function ScreenshotPreviewTable({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isImporting, setIsImporting] = useState(false);
+
+  // Check if we have multi-page data
+  const hasSourcePages = positions.some(p => p.source_page !== undefined);
 
   const [editablePositions, setEditablePositions] = useState<EditablePosition[]>(
     positions.map((p, i) => ({
@@ -180,7 +184,6 @@ export function ScreenshotPreviewTable({
       });
 
       if (snapshotError) {
-        console.error("Failed to create snapshot:", snapshotError);
         // Non-fatal, continue
       }
 
@@ -191,7 +194,6 @@ export function ScreenshotPreviewTable({
       onImportComplete();
       navigate("/portfolio");
     } catch (error) {
-      console.error("Import error:", error);
       toast.error("Failed to import positions. Please try again.");
     } finally {
       setIsImporting(false);
@@ -255,6 +257,7 @@ export function ScreenshotPreviewTable({
               <TableHead className="w-10"></TableHead>
               <TableHead>Ticker</TableHead>
               <TableHead>Name</TableHead>
+              {hasSourcePages && <TableHead className="w-16">Page</TableHead>}
               <TableHead>Type</TableHead>
               <TableHead>Category</TableHead>
               <TableHead className="text-right">Shares</TableHead>
@@ -293,6 +296,13 @@ export function ScreenshotPreviewTable({
                     className="h-8 w-32"
                   />
                 </TableCell>
+                {hasSourcePages && (
+                  <TableCell>
+                    <Badge variant="outline" className="font-normal">
+                      {pos.source_page ?? "-"}
+                    </Badge>
+                  </TableCell>
+                )}
                 <TableCell>
                   <Select
                     value={pos.position_type}
