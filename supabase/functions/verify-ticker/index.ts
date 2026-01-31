@@ -46,7 +46,7 @@ serve(async (req) => {
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) {
       return new Response(
-        JSON.stringify({ error: "Anthropic API key not configured" }),
+        JSON.stringify({ error: "API key required. Please configure your Anthropic API key to use ticker verification." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
