@@ -1,0 +1,339 @@
+import { useState, useMemo } from "react";
+import { ChevronDown, ChevronUp, Pencil, Trash2, FileText, Star } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
+import type { Position } from "@/hooks/usePositions";
+
+type SortField = "ticker" | "market_value" | "weight_percent" | "pnl_percent" | "confidence_level";
+type SortDirection = "asc" | "desc";
+
+interface PositionsTableProps {
+  positions: Position[];
+  isLoading?: boolean;
+  onEdit: (position: Position) => void;
+  onDelete: (position: Position) => void;
+  onLogDecision: (position: Position) => void;
+  selectedIds: string[];
+  onSelectionChange: (ids: string[]) => void;
+}
+
+function calculatePnL(position: Position) {
+  const avgCost = position.avg_cost ?? 0;
+  const currentPrice = position.current_price ?? 0;
+  const shares = position.shares ?? 0;
+  
+  if (avgCost === 0 || shares === 0) {
+    return { value: 0, percent: 0 };
+  }
+  
+  const costBasis = avgCost * shares;
+  const currentValue = currentPrice * shares;
+  const pnlValue = currentValue - costBasis;
+  const pnlPercent = ((currentPrice - avgCost) / avgCost) * 100;
+  
+  return { value: pnlValue, percent: pnlPercent };
+}
+
+function getTypeBadge(type: string | null) {
+  if (type === "stock") {
+    return (
+      <span className="px-2 py-0.5 text-xs font-medium bg-primary/20 text-primary rounded-full">
+        Stock
+      </span>
+    );
+  }
+  return (
+    <span className="px-2 py-0.5 text-xs font-medium bg-chart-3/20 text-chart-3 rounded-full">
+      ETF
+    </span>
+  );
+}
+
+function getBetTypeBadge(betType: string | null) {
+  switch (betType) {
+    case "active":
+      return (
+        <span className="px-2 py-0.5 text-xs font-medium bg-chart-4/20 text-chart-4 rounded-full">
+          Active
+        </span>
+      );
+    case "passive_carry":
+      return (
+        <span className="px-2 py-0.5 text-xs font-medium bg-muted text-muted-foreground rounded-full">
+          Passive
+        </span>
+      );
+    case "legacy_hold":
+      return (
+        <span className="px-2 py-0.5 text-xs font-medium bg-warning/20 text-warning rounded-full">
+          Legacy
+        </span>
+      );
+    default:
+      return null;
+  }
+}
+
+function ConfidenceStars({ level }: { level: number | null }) {
+  const stars = level ?? 0;
+  return (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: 10 }).map((_, i) => (
+        <Star
+          key={i}
+          className={`w-3 h-3 ${i < stars ? "text-warning fill-warning" : "text-muted-foreground/30"}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+export function PositionsTable({
+  positions,
+  isLoading,
+  onEdit,
+  onDelete,
+  onLogDecision,
+  selectedIds,
+  onSelectionChange,
+}: PositionsTableProps) {
+  const [sortField, setSortField] = useState<SortField>("market_value");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("desc");
+    }
+  };
+
+  const sortedPositions = useMemo(() => {
+    return [...positions].sort((a, b) => {
+      let aVal: number, bVal: number;
+      
+      switch (sortField) {
+        case "ticker":
+          return sortDirection === "asc" 
+            ? a.ticker.localeCompare(b.ticker)
+            : b.ticker.localeCompare(a.ticker);
+        case "market_value":
+          aVal = a.market_value ?? 0;
+          bVal = b.market_value ?? 0;
+          break;
+        case "weight_percent":
+          aVal = a.weight_percent ?? 0;
+          bVal = b.weight_percent ?? 0;
+          break;
+        case "pnl_percent":
+          aVal = calculatePnL(a).percent;
+          bVal = calculatePnL(b).percent;
+          break;
+        case "confidence_level":
+          aVal = a.confidence_level ?? 0;
+          bVal = b.confidence_level ?? 0;
+          break;
+        default:
+          return 0;
+      }
+      
+      return sortDirection === "asc" ? aVal - bVal : bVal - aVal;
+    });
+  }, [positions, sortField, sortDirection]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === positions.length) {
+      onSelectionChange([]);
+    } else {
+      onSelectionChange(positions.map(p => p.id));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    if (selectedIds.includes(id)) {
+      onSelectionChange(selectedIds.filter(i => i !== id));
+    } else {
+      onSelectionChange([...selectedIds, id]);
+    }
+  };
+
+  const SortHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
+    <th
+      className="text-left pb-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+      onClick={() => handleSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {children}
+        {sortField === field && (
+          sortDirection === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+        )}
+      </div>
+    </th>
+  );
+
+  if (isLoading) {
+    return (
+      <div className="stat-card overflow-hidden">
+        <div className="space-y-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (positions.length === 0) {
+    return null; // Let parent handle empty state
+  }
+
+  return (
+    <div className="stat-card overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-xs text-muted-foreground uppercase tracking-wide border-b border-border">
+            <tr>
+              <th className="pb-3 pr-2">
+                <Checkbox
+                  checked={selectedIds.length === positions.length && positions.length > 0}
+                  onCheckedChange={toggleSelectAll}
+                />
+              </th>
+              <SortHeader field="ticker">Ticker</SortHeader>
+              <th className="text-left pb-3 font-medium">Name</th>
+              <th className="text-left pb-3 font-medium">Type</th>
+              <th className="text-left pb-3 font-medium">Category</th>
+              <th className="text-right pb-3 font-medium">Shares</th>
+              <th className="text-right pb-3 font-medium">Avg Cost</th>
+              <th className="text-right pb-3 font-medium">Price</th>
+              <SortHeader field="market_value">Value</SortHeader>
+              <SortHeader field="weight_percent">Weight</SortHeader>
+              <SortHeader field="pnl_percent">P&L</SortHeader>
+              <th className="text-left pb-3 font-medium">Bet Type</th>
+              <SortHeader field="confidence_level">Confidence</SortHeader>
+              <th className="text-right pb-3 font-medium">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {sortedPositions.map((position) => {
+              const pnl = calculatePnL(position);
+              const isExpanded = expandedId === position.id;
+              const isSelected = selectedIds.includes(position.id);
+              
+              return (
+                <>
+                  <tr
+                    key={position.id}
+                    className={`hover:bg-secondary/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                  >
+                    <td className="py-3 pr-2">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleSelect(position.id)}
+                      />
+                    </td>
+                    <td className="py-3">
+                      <button
+                        className="font-bold text-foreground hover:text-primary transition-colors flex items-center gap-1"
+                        onClick={() => setExpandedId(isExpanded ? null : position.id)}
+                      >
+                        {position.ticker}
+                        {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+                    </td>
+                    <td className="py-3 text-muted-foreground max-w-[150px] truncate">
+                      {position.name || "—"}
+                    </td>
+                    <td className="py-3">{getTypeBadge(position.position_type)}</td>
+                    <td className="py-3 text-muted-foreground capitalize">{position.category || "—"}</td>
+                    <td className="py-3 text-right font-mono">
+                      {position.shares?.toLocaleString("de-DE", { maximumFractionDigits: 4 }) || "—"}
+                    </td>
+                    <td className="py-3 text-right font-mono">
+                      €{position.avg_cost?.toLocaleString("de-DE", { minimumFractionDigits: 2 }) || "—"}
+                    </td>
+                    <td className="py-3 text-right font-mono">
+                      €{position.current_price?.toLocaleString("de-DE", { minimumFractionDigits: 2 }) || "—"}
+                    </td>
+                    <td className="py-3 text-right font-mono font-medium">
+                      €{position.market_value?.toLocaleString("de-DE", { minimumFractionDigits: 0 }) || "—"}
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <Progress value={position.weight_percent ?? 0} className="w-12 h-1.5" />
+                        <span className="text-right font-mono text-xs">
+                          {(position.weight_percent ?? 0).toFixed(1)}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-3 text-right">
+                      <div className="flex flex-col items-end">
+                        <span className={`font-mono font-medium ${pnl.value >= 0 ? "text-primary" : "text-destructive"}`}>
+                          {pnl.value >= 0 ? "+" : ""}€{pnl.value.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </span>
+                        <span className={`text-xs ${pnl.percent >= 0 ? "text-primary" : "text-destructive"}`}>
+                          {pnl.percent >= 0 ? "+" : ""}{pnl.percent.toFixed(2)}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-3">{getBetTypeBadge(position.bet_type)}</td>
+                    <td className="py-3">
+                      <ConfidenceStars level={position.confidence_level} />
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => onLogDecision(position)}
+                          title="Log decision"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => onEdit(position)}
+                          title="Edit"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 hover:bg-destructive/20 hover:text-destructive"
+                          onClick={() => onDelete(position)}
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                  {isExpanded && position.thesis_notes && (
+                    <tr key={`${position.id}-expanded`} className="bg-secondary/20">
+                      <td colSpan={14} className="py-4 px-6">
+                        <div className="text-sm">
+                          <h4 className="font-medium text-foreground mb-2">Thesis Notes</h4>
+                          <p className="text-muted-foreground whitespace-pre-wrap">
+                            {position.thesis_notes}
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
