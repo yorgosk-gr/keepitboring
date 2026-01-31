@@ -17,6 +17,7 @@ export default function Dashboard() {
     dailyChangePercent,
     stocksPercent,
     etfsPercent,
+    cashPercent,
     categoryBreakdown,
     daysSinceUpdate,
     topPositions,
@@ -25,10 +26,11 @@ export default function Dashboard() {
     isDismissing,
   } = useDashboardData();
 
-  // Investment type chart data with targets
+  // Investment type chart data with targets (including cash)
   const investmentTypeData = [
     { name: "Stocks", value: stocksPercent, color: "hsl(38, 92%, 50%)", target: 20 },
     { name: "ETFs", value: etfsPercent, color: "hsl(160, 84%, 39%)", target: 80 },
+    { name: "Cash", value: cashPercent, color: "hsl(217, 33%, 40%)" },
   ];
 
   // Asset breakdown chart data
