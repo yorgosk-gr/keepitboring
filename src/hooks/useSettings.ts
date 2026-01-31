@@ -3,6 +3,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+export type InsightsWindow = "7" | "30" | "90" | "all";
+
 export interface UserSettings {
   currency: string;
   fiscalYearStart: number;
@@ -10,6 +12,7 @@ export interface UserSettings {
   alertSeverityThreshold: "all" | "warning" | "critical";
   emailAlerts: boolean;
   onboardingCompleted: boolean;
+  insightsWindow: InsightsWindow;
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -19,6 +22,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   alertSeverityThreshold: "all",
   emailAlerts: false,
   onboardingCompleted: false,
+  insightsWindow: "30",
 };
 
 const SETTINGS_KEY = "yk-invest-settings";

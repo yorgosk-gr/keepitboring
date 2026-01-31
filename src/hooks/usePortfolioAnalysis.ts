@@ -6,6 +6,8 @@ import { usePositions } from "./usePositions";
 import { usePhilosophyRules } from "./usePhilosophyRules";
 import { useDecisionLogs } from "./useDecisionLogs";
 import { useAllETFMetadata } from "./useAllETFMetadata";
+import { useSettings } from "./useSettings";
+import { selectSmartInsights } from "./useSmartInsightSelection";
 import { toast } from "sonner";
 
 export interface AllocationCheck {
@@ -50,6 +52,16 @@ export interface RecommendedAction {
   dismiss_reason?: string;
 }
 
+export interface AnalysisMeta {
+  insightsCount: number;
+  newslettersCount: number;
+  portfolioMentions: number;
+  bubbleSignals: number;
+  macroViews: number;
+  oldestDate: string | null;
+  newestDate: string | null;
+}
+
 export interface AnalysisResult {
   id?: string;
   created_at?: string;
@@ -61,6 +73,7 @@ export interface AnalysisResult {
   portfolio_health_score: number;
   key_risks: string[];
   summary: string;
+  analysis_meta?: AnalysisMeta;
 }
 
 export interface AnalysisHistory {
@@ -84,32 +97,8 @@ export function usePortfolioAnalysis() {
   const { rules } = usePhilosophyRules();
   const { decisions } = useDecisionLogs();
   const { data: etfMetadata = {} } = useAllETFMetadata();
+  const { settings } = useSettings();
   const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisResult | null>(null);
-
-  // Fetch recent insights (last 30 days)
-  const insightsQuery = useQuery({
-    queryKey: ["insights", "recent", user?.id],
-    queryFn: async () => {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const { data, error } = await supabase
-        .from("insights")
-        .select(`
-          *,
-          newsletters (
-            source_name,
-            upload_date
-          )
-        `)
-        .gte("created_at", thirtyDaysAgo.toISOString())
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
 
   // Fetch analysis history
   const historyQuery = useQuery({
@@ -143,8 +132,16 @@ export function usePortfolioAnalysis() {
   const analysisMutation = useMutation({
     mutationFn: async () => {
       const activeRules = rules.filter((r) => r.is_active);
-      const recentInsights = insightsQuery.data ?? [];
       const recentDecisions = decisions.slice(0, 10);
+
+      // Get portfolio tickers for smart insight selection
+      const portfolioTickers = positions.map((p) => p.ticker);
+
+      // Use smart insight selection
+      const { insights: selectedInsights, meta: insightsMeta } = await selectSmartInsights(
+        portfolioTickers,
+        settings.insightsWindow
+      );
 
       // Prepare ETF classification data for the analysis
       const etfClassifications = positions
@@ -154,11 +151,23 @@ export function usePortfolioAnalysis() {
           ...etfMetadata[p.ticker],
         }));
 
+      // Get unique newsletter count
+      const uniqueNewsletterIds = new Set(selectedInsights.map((i) => i.newsletter_id));
+
       const { data, error } = await supabase.functions.invoke("analyze-portfolio", {
         body: {
           positions,
           rules: activeRules,
-          insights: recentInsights,
+          insights: selectedInsights.map((i) => ({
+            id: i.id,
+            insight_type: i.insight_type,
+            content: i.content,
+            sentiment: i.sentiment,
+            tickers_mentioned: i.tickers_mentioned,
+            confidence_words: i.confidence_words,
+            created_at: i.created_at,
+            source_name: i.newsletters?.source_name,
+          })),
           decisions: recentDecisions,
           etf_classifications: etfClassifications,
         },
@@ -167,7 +176,21 @@ export function usePortfolioAnalysis() {
       if (error) throw error;
       if (data.error) throw new Error(data.error);
 
-      return data as AnalysisResult;
+      // Add meta info to result
+      const result: AnalysisResult = {
+        ...data,
+        analysis_meta: {
+          insightsCount: insightsMeta.total,
+          newslettersCount: uniqueNewsletterIds.size,
+          portfolioMentions: insightsMeta.portfolioMentions,
+          bubbleSignals: insightsMeta.bubbleSignals,
+          macroViews: insightsMeta.macroViews,
+          oldestDate: insightsMeta.oldestDate,
+          newestDate: insightsMeta.newestDate,
+        },
+      };
+
+      return result;
     },
     onSuccess: async (data) => {
       setCurrentAnalysis(data);

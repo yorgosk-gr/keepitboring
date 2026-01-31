@@ -12,6 +12,7 @@ export interface Newsletter {
   file_path: string | null;
   raw_text: string | null;
   created_at: string;
+  is_archived: boolean;
   insights_count?: number;
 }
 

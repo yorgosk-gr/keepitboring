@@ -4,6 +4,8 @@ import { ApiConfigSection } from "@/components/settings/ApiConfigSection";
 import { PortfolioSettingsSection } from "@/components/settings/PortfolioSettingsSection";
 import { NotificationSection } from "@/components/settings/NotificationSection";
 import { DataManagementSection } from "@/components/settings/DataManagementSection";
+import { StorageDashboardSection } from "@/components/settings/StorageDashboardSection";
+import { InsightsWindowSection } from "@/components/settings/InsightsWindowSection";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Settings() {
@@ -55,6 +57,13 @@ export default function Settings() {
 
       <div className="space-y-6">
         <ApiConfigSection />
+        
+        <InsightsWindowSection
+          value={settings.insightsWindow}
+          onChange={(value) => updateSettings({ insightsWindow: value })}
+        />
+        
+        <StorageDashboardSection insightsWindow={settings.insightsWindow} />
         
         <PortfolioSettingsSection 
           settings={settings} 
