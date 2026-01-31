@@ -65,6 +65,51 @@ export type Database = {
           },
         ]
       }
+      analysis_history: {
+        Row: {
+          allocation_check: Json | null
+          created_at: string
+          health_score: number | null
+          id: string
+          key_risks: string[] | null
+          market_signals: Json | null
+          position_alerts: Json | null
+          raw_response: Json | null
+          recommended_actions: Json | null
+          summary: string | null
+          thesis_checks: Json | null
+          user_id: string
+        }
+        Insert: {
+          allocation_check?: Json | null
+          created_at?: string
+          health_score?: number | null
+          id?: string
+          key_risks?: string[] | null
+          market_signals?: Json | null
+          position_alerts?: Json | null
+          raw_response?: Json | null
+          recommended_actions?: Json | null
+          summary?: string | null
+          thesis_checks?: Json | null
+          user_id: string
+        }
+        Update: {
+          allocation_check?: Json | null
+          created_at?: string
+          health_score?: number | null
+          id?: string
+          key_risks?: string[] | null
+          market_signals?: Json | null
+          position_alerts?: Json | null
+          raw_response?: Json | null
+          recommended_actions?: Json | null
+          summary?: string | null
+          thesis_checks?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       decision_log: {
         Row: {
           action_type: string | null
