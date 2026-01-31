@@ -1,9 +1,15 @@
 import { useState, useMemo } from "react";
-import { ChevronDown, ChevronUp, Pencil, Trash2, FileText, Star } from "lucide-react";
+import { ChevronDown, ChevronUp, Pencil, Trash2, FileText, Star, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { Position } from "@/hooks/usePositions";
 
 type SortField = "ticker" | "market_value" | "weight_percent" | "pnl_percent" | "confidence_level";
@@ -15,6 +21,9 @@ interface PositionsTableProps {
   onEdit: (position: Position) => void;
   onDelete: (position: Position) => void;
   onLogDecision: (position: Position) => void;
+  onVerify?: (position: Position) => void;
+  isVerifying?: boolean;
+  verifyingId?: string | null;
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
 }
@@ -96,6 +105,9 @@ export function PositionsTable({
   onEdit,
   onDelete,
   onLogDecision,
+  onVerify,
+  isVerifying,
+  verifyingId,
   selectedIds,
   onSelectionChange,
 }: PositionsTableProps) {
@@ -288,6 +300,31 @@ export function PositionsTable({
                     </td>
                     <td className="py-3">
                       <div className="flex items-center justify-end gap-1">
+                        {onVerify && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => onVerify(position)}
+                                  disabled={isVerifying}
+                                  title="Verify with web search"
+                                >
+                                  {isVerifying && verifyingId === position.id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Search className="w-3.5 h-3.5" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                Verify ticker &amp; update price
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"

@@ -411,6 +411,24 @@ export type Database = {
         }
         Relationships: []
       }
+      verification_cache: {
+        Row: {
+          ticker: string
+          verified_at: string
+          verified_data: Json
+        }
+        Insert: {
+          ticker: string
+          verified_at?: string
+          verified_data: Json
+        }
+        Update: {
+          ticker?: string
+          verified_at?: string
+          verified_data?: Json
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
