@@ -372,6 +372,45 @@ export type Database = {
         }
         Relationships: []
       }
+      reports: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          performance_percent: number | null
+          portfolio_value_end: number | null
+          portfolio_value_start: number | null
+          report_month: string
+          summary: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          performance_percent?: number | null
+          portfolio_value_end?: number | null
+          portfolio_value_start?: number | null
+          report_month: string
+          summary?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          performance_percent?: number | null
+          portfolio_value_end?: number | null
+          portfolio_value_start?: number | null
+          report_month?: string
+          summary?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
