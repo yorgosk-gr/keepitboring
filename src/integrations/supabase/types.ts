@@ -14,7 +14,319 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      alerts: {
+        Row: {
+          alert_type: string | null
+          created_at: string
+          id: string
+          message: string
+          position_id: string | null
+          resolved: boolean
+          rule_id: string | null
+          severity: string | null
+          user_id: string
+        }
+        Insert: {
+          alert_type?: string | null
+          created_at?: string
+          id?: string
+          message: string
+          position_id?: string | null
+          resolved?: boolean
+          rule_id?: string | null
+          severity?: string | null
+          user_id: string
+        }
+        Update: {
+          alert_type?: string | null
+          created_at?: string
+          id?: string
+          message?: string
+          position_id?: string | null
+          resolved?: boolean
+          rule_id?: string | null
+          severity?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "philosophy_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      decision_log: {
+        Row: {
+          action_type: string | null
+          confidence_level: number | null
+          created_at: string
+          id: string
+          information_set: string | null
+          invalidation_triggers: string | null
+          outcome_notes: string | null
+          position_id: string | null
+          probability_estimate: string | null
+          reasoning: string | null
+          user_id: string
+        }
+        Insert: {
+          action_type?: string | null
+          confidence_level?: number | null
+          created_at?: string
+          id?: string
+          information_set?: string | null
+          invalidation_triggers?: string | null
+          outcome_notes?: string | null
+          position_id?: string | null
+          probability_estimate?: string | null
+          reasoning?: string | null
+          user_id: string
+        }
+        Update: {
+          action_type?: string | null
+          confidence_level?: number | null
+          created_at?: string
+          id?: string
+          information_set?: string | null
+          invalidation_triggers?: string | null
+          outcome_notes?: string | null
+          position_id?: string | null
+          probability_estimate?: string | null
+          reasoning?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "decision_log_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      insights: {
+        Row: {
+          confidence_words: string[] | null
+          content: string | null
+          created_at: string
+          id: string
+          insight_type: string | null
+          is_starred: boolean
+          newsletter_id: string
+          sentiment: string | null
+          tickers_mentioned: string[] | null
+        }
+        Insert: {
+          confidence_words?: string[] | null
+          content?: string | null
+          created_at?: string
+          id?: string
+          insight_type?: string | null
+          is_starred?: boolean
+          newsletter_id: string
+          sentiment?: string | null
+          tickers_mentioned?: string[] | null
+        }
+        Update: {
+          confidence_words?: string[] | null
+          content?: string | null
+          created_at?: string
+          id?: string
+          insight_type?: string | null
+          is_starred?: boolean
+          newsletter_id?: string
+          sentiment?: string | null
+          tickers_mentioned?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insights_newsletter_id_fkey"
+            columns: ["newsletter_id"]
+            isOneToOne: false
+            referencedRelation: "newsletters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      newsletters: {
+        Row: {
+          created_at: string
+          file_path: string | null
+          id: string
+          processed: boolean
+          raw_text: string | null
+          source_name: string
+          upload_date: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          processed?: boolean
+          raw_text?: string | null
+          source_name: string
+          upload_date?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          processed?: boolean
+          raw_text?: string | null
+          source_name?: string
+          upload_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      philosophy_rules: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          rule_type: string | null
+          source_books: string[] | null
+          threshold_max: number | null
+          threshold_min: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          rule_type?: string | null
+          source_books?: string[] | null
+          threshold_max?: number | null
+          threshold_min?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          rule_type?: string | null
+          source_books?: string[] | null
+          threshold_max?: number | null
+          threshold_min?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      portfolio_snapshots: {
+        Row: {
+          cash_balance: number | null
+          created_at: string
+          data_json: Json | null
+          etfs_percent: number | null
+          id: string
+          snapshot_date: string
+          stocks_percent: number | null
+          total_value: number | null
+          user_id: string
+        }
+        Insert: {
+          cash_balance?: number | null
+          created_at?: string
+          data_json?: Json | null
+          etfs_percent?: number | null
+          id?: string
+          snapshot_date?: string
+          stocks_percent?: number | null
+          total_value?: number | null
+          user_id: string
+        }
+        Update: {
+          cash_balance?: number | null
+          created_at?: string
+          data_json?: Json | null
+          etfs_percent?: number | null
+          id?: string
+          snapshot_date?: string
+          stocks_percent?: number | null
+          total_value?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      positions: {
+        Row: {
+          avg_cost: number | null
+          bet_type: string | null
+          category: string | null
+          confidence_level: number | null
+          created_at: string
+          current_price: number | null
+          id: string
+          last_review_date: string | null
+          market_value: number | null
+          name: string | null
+          position_type: string | null
+          shares: number | null
+          thesis_notes: string | null
+          ticker: string
+          updated_at: string
+          user_id: string
+          weight_percent: number | null
+        }
+        Insert: {
+          avg_cost?: number | null
+          bet_type?: string | null
+          category?: string | null
+          confidence_level?: number | null
+          created_at?: string
+          current_price?: number | null
+          id?: string
+          last_review_date?: string | null
+          market_value?: number | null
+          name?: string | null
+          position_type?: string | null
+          shares?: number | null
+          thesis_notes?: string | null
+          ticker: string
+          updated_at?: string
+          user_id: string
+          weight_percent?: number | null
+        }
+        Update: {
+          avg_cost?: number | null
+          bet_type?: string | null
+          category?: string | null
+          confidence_level?: number | null
+          created_at?: string
+          current_price?: number | null
+          id?: string
+          last_review_date?: string | null
+          market_value?: number | null
+          name?: string | null
+          position_type?: string | null
+          shares?: number | null
+          thesis_notes?: string | null
+          ticker?: string
+          updated_at?: string
+          user_id?: string
+          weight_percent?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,7 +1,10 @@
-import { RefreshCw, Bell } from "lucide-react";
+import { RefreshCw, Bell, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function AppHeader() {
+  const { user, signOut } = useAuth();
+  
   const lastSyncDate = new Date().toLocaleDateString("en-US", {
     weekday: "short",
     year: "numeric",
@@ -20,6 +23,11 @@ export function AppHeader() {
         </p>
       </div>
       <div className="flex items-center gap-2">
+        {user && (
+          <span className="text-sm text-muted-foreground mr-2 hidden md:block">
+            {user.email}
+          </span>
+        )}
         <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
           <RefreshCw className="w-5 h-5" />
         </Button>
@@ -27,6 +35,17 @@ export function AppHeader() {
           <Bell className="w-5 h-5" />
           <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full animate-pulse-glow" />
         </Button>
+        {user && (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="text-muted-foreground hover:text-destructive"
+            onClick={signOut}
+            title="Sign out"
+          >
+            <LogOut className="w-5 h-5" />
+          </Button>
+        )}
       </div>
     </header>
   );
