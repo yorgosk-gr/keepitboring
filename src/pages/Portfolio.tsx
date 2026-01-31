@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Upload, Plus, Search, Briefcase, RefreshCw, DollarSign, Clock, Tags } from "lucide-react";
+import { Upload, Plus, Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePositions, type Position, type PositionFormData } from "@/hooks/usePositions";
@@ -38,7 +38,7 @@ export default function Portfolio() {
   const { cashBalance, stocksPercent, etfsPercent, totalValue } = useDashboardData();
   
   // Ticker verification
-  const { verifySinglePosition, isVerifying } = useTickerVerification();
+  const { verifySinglePosition, verifyPositions, isVerifying, progress: verifyProgress } = useTickerVerification();
   
   // ETF classification
   const { classifyETFs, updatePositionCategories, isClassifying } = useETFClassification();
@@ -186,6 +186,66 @@ export default function Portfolio() {
     }
     
     setVerifyingPositionId(null);
+  };
+
+  // Handle verifying all positions at once
+  const handleVerifyAll = async () => {
+    if (positions.length === 0) {
+      toast.info("No positions to verify");
+      return;
+    }
+
+    const positionsToVerify = positions.map(p => ({
+      ticker: p.ticker,
+      name: p.name,
+      current_price: p.current_price,
+      market_value: p.market_value,
+    }));
+
+    const results = await verifyPositions(positionsToVerify);
+    
+    if (results.length > 0) {
+      // Update positions with verified data
+      for (const result of results) {
+        const position = positions.find(p => p.ticker === result.original_ticker);
+        if (!position) continue;
+
+        const updates: Record<string, unknown> = {};
+        
+        if (result.current_price !== null) {
+          updates.current_price = result.current_price;
+          updates.market_value = (position.shares ?? 0) * result.current_price;
+        }
+        
+        if (result.name) {
+          updates.name = result.name;
+        }
+        
+        if (result.category) {
+          updates.category = result.category;
+        }
+        
+        if (result.asset_type) {
+          updates.position_type = result.asset_type;
+        }
+
+        if (Object.keys(updates).length > 0) {
+          await supabase
+            .from("positions")
+            .update(updates)
+            .eq("id", position.id);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["positions"] });
+      
+      const confirmedCount = results.filter(r => r.verification_status === "confirmed").length;
+      const correctedCount = results.filter(r => r.verification_status === "corrected").length;
+      
+      if (correctedCount > 0) {
+        toast.info(`Verified ${confirmedCount} positions. ${correctedCount} may need attention.`);
+      }
+    }
   };
 
   // Handle price refresh
@@ -352,12 +412,27 @@ export default function Portfolio() {
           />
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {isVerifying && verifyProgress.total > 0 && (
+            <div className="flex items-center gap-2 mr-2 text-sm text-muted-foreground">
+              <span>Verifying {verifyProgress.current}-{Math.min(verifyProgress.current + 4, verifyProgress.total)} of {verifyProgress.total}...</span>
+            </div>
+          )}
           {selectedIds.length > 0 && (
             <span className="text-sm text-muted-foreground self-center mr-2">
               {selectedIds.length} selected
             </span>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={handleVerifyAll}
+            disabled={positions.length === 0 || isVerifying}
+          >
+            <CheckCircle className="w-4 h-4" />
+            {isVerifying ? "Verifying..." : "Verify All Tickers"}
+          </Button>
           <Button
             variant="outline"
             size="sm"
