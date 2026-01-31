@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { usePositions } from "./usePositions";
-
+import { useDashboardData } from "./useDashboardData";
 export interface PhilosophyRule {
   id: string;
   user_id: string;
@@ -62,7 +62,7 @@ export function usePhilosophyRules() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { positions } = usePositions();
-
+  const { totalValue, cashBalance, stocksPercent, etfsPercent, cashPercent } = useDashboardData();
   const rulesQuery = useQuery({
     queryKey: ["philosophy_rules", user?.id],
     queryFn: async () => {
@@ -180,20 +180,16 @@ export function usePhilosophyRules() {
   });
 
   const evaluateRule = (rule: PhilosophyRule): RuleCheckResult => {
-    const totalValue = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
-    const stocksValue = positions
-      .filter((p) => p.position_type === "stock")
-      .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
-    const etfsValue = positions
-      .filter((p) => p.position_type === "etf")
-      .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
-    const stocksPercent = totalValue > 0 ? (stocksValue / totalValue) * 100 : 0;
-    const etfsPercent = totalValue > 0 ? (etfsValue / totalValue) * 100 : 0;
-
     // Default result
     let status: RuleCheckResult["status"] = "passing";
     let currentValue: number | null = null;
     let message = "Rule passing";
+
+    // Helper to calculate position weight correctly (using total including cash)
+    const getPositionWeight = (p: { market_value: number | null }) => {
+      if (totalValue === 0) return 0;
+      return ((p.market_value ?? 0) / totalValue) * 100;
+    };
 
     switch (rule.name) {
       case "Stock Allocation": {
@@ -222,29 +218,114 @@ export function usePhilosophyRules() {
         }
         break;
       }
+      case "Cash Limit": {
+        currentValue = cashPercent;
+        if (rule.threshold_max && cashPercent > rule.threshold_max) {
+          status = "failing";
+          message = `Cash at ${cashPercent.toFixed(1)}%, above ${rule.threshold_max}% limit`;
+        } else {
+          message = `Cash at ${cashPercent.toFixed(1)}% - within limit`;
+        }
+        break;
+      }
+      case "Minimum Equity": {
+        const equityPercent = stocksPercent + etfsPercent;
+        currentValue = equityPercent;
+        if (rule.threshold_min && equityPercent < rule.threshold_min) {
+          status = "warning";
+          message = `Equities at ${equityPercent.toFixed(1)}%, below ${rule.threshold_min}% minimum`;
+        } else {
+          message = `Equities at ${equityPercent.toFixed(1)}% - above minimum`;
+        }
+        break;
+      }
       case "Single Stock Limit": {
         const violatingStocks = positions.filter(
           (p) =>
             p.position_type === "stock" &&
             rule.threshold_max &&
-            (p.weight_percent ?? 0) > rule.threshold_max
+            getPositionWeight(p) > rule.threshold_max
         );
         if (violatingStocks.length > 0) {
           status = "failing";
-          currentValue = Math.max(...violatingStocks.map((p) => p.weight_percent ?? 0));
+          currentValue = Math.max(...violatingStocks.map((p) => getPositionWeight(p)));
           message = `${violatingStocks.map((p) => p.ticker).join(", ")} exceed ${rule.threshold_max}%`;
         } else {
-          message = "All stocks within limit";
+          const maxStock = positions
+            .filter((p) => p.position_type === "stock")
+            .reduce((max, p) => Math.max(max, getPositionWeight(p)), 0);
+          message = `All stocks within limit (max: ${maxStock.toFixed(1)}%)`;
+        }
+        break;
+      }
+      case "Broad ETF Limit": {
+        // Broad ETFs are global/all-world (category: equity, position_type: etf, name contains "World" or "S&P 500" or "All-World")
+        const broadEtfs = positions.filter(
+          (p) =>
+            p.position_type === "etf" &&
+            p.category === "equity" &&
+            (p.name?.toLowerCase().includes("world") || 
+             p.name?.toLowerCase().includes("s&p 500") ||
+             p.ticker === "VWRA" || p.ticker === "CSPX")
+        );
+        const violating = broadEtfs.filter(
+          (p) => rule.threshold_max && getPositionWeight(p) > rule.threshold_max
+        );
+        if (violating.length > 0) {
+          status = "failing";
+          currentValue = Math.max(...violating.map((p) => getPositionWeight(p)));
+          message = `${violating.map((p) => p.ticker).join(", ")} exceed ${rule.threshold_max}%`;
+        } else {
+          const maxBroad = broadEtfs.reduce((max, p) => Math.max(max, getPositionWeight(p)), 0);
+          message = `Broad ETFs within limit (max: ${maxBroad.toFixed(1)}%)`;
+        }
+        break;
+      }
+      case "Country ETF Limit": {
+        const countryEtfs = positions.filter(
+          (p) => p.position_type === "etf" && p.category === "country"
+        );
+        const violating = countryEtfs.filter(
+          (p) => rule.threshold_max && getPositionWeight(p) > rule.threshold_max
+        );
+        if (violating.length > 0) {
+          status = "warning";
+          currentValue = Math.max(...violating.map((p) => getPositionWeight(p)));
+          message = `${violating.map((p) => p.ticker).join(", ")} exceed ${rule.threshold_max}%`;
+        } else {
+          const maxCountry = countryEtfs.reduce((max, p) => Math.max(max, getPositionWeight(p)), 0);
+          message = `Country ETFs within limit (max: ${maxCountry.toFixed(1)}%)`;
+        }
+        break;
+      }
+      case "Theme ETF Limit": {
+        // Theme ETFs are non-broad, non-country ETFs (commodities, bonds, etc.)
+        const themeEtfs = positions.filter(
+          (p) =>
+            p.position_type === "etf" &&
+            p.category !== "equity" &&
+            p.category !== "country"
+        );
+        const violating = themeEtfs.filter(
+          (p) => rule.threshold_max && getPositionWeight(p) > rule.threshold_max
+        );
+        if (violating.length > 0) {
+          status = "warning";
+          currentValue = Math.max(...violating.map((p) => getPositionWeight(p)));
+          message = `${violating.map((p) => p.ticker).join(", ")} exceed ${rule.threshold_max}%`;
+        } else {
+          const maxTheme = themeEtfs.reduce((max, p) => Math.max(max, getPositionWeight(p)), 0);
+          message = `Theme ETFs within limit (max: ${maxTheme.toFixed(1)}%)`;
         }
         break;
       }
       case "Bet Type Required": {
         const largeWithoutBet = positions.filter(
-          (p) => (p.weight_percent ?? 0) > 3 && !p.bet_type
+          (p) => getPositionWeight(p) > 3 && !p.bet_type
         );
         if (largeWithoutBet.length > 0) {
           status = "warning";
-          message = `${largeWithoutBet.length} position(s) >3% without bet type`;
+          message = `${largeWithoutBet.map((p) => p.ticker).join(", ")} >3% without bet type`;
         } else {
           message = "All large positions have bet type";
         }
@@ -266,17 +347,39 @@ export function usePhilosophyRules() {
         );
         if (stocksWithoutThesis.length > 0) {
           status = "warning";
-          message = `${stocksWithoutThesis.length} stock(s) missing thesis`;
+          message = `${stocksWithoutThesis.map((p) => p.ticker).join(", ")} missing thesis`;
         } else {
           message = "All stocks have thesis";
         }
         break;
       }
+      case "Sector Limit": {
+        // Group positions by category and check limits
+        const categoryTotals = positions.reduce((acc, p) => {
+          const cat = p.category || "other";
+          acc[cat] = (acc[cat] || 0) + getPositionWeight(p);
+          return acc;
+        }, {} as Record<string, number>);
+        
+        const violating = Object.entries(categoryTotals).filter(
+          ([, pct]) => rule.threshold_max && pct > rule.threshold_max
+        );
+        if (violating.length > 0) {
+          status = "warning";
+          currentValue = Math.max(...violating.map(([, pct]) => pct));
+          message = `${violating.map(([cat]) => cat).join(", ")} exceed ${rule.threshold_max}%`;
+        } else {
+          const maxSector = Math.max(...Object.values(categoryTotals));
+          message = `All sectors within limit (max: ${maxSector.toFixed(1)}%)`;
+        }
+        break;
+      }
       default: {
-        // Generic threshold check for other rules
-        if (rule.rule_type === "allocation" || rule.rule_type === "position_size") {
-          message = "Check manually - rule requires specific data";
-          status = "passing";
+        // For qualitative rules (market, quality) that need external data
+        if (rule.rule_type === "quality") {
+          message = "Quality metrics require external data";
+        } else if (rule.rule_type === "market") {
+          message = "Market signals evaluated during newsletter analysis";
         } else {
           message = "Qualitative rule - check manually";
         }
