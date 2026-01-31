@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ScreenshotPreviewTable, type ExtractedPosition } from "./ScreenshotPreviewTable";
+import { ScreenshotPreviewTable, type ExtractedPosition, type ExtractionMetadata } from "./ScreenshotPreviewTable";
 
 interface UploadScreenshotModalProps {
   open: boolean;
@@ -30,6 +30,10 @@ interface ExtractedData {
   positions: ExtractedPosition[];
   cash_balances?: Record<string, number>;
   total_value?: number | null;
+  detected_broker?: string;
+  detected_currency?: string;
+  extraction_quality?: "good" | "partial" | "poor";
+  extraction_notes?: string;
 }
 
 const MAX_IMAGES = 5;
@@ -380,6 +384,12 @@ export function UploadScreenshotModal({ open, onClose, onImportComplete }: Uploa
               positions={extractedData.positions}
               cashBalances={extractedData.cash_balances}
               totalValue={extractedData.total_value}
+              metadata={{
+                detected_broker: extractedData.detected_broker,
+                detected_currency: extractedData.detected_currency,
+                extraction_quality: extractedData.extraction_quality,
+                extraction_notes: extractedData.extraction_notes,
+              }}
               onCancel={handleClose}
               onImportComplete={handleImportComplete}
             />
