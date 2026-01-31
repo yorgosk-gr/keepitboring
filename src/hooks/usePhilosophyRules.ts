@@ -411,7 +411,7 @@ export function usePhilosophyRules() {
           rule_id: violation.rule.id,
           message: violation.message,
           severity: violation.status === "failing" ? "critical" : "warning",
-          alert_type: "rule_violation",
+          alert_type: "portfolio", // Using 'portfolio' as rule violations are portfolio-level checks
         });
       }
     }
