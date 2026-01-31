@@ -7,7 +7,7 @@ import { AllocationSummary } from "@/components/portfolio/AllocationSummary";
 import { PositionsTable } from "@/components/portfolio/PositionsTable";
 import { PositionModal } from "@/components/portfolio/PositionModal";
 import { DeleteConfirmModal } from "@/components/portfolio/DeleteConfirmModal";
-import { LogDecisionModal } from "@/components/portfolio/LogDecisionModal";
+import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import { UploadScreenshotModal } from "@/components/portfolio/UploadScreenshotModal";
 import { toast } from "sonner";
 
