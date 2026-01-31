@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, Trash2, RotateCcw, AlertTriangle, Loader2 } from "lucide-react";
+import { Download, Trash2, RotateCcw, AlertTriangle, Loader2, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -21,6 +21,7 @@ interface DataManagementSectionProps {
   onClearAlerts: () => Promise<void>;
   onResetRules: () => Promise<void>;
   onDeleteAll: () => Promise<void>;
+  onLoadTestData: () => Promise<void>;
 }
 
 export function DataManagementSection({
@@ -29,12 +30,15 @@ export function DataManagementSection({
   onClearAlerts,
   onResetRules,
   onDeleteAll,
+  onLoadTestData,
 }: DataManagementSectionProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingDecisions, setIsExportingDecisions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showLoadTestConfirm, setShowLoadTestConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isLoadingTestData, setIsLoadingTestData] = useState(false);
 
   const handleExportAll = async () => {
     setIsExporting(true);
@@ -55,6 +59,13 @@ export function DataManagementSection({
     setShowDeleteConfirm(false);
   };
 
+  const handleLoadTestData = async () => {
+    setIsLoadingTestData(true);
+    await onLoadTestData();
+    setIsLoadingTestData(false);
+    setShowLoadTestConfirm(false);
+  };
+
   return (
     <>
       <Card>
@@ -66,6 +77,31 @@ export function DataManagementSection({
           <CardDescription>Export, backup, and manage your data</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Test Data */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium">Demo Data</h4>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowLoadTestConfirm(true)}
+                disabled={isLoadingTestData}
+                className="gap-2"
+              >
+                {isLoadingTestData ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Database className="w-4 h-4" />
+                )}
+                Load Test Data
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Load a sample portfolio with 19 positions (7 stocks, 12 ETFs) for testing purposes.
+            </p>
+          </div>
+
+          <Separator />
+
           {/* Export Actions */}
           <div className="space-y-3">
             <h4 className="text-sm font-medium">Export Data</h4>
@@ -196,6 +232,40 @@ export function DataManagementSection({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={onResetRules}>Reset Rules</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Load Test Data Confirmation */}
+      <AlertDialog open={showLoadTestConfirm} onOpenChange={setShowLoadTestConfirm}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Database className="w-5 h-5 text-primary" />
+              Load Test Data
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will replace your current portfolio with 19 sample positions:
+              <ul className="list-disc list-inside mt-2 space-y-1 text-left">
+                <li>7 individual stocks (AAPL, AMZN, META, etc.)</li>
+                <li>12 ETFs across equity, bonds, commodities, and gold</li>
+                <li>Cash balance of €13,800</li>
+                <li>Total portfolio value ~€510,000</li>
+              </ul>
+              <p className="mt-2 font-medium">Your existing positions will be deleted.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLoadTestData}
+              disabled={isLoadingTestData}
+            >
+              {isLoadingTestData ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
+              Load Test Data
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
