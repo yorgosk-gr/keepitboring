@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePositions } from "./usePositions";
 import { usePhilosophyRules } from "./usePhilosophyRules";
 import { useDecisionLogs } from "./useDecisionLogs";
+import { useAllETFMetadata } from "./useAllETFMetadata";
 import { toast } from "sonner";
 
 export interface AllocationCheck {
@@ -82,6 +83,7 @@ export function usePortfolioAnalysis() {
   const { positions } = usePositions();
   const { rules } = usePhilosophyRules();
   const { decisions } = useDecisionLogs();
+  const { data: etfMetadata = {} } = useAllETFMetadata();
   const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisResult | null>(null);
 
   // Fetch recent insights (last 30 days)
@@ -144,12 +146,21 @@ export function usePortfolioAnalysis() {
       const recentInsights = insightsQuery.data ?? [];
       const recentDecisions = decisions.slice(0, 10);
 
+      // Prepare ETF classification data for the analysis
+      const etfClassifications = positions
+        .filter(p => p.position_type === "etf" && etfMetadata[p.ticker])
+        .map(p => ({
+          ticker: p.ticker,
+          ...etfMetadata[p.ticker],
+        }));
+
       const { data, error } = await supabase.functions.invoke("analyze-portfolio", {
         body: {
           positions,
           rules: activeRules,
           insights: recentInsights,
           decisions: recentDecisions,
+          etf_classifications: etfClassifications,
         },
       });
 

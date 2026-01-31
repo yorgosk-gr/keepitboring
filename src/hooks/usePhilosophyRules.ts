@@ -4,6 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { usePositions } from "./usePositions";
 import { useDashboardData } from "./useDashboardData";
+import { useAllETFMetadata } from "./useAllETFMetadata";
+
 export interface PhilosophyRule {
   id: string;
   user_id: string;
@@ -37,14 +39,20 @@ const DEFAULT_RULES: Omit<PhilosophyRule, "id" | "user_id" | "created_at">[] = [
   // Allocation Rules
   { name: "Stock Allocation", rule_type: "allocation", threshold_min: 15, threshold_max: 25, description: "Individual stocks should be 15-25% of portfolio", source_books: ["Graham", "Malkiel"], is_active: true },
   { name: "ETF Allocation", rule_type: "allocation", threshold_min: 75, threshold_max: 85, description: "ETFs should be 75-85% of portfolio", source_books: ["Malkiel", "Siegel"], is_active: true },
-  { name: "Minimum Equity", rule_type: "allocation", threshold_min: 60, threshold_max: null, description: "Maintain at least 60% in equities", source_books: ["Siegel"], is_active: true },
+  { name: "Equity Allocation", rule_type: "allocation", threshold_min: 40, threshold_max: 60, description: "True equity exposure (stocks + equity ETFs) should be 40-60%", source_books: ["Siegel", "Malkiel"], is_active: true },
+  { name: "Bond Allocation", rule_type: "allocation", threshold_min: 10, threshold_max: 25, description: "Bond ETFs should be 10-25% of portfolio", source_books: ["Graham", "Siegel"], is_active: true },
+  { name: "Commodity + Gold Allocation", rule_type: "allocation", threshold_min: 5, threshold_max: 15, description: "Commodities + Gold should be 5-15%", source_books: ["Marks", "Taleb"], is_active: true },
+  { name: "Anti-Fragile Minimum", rule_type: "allocation", threshold_min: 5, threshold_max: null, description: "Gold + short-term bonds + cash for tail risk protection", source_books: ["Taleb", "Marks"], is_active: true },
   { name: "Cash Limit", rule_type: "allocation", threshold_min: null, threshold_max: 10, description: "Cash should not exceed 10%", source_books: ["Siegel", "Erkan"], is_active: true },
   { name: "Sector Limit", rule_type: "allocation", threshold_min: null, threshold_max: 25, description: "No sector should exceed 25%", source_books: ["Graham", "Marks"], is_active: true },
   // Position Size Rules
   { name: "Single Stock Limit", rule_type: "position_size", threshold_min: null, threshold_max: 8, description: "No single stock over 8%", source_books: ["Graham", "Duke"], is_active: true },
   { name: "Theme ETF Limit", rule_type: "position_size", threshold_min: null, threshold_max: 15, description: "Non-broad ETFs max 15%", source_books: ["Marks"], is_active: true },
-  { name: "Broad ETF Limit", rule_type: "position_size", threshold_min: null, threshold_max: 35, description: "Global ETFs can go to 35%", source_books: ["Malkiel"], is_active: true },
+  { name: "Broad ETF Limit", rule_type: "position_size", threshold_min: null, threshold_max: 35, description: "Global/All-World ETFs can go to 35%", source_books: ["Malkiel"], is_active: true },
   { name: "Country ETF Limit", rule_type: "position_size", threshold_min: null, threshold_max: 10, description: "Single country (ex-US) max 10%", source_books: ["Marks"], is_active: true },
+  // Geography Rules
+  { name: "Single Country Concentration", rule_type: "allocation", threshold_min: null, threshold_max: 10, description: "Any single country (except US) max 10%", source_books: ["Marks"], is_active: true },
+  { name: "Emerging Markets Limit", rule_type: "allocation", threshold_min: null, threshold_max: 15, description: "Total EM exposure max 15%", source_books: ["Marks"], is_active: true },
   // Quality Rules
   { name: "Earnings Yield Floor", rule_type: "quality", threshold_min: 5, threshold_max: null, description: "Prefer stocks with >5% earnings yield", source_books: ["Greenblatt"], is_active: true },
   { name: "ROIC Floor", rule_type: "quality", threshold_min: 15, threshold_max: null, description: "Prefer stocks with >15% ROIC", source_books: ["Greenblatt", "Thorndike"], is_active: true },
@@ -63,6 +71,8 @@ export function usePhilosophyRules() {
   const queryClient = useQueryClient();
   const { positions } = usePositions();
   const { totalValue, cashBalance, stocksPercent, etfsPercent, cashPercent } = useDashboardData();
+  const { data: etfMetadata = {} } = useAllETFMetadata();
+
   const rulesQuery = useQuery({
     queryKey: ["philosophy_rules", user?.id],
     queryFn: async () => {
@@ -191,6 +201,44 @@ export function usePhilosophyRules() {
       return ((p.market_value ?? 0) / totalValue) * 100;
     };
 
+    // Helper to calculate true asset class allocation using ETF metadata
+    const calculateAssetClassAllocation = (assetClass: string) => {
+      let total = 0;
+      for (const p of positions) {
+        const weight = getPositionWeight(p);
+        if (p.position_type === "etf") {
+          const meta = etfMetadata[p.ticker];
+          const category = meta?.category || p.category || "equity";
+          if (category === assetClass) {
+            total += weight;
+          }
+        } else if (assetClass === "equity") {
+          // Stocks are always equity
+          total += weight;
+        }
+      }
+      return total;
+    };
+
+    // Helper to calculate geography allocation
+    const calculateGeographyAllocation = (geography: string) => {
+      let total = 0;
+      for (const p of positions) {
+        const weight = getPositionWeight(p);
+        if (p.position_type === "etf") {
+          const meta = etfMetadata[p.ticker];
+          const geo = meta?.geography || "other";
+          if (geo === geography) {
+            total += weight;
+          }
+        } else if (geography === "us") {
+          // Default stocks to US
+          total += weight;
+        }
+      }
+      return total;
+    };
+
     switch (rule.name) {
       case "Stock Allocation": {
         currentValue = stocksPercent;
@@ -215,6 +263,61 @@ export function usePhilosophyRules() {
           message = `ETFs at ${etfsPercent.toFixed(1)}%, above ${rule.threshold_max}% limit`;
         } else {
           message = `ETFs at ${etfsPercent.toFixed(1)}% - within range`;
+        }
+        break;
+      }
+      case "Equity Allocation": {
+        // True equity = stocks + equity ETFs (using metadata)
+        currentValue = calculateAssetClassAllocation("equity");
+        if (rule.threshold_min && currentValue < rule.threshold_min) {
+          status = "warning";
+          message = `True equity at ${currentValue.toFixed(1)}%, below ${rule.threshold_min}% target`;
+        } else if (rule.threshold_max && currentValue > rule.threshold_max) {
+          status = "failing";
+          message = `True equity at ${currentValue.toFixed(1)}%, above ${rule.threshold_max}% limit`;
+        } else {
+          message = `True equity at ${currentValue.toFixed(1)}% - within range`;
+        }
+        break;
+      }
+      case "Bond Allocation": {
+        currentValue = calculateAssetClassAllocation("bond");
+        if (rule.threshold_min && currentValue < rule.threshold_min) {
+          status = "warning";
+          message = `Bonds at ${currentValue.toFixed(1)}%, below ${rule.threshold_min}% target`;
+        } else if (rule.threshold_max && currentValue > rule.threshold_max) {
+          status = "failing";
+          message = `Bonds at ${currentValue.toFixed(1)}%, above ${rule.threshold_max}% limit`;
+        } else {
+          message = `Bonds at ${currentValue.toFixed(1)}% - within range`;
+        }
+        break;
+      }
+      case "Commodity + Gold Allocation": {
+        const commodities = calculateAssetClassAllocation("commodity");
+        const gold = calculateAssetClassAllocation("gold");
+        currentValue = commodities + gold;
+        if (rule.threshold_min && currentValue < rule.threshold_min) {
+          status = "warning";
+          message = `Commodities + Gold at ${currentValue.toFixed(1)}%, below ${rule.threshold_min}% target`;
+        } else if (rule.threshold_max && currentValue > rule.threshold_max) {
+          status = "failing";
+          message = `Commodities + Gold at ${currentValue.toFixed(1)}%, above ${rule.threshold_max}% limit`;
+        } else {
+          message = `Commodities + Gold at ${currentValue.toFixed(1)}% - within range`;
+        }
+        break;
+      }
+      case "Anti-Fragile Minimum": {
+        // Gold + bonds + cash
+        const gold = calculateAssetClassAllocation("gold");
+        const bonds = calculateAssetClassAllocation("bond");
+        currentValue = gold + bonds + cashPercent;
+        if (rule.threshold_min && currentValue < rule.threshold_min) {
+          status = "warning";
+          message = `Anti-fragile at ${currentValue.toFixed(1)}%, below ${rule.threshold_min}% minimum`;
+        } else {
+          message = `Anti-fragile at ${currentValue.toFixed(1)}% - sufficient protection`;
         }
         break;
       }
@@ -259,15 +362,12 @@ export function usePhilosophyRules() {
         break;
       }
       case "Broad ETF Limit": {
-        // Broad ETFs are global/all-world (category: equity, position_type: etf, name contains "World" or "S&P 500" or "All-World")
-        const broadEtfs = positions.filter(
-          (p) =>
-            p.position_type === "etf" &&
-            p.category === "equity" &&
-            (p.name?.toLowerCase().includes("world") || 
-             p.name?.toLowerCase().includes("s&p 500") ||
-             p.ticker === "VWRA" || p.ticker === "CSPX")
-        );
+        // Use etf_metadata.is_broad_market to identify broad ETFs
+        const broadEtfs = positions.filter((p) => {
+          if (p.position_type !== "etf") return false;
+          const meta = etfMetadata[p.ticker];
+          return meta?.is_broad_market === true;
+        });
         const violating = broadEtfs.filter(
           (p) => rule.threshold_max && getPositionWeight(p) > rule.threshold_max
         );
@@ -282,9 +382,12 @@ export function usePhilosophyRules() {
         break;
       }
       case "Country ETF Limit": {
-        const countryEtfs = positions.filter(
-          (p) => p.position_type === "etf" && p.category === "country"
-        );
+        // Use etf_metadata.category = 'country' to identify country ETFs
+        const countryEtfs = positions.filter((p) => {
+          if (p.position_type !== "etf") return false;
+          const meta = etfMetadata[p.ticker];
+          return meta?.category === "country" || p.category === "country";
+        });
         const violating = countryEtfs.filter(
           (p) => rule.threshold_max && getPositionWeight(p) > rule.threshold_max
         );
@@ -299,13 +402,15 @@ export function usePhilosophyRules() {
         break;
       }
       case "Theme ETF Limit": {
-        // Theme ETFs are non-broad, non-country ETFs (commodities, bonds, etc.)
-        const themeEtfs = positions.filter(
-          (p) =>
-            p.position_type === "etf" &&
-            p.category !== "equity" &&
-            p.category !== "country"
-        );
+        // Non-broad ETFs (is_broad_market = false or not equity)
+        const themeEtfs = positions.filter((p) => {
+          if (p.position_type !== "etf") return false;
+          const meta = etfMetadata[p.ticker];
+          // Theme = not broad market AND not purely a category ETF (commodity, gold, bond are fine)
+          return meta?.is_broad_market === false || 
+                 (!meta && p.category !== "equity") ||
+                 meta?.category === "theme";
+        });
         const violating = themeEtfs.filter(
           (p) => rule.threshold_max && getPositionWeight(p) > rule.threshold_max
         );
@@ -316,6 +421,47 @@ export function usePhilosophyRules() {
         } else {
           const maxTheme = themeEtfs.reduce((max, p) => Math.max(max, getPositionWeight(p)), 0);
           message = `Theme ETFs within limit (max: ${maxTheme.toFixed(1)}%)`;
+        }
+        break;
+      }
+      case "Single Country Concentration": {
+        // Check each country (except US) for concentration
+        const countryTotals: Record<string, number> = {};
+        for (const p of positions) {
+          if (p.position_type !== "etf") continue;
+          const meta = etfMetadata[p.ticker];
+          const geo = meta?.geography;
+          // Only track specific countries (not 'us', 'global', 'other', 'emerging_markets')
+          if (geo && !["us", "global", "other", "emerging_markets"].includes(geo)) {
+            countryTotals[geo] = (countryTotals[geo] || 0) + getPositionWeight(p);
+          }
+        }
+        const violating = Object.entries(countryTotals).filter(
+          ([, pct]) => rule.threshold_max && pct > rule.threshold_max
+        );
+        if (violating.length > 0) {
+          status = "warning";
+          currentValue = Math.max(...violating.map(([, pct]) => pct));
+          message = `${violating.map(([c]) => c).join(", ")} exceed ${rule.threshold_max}%`;
+        } else {
+          const maxCountry = Math.max(...Object.values(countryTotals), 0);
+          message = `All countries within limit (max: ${maxCountry.toFixed(1)}%)`;
+        }
+        break;
+      }
+      case "Emerging Markets Limit": {
+        // Sum of all EM exposure
+        currentValue = calculateGeographyAllocation("emerging_markets");
+        // Also add country ETFs from EM regions
+        const emCountries = ["india", "brazil", "china", "mexico", "south_africa"];
+        for (const country of emCountries) {
+          currentValue += calculateGeographyAllocation(country);
+        }
+        if (rule.threshold_max && currentValue > rule.threshold_max) {
+          status = "warning";
+          message = `EM exposure at ${currentValue.toFixed(1)}%, above ${rule.threshold_max}% limit`;
+        } else {
+          message = `EM exposure at ${currentValue.toFixed(1)}% - within limit`;
         }
         break;
       }

@@ -8,6 +8,7 @@ import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { TopHoldings } from "@/components/dashboard/TopHoldings";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useAllETFMetadata } from "@/hooks/useAllETFMetadata";
+import { PortfolioXRay } from "@/components/dashboard/PortfolioXRay";
 import { Button } from "@/components/ui/button";
 import { useMemo } from "react";
 
@@ -187,8 +188,15 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Alerts and Activity Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* X-Ray and Alerts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <PortfolioXRay 
+          positions={positions}
+          etfMetadata={etfMetadata}
+          totalValue={totalValue}
+          cashBalance={cashBalance}
+          isLoading={isLoading}
+        />
         <ActiveAlerts 
           alerts={alerts}
           isLoading={isLoading}
