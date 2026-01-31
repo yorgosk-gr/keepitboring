@@ -210,8 +210,10 @@ export type Database = {
           id: string
           insight_type: string | null
           is_starred: boolean
+          is_summarized: boolean
           newsletter_id: string
           sentiment: string | null
+          summarized_from_ids: string[] | null
           tickers_mentioned: string[] | null
         }
         Insert: {
@@ -221,8 +223,10 @@ export type Database = {
           id?: string
           insight_type?: string | null
           is_starred?: boolean
+          is_summarized?: boolean
           newsletter_id: string
           sentiment?: string | null
+          summarized_from_ids?: string[] | null
           tickers_mentioned?: string[] | null
         }
         Update: {
@@ -232,8 +236,10 @@ export type Database = {
           id?: string
           insight_type?: string | null
           is_starred?: boolean
+          is_summarized?: boolean
           newsletter_id?: string
           sentiment?: string | null
+          summarized_from_ids?: string[] | null
           tickers_mentioned?: string[] | null
         }
         Relationships: [
@@ -251,6 +257,7 @@ export type Database = {
           created_at: string
           file_path: string | null
           id: string
+          is_archived: boolean
           processed: boolean
           raw_text: string | null
           source_name: string
@@ -261,6 +268,7 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          is_archived?: boolean
           processed?: boolean
           raw_text?: string | null
           source_name: string
@@ -271,6 +279,7 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          is_archived?: boolean
           processed?: boolean
           raw_text?: string | null
           source_name?: string
