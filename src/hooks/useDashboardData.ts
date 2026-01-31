@@ -145,20 +145,23 @@ export function useDashboardData() {
   const decisionLogs = decisionLogsQuery.data ?? [];
   const snapshots = snapshotsQuery.data ?? [];
 
-  // Total portfolio value from positions
-  const totalValue = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
-  
-  // Get cash balance and previous value from snapshots
+  // Get cash balance from latest snapshot
   const latestSnapshot = snapshots[0];
   const previousSnapshot = snapshots[1];
   const cashBalance = latestSnapshot?.cash_balance ?? 0;
+
+  // Total portfolio value = sum of positions + cash
+  const positionsValue = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
+  const totalValue = positionsValue + cashBalance;
+  
+  // Previous value for daily P&L
   const previousTotalValue = previousSnapshot?.total_value ?? totalValue;
   const dailyChange = totalValue - previousTotalValue;
   const dailyChangePercent = previousTotalValue > 0 
     ? ((dailyChange / previousTotalValue) * 100) 
     : 0;
 
-  // Calculate allocations
+  // Calculate allocations based on total portfolio value (including cash)
   const stocksValue = positions
     .filter(p => p.position_type === "stock")
     .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
@@ -166,8 +169,10 @@ export function useDashboardData() {
     .filter(p => p.position_type === "etf")
     .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
   
+  // Calculate percentages based on total portfolio value (positions + cash)
   const stocksPercent = totalValue > 0 ? (stocksValue / totalValue) * 100 : 0;
   const etfsPercent = totalValue > 0 ? (etfsValue / totalValue) * 100 : 0;
+  const cashPercent = totalValue > 0 ? (cashBalance / totalValue) * 100 : 0;
 
   // Category breakdown
   const categoryBreakdown = positions.reduce((acc, p) => {
@@ -198,11 +203,13 @@ export function useDashboardData() {
     
     // Calculated values
     totalValue,
+    positionsValue,
     cashBalance,
     dailyChange,
     dailyChangePercent,
     stocksPercent,
     etfsPercent,
+    cashPercent,
     categoryBreakdown,
     daysSinceUpdate,
     topPositions,
