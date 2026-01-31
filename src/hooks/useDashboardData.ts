@@ -189,6 +189,17 @@ export function useDashboardData() {
     ? Math.floor((Date.now() - lastUpdateDate) / (1000 * 60 * 60 * 24))
     : null;
 
+  // Days since last price refresh
+  const lastPriceRefresh = latestSnapshot?.data_json && typeof latestSnapshot.data_json === "object" && "price_refresh" in latestSnapshot.data_json
+    ? new Date(latestSnapshot.data_json.price_refresh as string)
+    : latestSnapshot?.snapshot_date 
+      ? new Date(latestSnapshot.snapshot_date)
+      : null;
+  
+  const daysSincePriceRefresh = lastPriceRefresh
+    ? Math.floor((Date.now() - lastPriceRefresh.getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+
   // Top 5 positions by weight
   const topPositions = [...positions]
     .sort((a, b) => (b.weight_percent ?? 0) - (a.weight_percent ?? 0))
@@ -212,6 +223,8 @@ export function useDashboardData() {
     cashPercent,
     categoryBreakdown,
     daysSinceUpdate,
+    daysSincePriceRefresh,
+    lastPriceRefresh,
     topPositions,
     
     // Loading states
