@@ -69,19 +69,23 @@ export function useNewsletters() {
       rawText,
       sourceName,
     }: {
-      file: File;
+      file?: File;
       rawText: string;
       sourceName: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Upload file to storage
-      const filePath = `${user.id}/${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from("uploads")
-        .upload(filePath, file);
+      let filePath: string | null = null;
 
-      if (uploadError) throw uploadError;
+      // Upload file to storage only if a file is provided
+      if (file) {
+        filePath = `${user.id}/${Date.now()}-${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("uploads")
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+      }
 
       // Create newsletter record
       const { data, error } = await supabase
@@ -101,10 +105,10 @@ export function useNewsletters() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["newsletters"] });
-      toast.success("Newsletter uploaded successfully");
+      toast.success("Newsletter saved successfully");
     },
     onError: (error) => {
-      toast.error("Failed to upload newsletter: " + error.message);
+      toast.error("Failed to save newsletter: " + error.message);
     },
   });
 
