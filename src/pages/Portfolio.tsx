@@ -3,6 +3,7 @@ import { Upload, Plus, Search, Briefcase, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePositions, type Position, type PositionFormData } from "@/hooks/usePositions";
+import { useDashboardData } from "@/hooks/useDashboardData";
 import { AllocationSummary } from "@/components/portfolio/AllocationSummary";
 import { PositionsTable } from "@/components/portfolio/PositionsTable";
 import { PositionModal } from "@/components/portfolio/PositionModal";
@@ -24,6 +25,9 @@ export default function Portfolio() {
     recalculateWeights,
   } = usePositions();
 
+  // Get cash balance and correct allocation percentages from dashboard data
+  const { cashBalance, stocksPercent, etfsPercent, totalValue } = useDashboardData();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   
@@ -33,18 +37,6 @@ export default function Portfolio() {
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [deletingPosition, setDeletingPosition] = useState<Position | null>(null);
   const [loggingDecisionFor, setLoggingDecisionFor] = useState<Position | null>(null);
-
-  // Calculate allocations
-  const totalValue = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
-  const stocksValue = positions
-    .filter(p => p.position_type === "stock")
-    .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
-  const etfsValue = positions
-    .filter(p => p.position_type === "etf")
-    .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
-  
-  const stocksPercent = totalValue > 0 ? (stocksValue / totalValue) * 100 : 0;
-  const etfsPercent = totalValue > 0 ? (etfsValue / totalValue) * 100 : 0;
 
   // Filter positions by search
   const filteredPositions = useMemo(() => {
