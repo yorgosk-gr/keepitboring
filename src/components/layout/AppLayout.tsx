@@ -22,6 +22,14 @@ export function AppLayout({ children }: AppLayoutProps) {
         <main className={`flex-1 p-4 sm:p-6 overflow-auto ${isMobile ? 'pb-20' : ''}`}>
           {children}
         </main>
+        
+        {/* Footer */}
+        <footer className="border-t border-border py-4 px-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>InvestAgent v1.0</span>
+            <span className="italic">Process over outcomes. Stay humble.</span>
+          </div>
+        </footer>
       </div>
       
       {/* Global Command Palette */}

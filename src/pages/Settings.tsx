@@ -16,7 +16,6 @@ export default function Settings() {
     clearAllAlerts,
     resetToDefaultRules,
     deleteAllData,
-    loadTestData,
   } = useSettings();
 
   if (isLoading) {
@@ -73,7 +72,6 @@ export default function Settings() {
           onClearAlerts={clearAllAlerts}
           onResetRules={resetToDefaultRules}
           onDeleteAll={deleteAllData}
-          onLoadTestData={loadTestData}
         />
       </div>
     </div>
