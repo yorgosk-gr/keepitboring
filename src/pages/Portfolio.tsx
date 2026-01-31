@@ -8,6 +8,7 @@ import { PositionsTable } from "@/components/portfolio/PositionsTable";
 import { PositionModal } from "@/components/portfolio/PositionModal";
 import { DeleteConfirmModal } from "@/components/portfolio/DeleteConfirmModal";
 import { LogDecisionModal } from "@/components/portfolio/LogDecisionModal";
+import { UploadScreenshotModal } from "@/components/portfolio/UploadScreenshotModal";
 import { toast } from "sonner";
 
 export default function Portfolio() {
@@ -28,6 +29,7 @@ export default function Portfolio() {
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [deletingPosition, setDeletingPosition] = useState<Position | null>(null);
   const [loggingDecisionFor, setLoggingDecisionFor] = useState<Position | null>(null);
@@ -78,7 +80,12 @@ export default function Portfolio() {
   };
 
   const handleUploadScreenshot = () => {
-    toast.info("Screenshot upload feature coming soon! This will allow you to extract position data from broker screenshots.");
+    setShowUploadModal(true);
+  };
+
+  const handleUploadComplete = () => {
+    // Recalculate weights after import
+    setTimeout(() => recalculateWeights(), 500);
   };
 
   const handleRecalculateWeights = async () => {
@@ -225,6 +232,13 @@ export default function Portfolio() {
         open={!!loggingDecisionFor}
         onClose={() => setLoggingDecisionFor(null)}
         position={loggingDecisionFor}
+      />
+
+      {/* Upload Screenshot Modal */}
+      <UploadScreenshotModal
+        open={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        onImportComplete={handleUploadComplete}
       />
     </div>
   );
