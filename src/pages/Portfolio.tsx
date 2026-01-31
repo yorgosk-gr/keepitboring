@@ -1,21 +1,26 @@
-import { useState, useMemo } from "react";
-import { Upload, Plus, Search, Briefcase, RefreshCw } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Upload, Plus, Search, Briefcase, RefreshCw, DollarSign, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePositions, type Position, type PositionFormData } from "@/hooks/usePositions";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useTickerVerification } from "@/hooks/useTickerVerification";
+import { usePriceRefresh, type PriceUpdate } from "@/hooks/usePriceRefresh";
 import { AllocationSummary } from "@/components/portfolio/AllocationSummary";
 import { PositionsTable } from "@/components/portfolio/PositionsTable";
 import { PositionModal } from "@/components/portfolio/PositionModal";
 import { DeleteConfirmModal } from "@/components/portfolio/DeleteConfirmModal";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import { UploadScreenshotModal } from "@/components/portfolio/UploadScreenshotModal";
+import { RefreshPricesModal } from "@/components/portfolio/RefreshPricesModal";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 
 export default function Portfolio() {
+  const { user } = useAuth();
   const {
     positions,
     isLoading,
@@ -33,6 +38,14 @@ export default function Portfolio() {
   
   // Ticker verification
   const { verifySinglePosition, isVerifying } = useTickerVerification();
+  
+  // Price refresh
+  const { fetchPrices, isFetching: isFetchingPrices, progress: priceProgress } = usePriceRefresh();
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [fetchedPrices, setFetchedPrices] = useState<PriceUpdate[]>([]);
+  const [notFoundTickers, setNotFoundTickers] = useState<string[]>([]);
+  const [lastPriceRefresh, setLastPriceRefresh] = useState<Date | null>(null);
+  
   const queryClient = useQueryClient();
   const [verifyingPositionId, setVerifyingPositionId] = useState<string | null>(null);
 
@@ -45,6 +58,29 @@ export default function Portfolio() {
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [deletingPosition, setDeletingPosition] = useState<Position | null>(null);
   const [loggingDecisionFor, setLoggingDecisionFor] = useState<Position | null>(null);
+
+  // Load last price refresh timestamp
+  useEffect(() => {
+    const loadLastRefresh = async () => {
+      if (!user) return;
+      
+      const { data } = await supabase
+        .from("portfolio_snapshots")
+        .select("created_at, data_json")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (data?.data_json && typeof data.data_json === "object" && "price_refresh" in (data.data_json as Record<string, unknown>)) {
+        setLastPriceRefresh(new Date((data.data_json as Record<string, string>).price_refresh));
+      } else if (data) {
+        setLastPriceRefresh(new Date(data.created_at));
+      }
+    };
+    
+    loadLastRefresh();
+  }, [user]);
 
   // Filter positions by search
   const filteredPositions = useMemo(() => {
@@ -148,18 +184,112 @@ export default function Portfolio() {
     setVerifyingPositionId(null);
   };
 
+  // Handle price refresh
+  const handleRefreshPrices = async () => {
+    if (positions.length === 0) {
+      toast.info("No positions to refresh");
+      return;
+    }
+
+    setShowPriceModal(true);
+    const tickers = positions.map(p => p.ticker);
+    const { prices, notFound } = await fetchPrices(tickers);
+    setFetchedPrices(prices);
+    setNotFoundTickers(notFound);
+  };
+
+  // Apply price updates
+  const handleApplyPriceUpdates = async (updates: { id: string; current_price: number }[]) => {
+    if (!user) return;
+
+    try {
+      // Update each position
+      for (const update of updates) {
+        const position = positions.find(p => p.id === update.id);
+        if (!position) continue;
+
+        const newMarketValue = (position.shares ?? 0) * update.current_price;
+        
+        await supabase
+          .from("positions")
+          .update({
+            current_price: update.current_price,
+            market_value: newMarketValue,
+          })
+          .eq("id", update.id);
+      }
+
+      // Recalculate weights
+      await recalculateWeights();
+
+      // Create snapshot with price refresh timestamp
+      const totalMV = positions.reduce((sum, p) => {
+        const update = updates.find(u => u.id === p.id);
+        if (update) {
+          return sum + (p.shares ?? 0) * update.current_price;
+        }
+        return sum + (p.market_value ?? 0);
+      }, 0);
+
+      const stocksValue = positions
+        .filter(p => p.position_type === "stock")
+        .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
+      const etfsValue = positions
+        .filter(p => p.position_type === "etf")
+        .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
+
+      await supabase.from("portfolio_snapshots").insert({
+        user_id: user.id,
+        total_value: totalMV,
+        stocks_percent: totalMV > 0 ? (stocksValue / totalMV) * 100 : 0,
+        etfs_percent: totalMV > 0 ? (etfsValue / totalMV) * 100 : 0,
+        cash_balance: cashBalance,
+        data_json: {
+          price_refresh: new Date().toISOString(),
+          updated_count: updates.length,
+        },
+      });
+
+      setLastPriceRefresh(new Date());
+      queryClient.invalidateQueries({ queryKey: ["positions"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      
+      toast.success(`Prices updated for ${updates.length} positions`);
+    } catch (error) {
+      console.error("Failed to apply price updates:", error);
+      toast.error("Failed to update prices. Please try again.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Portfolio</h1>
-          <p className="text-sm text-muted-foreground">
-            {positions.length} positions • €{totalValue.toLocaleString("de-DE", { minimumFractionDigits: 0 })} total
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-muted-foreground">
+              {positions.length} positions • €{totalValue.toLocaleString("de-DE", { minimumFractionDigits: 0 })} total
+            </p>
+            {lastPriceRefresh && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                Prices: {formatDistanceToNow(lastPriceRefresh, { addSuffix: true })}
+              </span>
+            )}
+          </div>
         </div>
         
         <div className="flex flex-wrap gap-2">
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={handleRefreshPrices}
+            disabled={positions.length === 0 || isFetchingPrices}
+          >
+            <DollarSign className="w-4 h-4" />
+            Refresh Prices
+          </Button>
           <Button 
             variant="outline" 
             className="gap-2"
@@ -297,6 +427,22 @@ export default function Portfolio() {
         open={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         onImportComplete={handleUploadComplete}
+      />
+
+      {/* Refresh Prices Modal */}
+      <RefreshPricesModal
+        open={showPriceModal}
+        onClose={() => {
+          setShowPriceModal(false);
+          setFetchedPrices([]);
+          setNotFoundTickers([]);
+        }}
+        positions={positions}
+        prices={fetchedPrices}
+        notFound={notFoundTickers}
+        isFetching={isFetchingPrices}
+        progress={priceProgress}
+        onApply={handleApplyPriceUpdates}
       />
     </div>
   );
