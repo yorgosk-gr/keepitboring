@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2, TrendingUp, TrendingDown, AlertTriangle, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -85,7 +85,9 @@ export function RefreshPricesModal({
   });
 
   // Update the updates when prices change
-  useState(() => {
+  useEffect(() => {
+    if (prices.length === 0) return;
+    
     const newUpdates = prices.map(price => {
       const position = positions.find(p => 
         p.ticker.toUpperCase() === price.ticker.toUpperCase()
@@ -110,7 +112,7 @@ export function RefreshPricesModal({
     }).filter(Boolean) as PriceUpdatePreview[];
 
     setUpdates(newUpdates);
-  });
+  }, [prices, positions]);
 
   const toggleUpdate = (ticker: string) => {
     setUpdates(prev => prev.map(u => 
