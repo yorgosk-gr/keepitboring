@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ScreenshotPreviewTable, type ExtractedPosition, type ExtractionMetadata } from "./ScreenshotPreviewTable";
+import { supabase } from "@/integrations/supabase/client";
 
 interface UploadScreenshotModalProps {
   open: boolean;
@@ -174,13 +175,21 @@ export function UploadScreenshotModal({ open, onClose, onImportComplete }: Uploa
 
       setState("processing");
 
+      // Get session token for authenticated request
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setErrorMessage("You must be logged in to process screenshots");
+        setState("error");
+        return;
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-screenshot`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             images: imageData,
