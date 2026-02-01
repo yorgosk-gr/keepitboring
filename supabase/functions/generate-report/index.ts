@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    // Get user's Anthropic API key from user_settings table
+    // Authenticate user
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -35,18 +35,12 @@ serve(async (req) => {
       });
     }
 
-    // Fetch API key from user_settings
-    const { data: settings } = await supabase
-      .from("user_settings")
-      .select("anthropic_api_key")
-      .eq("user_id", user.id)
-      .single();
-    
-    const apiKey = settings?.anthropic_api_key;
+    // Get API key from environment (server-side only)
+    const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "Anthropic API key not configured. Please add it in Settings." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Claude API key not configured. Please contact the administrator." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -170,8 +164,8 @@ End with a reminder: "Process over outcomes. Stay humble."`;
 
       if (response.status === 401) {
         return new Response(
-          JSON.stringify({ error: "Invalid Anthropic API key. Please check your API key in Settings." }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ error: "Invalid API key. Please contact the administrator." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       if (response.status === 429) {
@@ -181,7 +175,7 @@ End with a reminder: "Process over outcomes. Stay humble."`;
         });
       }
       if (response.status === 402 || errorText.includes("credit balance")) {
-        return new Response(JSON.stringify({ error: "Anthropic API credits exhausted. Please add credits to your Anthropic account." }), {
+        return new Response(JSON.stringify({ error: "API credits exhausted. Please contact the administrator." }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
