@@ -3,6 +3,7 @@ import { Progress } from "@/components/ui/progress";
 interface AllocationSummaryProps {
   stocksPercent: number;
   etfsPercent: number;
+  cashPercent?: number;
   isLoading?: boolean;
 }
 
@@ -15,7 +16,7 @@ function getAllocationStatus(actual: number, target: number, rangeMin: number, r
   return "off-target"; // Amber/warning - outside acceptable range
 }
 
-export function AllocationSummary({ stocksPercent, etfsPercent, isLoading }: AllocationSummaryProps) {
+export function AllocationSummary({ stocksPercent, etfsPercent, cashPercent, isLoading }: AllocationSummaryProps) {
   // Stocks: target 20%, acceptable 15-25%
   const stocksStatus = getAllocationStatus(stocksPercent, 20, 15, 25);
   // ETFs: target 80%, acceptable 75-85%
@@ -94,6 +95,27 @@ export function AllocationSummary({ stocksPercent, etfsPercent, isLoading }: All
             />
           </div>
         </div>
+
+        {/* Cash */}
+        {cashPercent !== undefined && cashPercent > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-foreground font-medium">Cash</span>
+              </div>
+              <span className="text-muted-foreground">
+                {cashPercent.toFixed(1)}%
+              </span>
+            </div>
+            <Progress 
+              value={cashPercent} 
+              className="h-2"
+              style={{
+                "--progress-color": "hsl(215, 20%, 50%)",
+              } as React.CSSProperties}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
