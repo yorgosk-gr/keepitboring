@@ -36,6 +36,13 @@ import { cn } from "@/lib/utils";
 import { useTickerVerification, type VerifiedPosition } from "@/hooks/useTickerVerification";
 import { useETFClassification } from "@/hooks/useETFClassification";
 
+const KNOWN_ETF_TICKERS = new Set([
+  'VWRA', 'CSPX', 'IDTM', 'IMID', 'NDIA', 'CMOD', 'IGLN', 'EIMI',
+  'COPX', 'IJPA', 'IMEU', 'IB01', 'SPY', 'QQQ', 'VTI', 'VOO',
+  'IVV', 'EEM', 'GLD', 'SLV', 'TLT', 'HYG', 'LQD', 'IEMG',
+  'VEA', 'VWO', 'SPDR', 'CBUX', 'ARKK', 'SCHD', 'JEPI'
+]);
+
 export interface ExtractedPosition {
   ticker: string;
   name: string | null;
@@ -99,20 +106,41 @@ export function ScreenshotPreviewTable({
   const hasVerificationNeeded = positions.some(p => p.needs_verification);
 
   const [editablePositions, setEditablePositions] = useState<EditablePosition[]>(
-    positions.map((p, i) => ({
-      ...p,
-      id: `temp-${i}`,
-      position_type: "stock" as const,
-      category: "equity" as const,
-      selected: true,
-      verified: !p.needs_verification,
-      originalTicker: p.needs_verification ? p.ticker : undefined,
-    }))
+    positions.map((p, i) => {
+      const isKnownETF = KNOWN_ETF_TICKERS.has(p.ticker?.toUpperCase());
+      const nameIndicatesETF = p.name ? 
+        /iShares|Vanguard|SPDR|ETF|UCITS|Index|Tracker|Xtrackers|Amundi|WisdomTree|Invesco/i
+          .test(p.name) : false;
+      const detectedType = (isKnownETF || nameIndicatesETF) ? "etf" : "stock";
+      
+      return {
+        ...p,
+        id: `temp-${i}`,
+        position_type: detectedType as "stock" | "etf",
+        category: "equity" as const,
+        selected: true,
+        verified: !p.needs_verification,
+        originalTicker: p.needs_verification ? p.ticker : undefined,
+      };
+    })
   );
 
   const updatePosition = (id: string, field: keyof EditablePosition, value: unknown) => {
     setEditablePositions((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        const updated = { ...p, [field]: value };
+        
+        if (field === "shares" || field === "current_price") {
+          const shares = field === "shares" ? (value as number) : p.shares;
+          const price = field === "current_price" ? (value as number) : p.current_price;
+          if (shares !== null && price !== null && price > 0) {
+            updated.market_value = Math.round(shares * price * 100) / 100;
+          }
+        }
+        
+        return updated;
+      })
     );
   };
 
