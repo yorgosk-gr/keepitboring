@@ -46,60 +46,55 @@ serve(async (req) => {
 
     const isSingleImage = images.length === 1;
     
-    // Broker-agnostic prompt that handles any brokerage format
-    const systemPrompt = `You are extracting portfolio positions from brokerage screenshots.
+    // IBKR-focused prompt with clear column identification
+    const systemPrompt = `You are extracting portfolio data from Interactive Brokers (IBKR) screenshots.
 
-These could be from ANY broker (Interactive Brokers, Degiro, Trading 212, Schwab, Fidelity, eToro, Revolut, TD Ameritrade, Robinhood, or any other platform).
+IBKR TABLE COLUMNS (left to right):
+- Financial Instrument (ticker + description)
+- Position (number of shares — always positive, usually a whole number)
+- Currency
+- Market Price (current price per share — ALWAYS POSITIVE)
+- Market Value (total value = shares × market price)
+- Average Price (cost basis per share — ALWAYS POSITIVE)
+- Unrealized P&L (profit/loss — CAN BE NEGATIVE)
 
-Different brokers display data differently. Adapt to whatever format you see:
-- Some show ticker symbols, others show full company names
-- Some show average cost, others show total cost basis
-- Some show P&L in currency, others in percentage, others both
-- Some use USD, others EUR, GBP, or mixed currencies
-- Column order varies by broker
+CRITICAL MISTAKES TO AVOID:
+1. Unrealized P&L can be NEGATIVE. Current price is ALWAYS POSITIVE. Do NOT confuse them.
+2. Market Value is a large number. Shares is smaller. Do NOT swap them.
+3. Cost Basis is TOTAL cost. Average Price is PER SHARE. Use Average Price.
 
 ${!isSingleImage ? `These are ${images.length} pages from the SAME portfolio view — the full position list did not fit on one screen. Combine and deduplicate positions across all pages.` : ""}
 
-Extract ALL positions you can identify. For each position, provide as much data as you can find.
-
-IMPORTANT - TICKER IDENTIFICATION:
-- If you see a company name but no ticker (e.g., 'Apple Inc'), provide the standard ticker symbol (AAPL)
-- If you see an ISIN code, map it to the common ticker if you know it
-- If you see an ETF name (e.g., 'Vanguard FTSE All-World'), provide the most common ticker (VWRA for European, VT for US)
-- If you are unsure of the ticker, put your best guess and add 'needs_verification': true
-- For regional listings, note the exchange if visible
-
-HANDLING UNCLEAR DATA:
-- If the screenshot is blurry or unreadable, set 'extraction_quality': 'poor' and explain in extraction_notes
-- If you can only extract partial data, extract what you can see clearly
-- If you see duplicate tickers, include both with different source_page values
+VALIDATION — check each row before returning:
+- current_price must be POSITIVE
+- avg_price must be POSITIVE
+- market_value should approximately equal shares × current_price
+- If it doesn't match, you swapped columns. Fix it.
 
 Return ONLY valid JSON (no markdown, no code blocks):
 {
-  "detected_broker": "Interactive Brokers" or "Degiro" or "Trading 212" or "Unknown",
-  "detected_currency": "EUR" or "USD" or "GBP" or "mixed",
+  "detected_broker": "Interactive Brokers",
+  "detected_currency": "USD" or "EUR" or "mixed",
   "extraction_quality": "good" or "partial" or "poor",
   "positions": [
     {
       "ticker": "AAPL",
       "name": "Apple Inc",
       "isin": "US0378331005" or null,
-      "shares": 100,
-      "avg_price": 150.50 or null,
-      "current_price": 155.00 or null,
-      "market_value": 15500 or null,
-      "pnl": 450 or null,
-      "pnl_percent": 2.5 or null,
-      "currency": "USD" or null,
+      "shares": 61,
+      "avg_price": 258.80,
+      "current_price": 259.12,
+      "market_value": 15806,
+      "pnl": 19.52,
+      "pnl_percent": null,
+      "currency": "USD",
       "needs_verification": false,
       "source_page": 1
     }
   ],
-  "cash_balances": {
-    "USD": 10000
-  } or null,
-  "total_value": 500000 or null,
-  "extraction_notes": "Any issues, ambiguities, or notes about the extraction"
+  "cash_balances": {},
+  "total_value": null,
+  "extraction_notes": "any issues or ambiguities"
 }
 
 Rules:
@@ -107,9 +102,7 @@ Rules:
 - Ticker symbols only in the ticker field (no exchange suffixes like .DE or .L)
 - Numbers without currency symbols or thousand separators
 - Set needs_verification: true for any ticker you're not 100% confident about
-- Include source_page (1, 2, 3...) for multi-image extractions
-- Always try to detect the broker from UI elements, logos, or layout
-- Return ONLY the JSON object, nothing else`;
+- Include source_page (1, 2, 3...) for multi-image extractions`;
 
     // Build the content array with all images
     const userContent: Array<{ type: string; image_url?: { url: string }; text?: string }> = [];
