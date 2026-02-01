@@ -42,7 +42,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { usePositions, type Position } from "@/hooks/usePositions";
-
+import type { RecommendedAction } from "@/hooks/usePortfolioAnalysis";
 const formSchema = z.object({
   action_type: z.enum(["buy", "sell", "trim", "add", "hold", "rebalance"]),
   position_id: z.string().min(1, "Select a position"),
@@ -64,6 +64,7 @@ interface LogDecisionModalProps {
   onClose: () => void;
   position?: Position | null;
   defaultAction?: string;
+  recommendation?: RecommendedAction | null;
 }
 
 export function LogDecisionModal({
@@ -71,6 +72,7 @@ export function LogDecisionModal({
   onClose,
   position,
   defaultAction,
+  recommendation,
 }: LogDecisionModalProps) {
   const { user } = useAuth();
   const { positions } = usePositions();
@@ -94,7 +96,25 @@ export function LogDecisionModal({
     },
   });
 
-  // Update form when position prop changes
+  // Helper to extract action type from recommendation action text
+  const extractActionType = (actionText: string): FormValues["action_type"] => {
+    const lower = actionText.toLowerCase();
+    if (lower.includes("trim") || lower.includes("reduce")) return "trim";
+    if (lower.includes("sell") || lower.includes("exit")) return "sell";
+    if (lower.includes("buy") || lower.includes("purchase")) return "buy";
+    if (lower.includes("add") || lower.includes("increase")) return "add";
+    if (lower.includes("rebalance")) return "rebalance";
+    return "hold";
+  };
+
+  // Helper to extract ticker from recommendation action text
+  const extractTicker = (actionText: string): string | null => {
+    // Look for common patterns like "Review TSLA", "Trim NVDA position", etc.
+    const tickerMatch = actionText.match(/\b([A-Z]{1,5})\b/);
+    return tickerMatch ? tickerMatch[1] : null;
+  };
+
+  // Update form when position, defaultAction, or recommendation prop changes
   useEffect(() => {
     if (position) {
       form.setValue("position_id", position.id);
@@ -102,7 +122,33 @@ export function LogDecisionModal({
     if (defaultAction) {
       form.setValue("action_type", defaultAction as FormValues["action_type"]);
     }
-  }, [position, defaultAction]);
+    
+    // Pre-fill from recommendation
+    if (recommendation) {
+      // Extract action type from recommendation text
+      const actionType = extractActionType(recommendation.action);
+      form.setValue("action_type", actionType);
+      
+      // Try to find matching position from ticker in action text
+      const ticker = extractTicker(recommendation.action);
+      if (ticker) {
+        const matchingPosition = positions.find(
+          p => p.ticker.toUpperCase() === ticker.toUpperCase()
+        );
+        if (matchingPosition) {
+          form.setValue("position_id", matchingPosition.id);
+        }
+      }
+      
+      // Pre-fill reasoning with the recommendation action and reasoning
+      const prefillReasoning = `Based on analysis recommendation:\n\nAction: ${recommendation.action}\n\nReasoning: ${recommendation.reasoning}`;
+      form.setValue("reasoning", prefillReasoning);
+      
+      // Set confidence based on recommendation confidence
+      const confidenceMap = { high: 8, medium: 6, low: 4 };
+      form.setValue("confidence_level", confidenceMap[recommendation.confidence] || 5);
+    }
+  }, [position, defaultAction, recommendation, positions]);
 
   const handleSubmit = async (values: FormValues) => {
     if (!user) return;
