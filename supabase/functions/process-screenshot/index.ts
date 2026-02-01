@@ -65,6 +65,20 @@ CRITICAL MISTAKES TO AVOID:
 
 ${!isSingleImage ? `These are ${images.length} pages from the SAME portfolio view — the full position list did not fit on one screen. Combine and deduplicate positions across all pages.` : ""}
 
+STOCK vs ETF IDENTIFICATION:
+Classify each position as stock or etf:
+- ETF indicators: name contains iShares, Vanguard, SPDR, ETF, UCITS, Index, Tracker
+- Known ETF tickers: VWRA, CSPX, IDTM, IMID, NDIA, CMOD, IGLN, EIMI, COPX, IJPA, IMEU, IB01, SPY, QQQ, VTI, VOO
+- If unsure, set needs_verification: true
+
+CATEGORY:
+- equity: stock index ETFs, individual stocks
+- bond: treasury, fixed income, government bond ETFs
+- commodity: commodity basket, copper, oil ETFs
+- gold: gold or precious metal ETFs
+- country: single-country ETFs (India, Japan, etc)
+- theme: sector-specific ETFs
+
 VALIDATION — check each row before returning:
 - current_price must be POSITIVE
 - avg_price must be POSITIVE
@@ -88,6 +102,8 @@ Return ONLY valid JSON (no markdown, no code blocks):
       "pnl": 19.52,
       "pnl_percent": null,
       "currency": "USD",
+      "position_type": "stock" or "etf",
+      "category": "equity" or "bond" or "commodity" or "gold" or "country" or "theme",
       "needs_verification": false,
       "source_page": 1
     }
