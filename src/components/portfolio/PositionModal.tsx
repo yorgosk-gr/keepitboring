@@ -17,7 +17,7 @@ const positionSchema = z.object({
   shares: z.number().positive("Shares must be positive"),
   avg_cost: z.number().positive("Average cost must be positive"),
   current_price: z.number().positive("Current price must be positive"),
-  bet_type: z.enum(["active", "passive_carry", "legacy_hold"]),
+  bet_type: z.enum(["core", "satellite", "explore"]),
   confidence_level: z.number().min(1).max(10),
   thesis_notes: z.string().max(2000, "Notes too long").optional(),
   invalidation_triggers: z.string().max(1000, "Triggers too long").optional(),
@@ -54,7 +54,7 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
     shares: position?.shares?.toString() ?? "",
     avg_cost: position?.avg_cost?.toString() ?? "",
     current_price: position?.current_price?.toString() ?? "",
-    bet_type: (position?.bet_type as PositionFormData["bet_type"]) ?? "passive_carry",
+    bet_type: (position?.bet_type as PositionFormData["bet_type"]) ?? "core",
     confidence_level: position?.confidence_level ?? 5,
     thesis_notes: parsed.thesis,
     invalidation_triggers: parsed.triggers,
@@ -255,7 +255,7 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
           {/* Investment Strategy Row */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="bet_type">Bet Type *</Label>
+              <Label htmlFor="bet_type">Tier *</Label>
               <Select
                 value={formData.bet_type}
                 onValueChange={(v) => setFormData({ ...formData, bet_type: v as PositionFormData["bet_type"] })}
@@ -264,11 +264,14 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="passive_carry">Passive Carry</SelectItem>
-                  <SelectItem value="legacy_hold">Legacy Hold</SelectItem>
+                  <SelectItem value="core">Core</SelectItem>
+                  <SelectItem value="satellite">Satellite</SelectItem>
+                  <SelectItem value="explore">Explore</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Core = broad index/bonds • Satellite = conviction picks • Explore = small experiments
+              </p>
             </div>
 
             <div className="space-y-2">

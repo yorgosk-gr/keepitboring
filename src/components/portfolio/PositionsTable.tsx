@@ -62,24 +62,24 @@ function getTypeBadge(type: string | null) {
   );
 }
 
-function getBetTypeBadge(betType: string | null) {
-  switch (betType) {
-    case "active":
+function getTierBadge(tier: string | null) {
+  switch (tier) {
+    case "core":
+      return (
+        <span className="px-2 py-0.5 text-xs font-medium bg-primary/20 text-primary rounded-full">
+          Core
+        </span>
+      );
+    case "satellite":
       return (
         <span className="px-2 py-0.5 text-xs font-medium bg-chart-4/20 text-chart-4 rounded-full">
-          Active
+          Satellite
         </span>
       );
-    case "passive_carry":
-      return (
-        <span className="px-2 py-0.5 text-xs font-medium bg-muted text-muted-foreground rounded-full">
-          Passive
-        </span>
-      );
-    case "legacy_hold":
+    case "explore":
       return (
         <span className="px-2 py-0.5 text-xs font-medium bg-warning/20 text-warning rounded-full">
-          Legacy
+          Explore
         </span>
       );
     default:
@@ -236,7 +236,7 @@ export function PositionsTable({
               </SortHeader>
               <SortHeader field="weight_percent">Weight</SortHeader>
               <SortHeader field="pnl_percent">P&L</SortHeader>
-              <th className="text-left pb-3 font-medium w-20">Bet Type</th>
+              <th className="text-left pb-3 font-medium w-20">Tier</th>
               <SortHeader field="confidence_level">Conf.</SortHeader>
               <th className="text-right pb-3 font-medium w-24">Actions</th>
             </tr>
@@ -307,7 +307,7 @@ export function PositionsTable({
                       </div>
                     </td>
                     <td className="py-3">
-                      {position.bet_type ? getBetTypeBadge(position.bet_type) : (
+                      {position.bet_type ? getTierBadge(position.bet_type) : (
                         <span className="text-muted-foreground/40 text-xs">—</span>
                       )}
                     </td>

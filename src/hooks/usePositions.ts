@@ -31,7 +31,7 @@ export interface PositionFormData {
   shares: number;
   avg_cost: number;
   current_price: number;
-  bet_type: "active" | "passive_carry" | "legacy_hold";
+  bet_type: "core" | "satellite" | "explore";
   confidence_level: number;
   thesis_notes?: string;
   invalidation_triggers?: string;
