@@ -88,13 +88,13 @@ function getBetTypeBadge(betType: string | null) {
 }
 
 function ConfidenceStars({ level }: { level: number | null }) {
-  const stars = level ?? 0;
+  const stars = level ? Math.min(5, Math.round((level / 10) * 5)) : 0;
   return (
     <div className="flex items-center gap-0.5">
-      {Array.from({ length: 10 }).map((_, i) => (
+      {Array.from({ length: 5 }).map((_, i) => (
         <Star
           key={i}
-          className={`w-3 h-3 ${i < stars ? "text-warning fill-warning" : "text-muted-foreground/30"}`}
+          className={`w-3.5 h-3.5 ${i < stars ? "text-warning fill-warning" : "text-muted-foreground/30"}`}
         />
       ))}
     </div>
@@ -236,7 +236,7 @@ export function PositionsTable({
               </SortHeader>
               <SortHeader field="weight_percent">Weight</SortHeader>
               <SortHeader field="pnl_percent">P&L</SortHeader>
-              <th className="text-left pb-3 font-medium w-16">Bet</th>
+              <th className="text-left pb-3 font-medium w-20">Bet Type</th>
               <SortHeader field="confidence_level">Conf.</SortHeader>
               <th className="text-right pb-3 font-medium w-24">Actions</th>
             </tr>
@@ -298,17 +298,25 @@ export function PositionsTable({
                     </td>
                     <td className="py-3 text-right">
                       <div className="flex flex-col items-end">
-                        <span className={`font-mono font-medium ${pnl.value >= 0 ? "text-primary" : "text-destructive"}`}>
+                        <span className={`font-mono font-medium ${pnl.value === 0 ? "text-muted-foreground" : pnl.value > 0 ? "text-primary" : "text-destructive"}`}>
                           {pnl.value >= 0 ? "+" : ""}€{pnl.value.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         </span>
-                        <span className={`text-xs ${pnl.percent >= 0 ? "text-primary" : "text-destructive"}`}>
+                        <span className={`text-xs ${pnl.percent === 0 ? "text-muted-foreground" : pnl.percent > 0 ? "text-primary" : "text-destructive"}`}>
                           {pnl.percent >= 0 ? "+" : ""}{pnl.percent.toFixed(2)}%
                         </span>
                       </div>
                     </td>
-                    <td className="py-3">{getBetTypeBadge(position.bet_type)}</td>
                     <td className="py-3">
-                      <ConfidenceStars level={position.confidence_level} />
+                      {position.bet_type ? getBetTypeBadge(position.bet_type) : (
+                        <span className="text-muted-foreground/40 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="py-3">
+                      {position.confidence_level && position.confidence_level > 0 ? (
+                        <ConfidenceStars level={position.confidence_level} />
+                      ) : (
+                        <span className="text-muted-foreground/40 text-xs">—</span>
+                      )}
                     </td>
                     <td className="py-3">
                       <div className="flex items-center justify-end gap-1">
