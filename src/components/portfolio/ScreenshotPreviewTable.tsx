@@ -35,14 +35,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useTickerVerification, type VerifiedPosition } from "@/hooks/useTickerVerification";
 import { useETFClassification } from "@/hooks/useETFClassification";
-
-const KNOWN_ETF_TICKERS = new Set([
-  'VWRA', 'CSPX', 'IDTM', 'IMID', 'NDIA', 'CMOD', 'IGLN', 'EIMI',
-  'COPX', 'IJPA', 'IMEU', 'IB01', 'SPY', 'QQQ', 'VTI', 'VOO',
-  'IVV', 'EEM', 'GLD', 'SLV', 'TLT', 'HYG', 'LQD', 'IEMG',
-  'VEA', 'VWO', 'SPDR', 'CBUX', 'ARKK', 'SCHD', 'JEPI',
-  'INFR', 'IQQI', 'XDWH'
-]);
+import { lookupTicker } from "@/lib/tickerReference";
 
 export interface ExtractedPosition {
   ticker: string;
@@ -110,22 +103,26 @@ export function ScreenshotPreviewTable({
 
   const [editablePositions, setEditablePositions] = useState<EditablePosition[]>(
     positions.map((p, i) => {
-      const isKnownETF = KNOWN_ETF_TICKERS.has(p.ticker?.toUpperCase());
-      const nameIndicatesETF = p.name ? 
+      const lookup = lookupTicker(p.ticker);
+      const nameIndicatesETF = p.name ?
         /iShares|Vanguard|SPDR|ETF|UCITS|Index|Tracker|Xtrackers|Amundi|WisdomTree|Invesco/i
           .test(p.name) : false;
-      const detectedType = (isKnownETF || nameIndicatesETF) ? "etf" : "stock";
-      
+
+      const detectedType = lookup?.type || (nameIndicatesETF ? "etf" : "stock");
+      const detectedCategory = lookup?.category || "equity";
+      const detectedName = p.name && p.name !== "Company name" ? p.name : (lookup?.name || p.name);
+
       return {
         ...p,
         id: `temp-${i}`,
+        name: detectedName,
         position_type: detectedType as "stock" | "etf",
-        category: "equity" as const,
+        category: detectedCategory as "equity" | "bond" | "commodity" | "gold" | "country" | "theme",
         selected: true,
         verified: !p.needs_verification,
         originalTicker: p.needs_verification ? p.ticker : undefined,
-        exchange: p.exchange || null,
-        currency: p.currency || null,
+        exchange: p.exchange || lookup?.exchange || null,
+        currency: p.currency || lookup?.currency || null,
       };
     })
   );
