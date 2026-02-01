@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +59,25 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
     thesis_notes: parsed.thesis,
     invalidation_triggers: parsed.triggers,
   });
+
+  // Reset form when position changes (fixes edit not pre-populating)
+  useEffect(() => {
+    const parsed = parseThesisNotes(position?.thesis_notes ?? null);
+    setFormData({
+      ticker: position?.ticker ?? "",
+      name: position?.name ?? "",
+      position_type: (position?.position_type as "stock" | "etf") ?? "etf",
+      category: (position?.category as PositionFormData["category"]) ?? "equity",
+      shares: position?.shares?.toString() ?? "",
+      avg_cost: position?.avg_cost?.toString() ?? "",
+      current_price: position?.current_price?.toString() ?? "",
+      bet_type: (position?.bet_type as PositionFormData["bet_type"]) ?? "core",
+      confidence_level: position?.confidence_level ?? 5,
+      thesis_notes: parsed.thesis,
+      invalidation_triggers: parsed.triggers,
+    });
+    setErrors({});
+  }, [position]);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
