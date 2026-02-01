@@ -10,7 +10,7 @@ import { MarketSignalsCard } from "./MarketSignalsCard";
 import { RecommendedActionsCard } from "./RecommendedActionsCard";
 import { KeyRisksCard } from "./KeyRisksCard";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
-import type { AnalysisResult } from "@/hooks/usePortfolioAnalysis";
+import type { AnalysisResult, RecommendedAction } from "@/hooks/usePortfolioAnalysis";
 
 interface AnalysisResultsViewProps {
   analysis: AnalysisResult;
@@ -24,7 +24,17 @@ export function AnalysisResultsView({
   onDismiss,
 }: AnalysisResultsViewProps) {
   const [showDecisionModal, setShowDecisionModal] = useState(false);
+  const [selectedRecommendation, setSelectedRecommendation] = useState<RecommendedAction | null>(null);
 
+  const handleLogDecision = (recommendation?: RecommendedAction) => {
+    setSelectedRecommendation(recommendation || null);
+    setShowDecisionModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowDecisionModal(false);
+    setSelectedRecommendation(null);
+  };
   const criticalAlerts = analysis.position_alerts.filter((a) => a.severity === "critical");
   const warningAlerts = analysis.position_alerts.filter((a) => a.severity === "warning");
 
@@ -138,13 +148,14 @@ export function AnalysisResultsView({
         actions={analysis.recommended_actions}
         onMarkCompleted={onMarkCompleted}
         onDismiss={onDismiss}
-        onLogDecision={() => setShowDecisionModal(true)}
+        onLogDecision={handleLogDecision}
       />
 
       {/* Decision Modal */}
       <LogDecisionModal
         open={showDecisionModal}
-        onClose={() => setShowDecisionModal(false)}
+        onClose={handleCloseModal}
+        recommendation={selectedRecommendation}
       />
     </div>
   );

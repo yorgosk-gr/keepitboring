@@ -18,7 +18,7 @@ interface RecommendedActionsCardProps {
   actions: RecommendedAction[];
   onMarkCompleted: (index: number) => void;
   onDismiss: (index: number, reason: string) => void;
-  onLogDecision: () => void;
+  onLogDecision: (recommendation?: RecommendedAction) => void;
 }
 
 export function RecommendedActionsCard({
@@ -54,9 +54,9 @@ export function RecommendedActionsCard({
     <div className="stat-card space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-foreground">Recommended Actions</h3>
-        <Button variant="outline" size="sm" onClick={onLogDecision}>
+        <Button variant="outline" size="sm" onClick={() => onLogDecision()}>
           <BookOpen className="w-4 h-4 mr-2" />
-          Log Decision
+          Log New Decision
         </Button>
       </div>
 
@@ -90,6 +90,15 @@ export function RecommendedActionsCard({
                     >
                       <CheckCircle2 className="w-4 h-4 mr-1" />
                       Mark Done
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
+                      onClick={() => onLogDecision(action)}
+                    >
+                      <BookOpen className="w-4 h-4 mr-1" />
+                      Log Decision
                     </Button>
                     <Button
                       variant="ghost"
