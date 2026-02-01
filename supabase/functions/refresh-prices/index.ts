@@ -44,13 +44,21 @@ const EXCHANGE_SUFFIXES: Record<string, string> = {
   EQQQ: ".L", PHAU: ".L", PHAG: ".L", PPFB: ".L", AIGC: ".L",
   EXSA: ".DE",
   // International stocks in portfolio
-  GRE1: ".L",   // Greencoat Renewables
   III: ".L",     // 3i Group
   TEA: ".AX",    // Tasmea Ltd (ASX)
 };
 
+// IBKR tickers that need a completely different Yahoo Finance symbol.
+// IBKR uses non-standard tickers for some European ETFs.
+const YAHOO_TICKER_ALIASES: Record<string, string> = {
+  GRE1: "GRE.PA",    // Amundi MSCI Greece ETF — IBKR uses "GRE1", Yahoo uses "GRE.PA" (Euronext Paris)
+};
+
 function getYahooTicker(ticker: string): string {
   const upper = ticker.toUpperCase();
+  // Check aliases first (for IBKR tickers that don't match Yahoo)
+  if (YAHOO_TICKER_ALIASES[upper]) return YAHOO_TICKER_ALIASES[upper];
+  // Then check exchange suffixes
   const suffix = EXCHANGE_SUFFIXES[upper];
   if (suffix) return upper + suffix;
   return upper; // US-listed stocks need no suffix
