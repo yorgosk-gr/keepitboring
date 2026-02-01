@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,11 +29,34 @@ serve(async (req) => {
       );
     }
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
+    // Get user's Anthropic API key from user_settings table
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    const authHeader = req.headers.get("Authorization");
+    const token = authHeader?.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
       return new Response(
-        JSON.stringify({ error: "API key required. Please configure your Anthropic API key to use price refresh." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Authentication required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Fetch API key from user_settings
+    const { data: settings } = await supabase
+      .from("user_settings")
+      .select("anthropic_api_key")
+      .eq("user_id", user.id)
+      .single();
+    
+    const apiKey = settings?.anthropic_api_key;
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: "Anthropic API key not configured. Please add it in Settings." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -42,7 +66,7 @@ serve(async (req) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
+        "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
@@ -91,16 +115,21 @@ Return ONLY valid JSON, no markdown or explanation.`,
       const errorText = await response.text();
       console.error("Anthropic API error:", response.status, errorText);
       
+      if (response.status === 401) {
+        return new Response(
+          JSON.stringify({ error: "Invalid Anthropic API key. Please check your API key in Settings." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limited. Please try again in a moment." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      
       if (response.status === 402 || errorText.includes("credit balance")) {
         return new Response(
-          JSON.stringify({ error: "API credits exhausted. Please add credits to continue." }),
+          JSON.stringify({ error: "Anthropic API credits exhausted. Please add credits to your Anthropic account." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -113,10 +142,19 @@ Return ONLY valid JSON, no markdown or explanation.`,
 
     const aiResponse = await response.json();
     
+    // Handle Claude API errors
+    if (aiResponse.error) {
+      console.error("Claude API error:", aiResponse.error);
+      return new Response(
+        JSON.stringify({ error: aiResponse.error.message || "Price lookup failed" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
     // Extract text from all content blocks
     const fullResponse = aiResponse.content
-      ?.map((item: { type: string; text?: string }) => (item.type === "text" ? item.text : ""))
-      .filter(Boolean)
+      ?.filter((block: { type: string }) => block.type === "text")
+      .map((block: { text: string }) => block.text)
       .join("\n");
 
     if (!fullResponse) {
