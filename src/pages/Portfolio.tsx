@@ -6,7 +6,7 @@ import { usePositions, type Position, type PositionFormData } from "@/hooks/useP
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useTickerVerification } from "@/hooks/useTickerVerification";
 import { usePriceRefresh, type PriceUpdate } from "@/hooks/usePriceRefresh";
-import { useETFClassification } from "@/hooks/useETFClassification";
+import { lookupTicker } from "@/lib/tickerReference";
 import { AllocationSummary } from "@/components/portfolio/AllocationSummary";
 import { PositionsTable } from "@/components/portfolio/PositionsTable";
 import { PositionModal } from "@/components/portfolio/PositionModal";
@@ -40,8 +40,6 @@ export default function Portfolio() {
   // Ticker verification
   const { verifySinglePosition, verifyPositions, isVerifying, progress: verifyProgress } = useTickerVerification();
   
-  // ETF classification
-  const { classifyETFs, updatePositionCategories, isClassifying } = useETFClassification();
   
   // Price refresh
   const { fetchPrices, isFetching: isFetchingPrices, progress: priceProgress } = usePriceRefresh();
@@ -262,22 +260,60 @@ export default function Portfolio() {
     setNotFoundTickers(notFound);
   };
 
-  // Handle ETF reclassification
+  // Handle ETF reclassification using local ticker reference
   const handleReclassifyETFs = async () => {
-    const etfs = positions
-      .filter(p => p.position_type === "etf")
-      .map(p => ({ ticker: p.ticker, name: p.name || undefined }));
-
-    if (etfs.length === 0) {
-      toast.info("No ETFs to classify");
+    if (positions.length === 0) {
+      toast.info("No positions to reclassify");
       return;
     }
 
-    const classifications = await classifyETFs(etfs, { forceReclassify: true });
-    
-    if (classifications.length > 0 && user) {
-      await updatePositionCategories(classifications, user.id);
-      toast.success(`Reclassified ${classifications.length} ETFs`);
+    let updatedCount = 0;
+
+    for (const position of positions) {
+      const lookup = lookupTicker(position.ticker);
+      if (!lookup) continue;
+
+      const updates: Record<string, unknown> = {};
+
+      // Fix type (stock vs etf)
+      if (lookup.type === "etf" && position.position_type !== "etf") {
+        updates.position_type = "etf";
+      }
+      if (lookup.type === "stock" && position.position_type !== "stock") {
+        updates.position_type = "stock";
+      }
+
+      // Fix category from reference data
+      if (lookup.category && position.category !== lookup.category) {
+        updates.category = lookup.category;
+      }
+
+      // Fix name if it looks wrong (current name doesn't match reference)
+      if (lookup.name) {
+        const currentName = (position.name || "").toLowerCase();
+        const refWords = lookup.name.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        const hasMatch = refWords.some(w => currentName.includes(w));
+        if (!hasMatch || !position.name || position.name === "Company name") {
+          updates.name = lookup.name;
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        const { error } = await supabase
+          .from("positions")
+          .update(updates)
+          .eq("id", position.id);
+        if (!error) updatedCount++;
+      }
+    }
+
+    if (updatedCount > 0) {
+      queryClient.invalidateQueries({ queryKey: ["positions"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      await recalculateWeights();
+      toast.success(`Updated ${updatedCount} positions from ticker reference`);
+    } else {
+      toast.info("All positions already correctly classified");
     }
   };
 
@@ -368,10 +404,10 @@ export default function Portfolio() {
             variant="outline" 
             className="gap-2"
             onClick={handleReclassifyETFs}
-            disabled={positions.filter(p => p.position_type === "etf").length === 0 || isClassifying}
+            disabled={positions.length === 0}
           >
             <Tags className="w-4 h-4" />
-            {isClassifying ? "Classifying..." : "Reclassify ETFs"}
+            Reclassify ETFs
           </Button>
           <Button 
             variant="outline" 
