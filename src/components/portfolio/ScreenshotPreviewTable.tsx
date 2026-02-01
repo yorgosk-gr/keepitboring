@@ -40,7 +40,8 @@ const KNOWN_ETF_TICKERS = new Set([
   'VWRA', 'CSPX', 'IDTM', 'IMID', 'NDIA', 'CMOD', 'IGLN', 'EIMI',
   'COPX', 'IJPA', 'IMEU', 'IB01', 'SPY', 'QQQ', 'VTI', 'VOO',
   'IVV', 'EEM', 'GLD', 'SLV', 'TLT', 'HYG', 'LQD', 'IEMG',
-  'VEA', 'VWO', 'SPDR', 'CBUX', 'ARKK', 'SCHD', 'JEPI'
+  'VEA', 'VWO', 'SPDR', 'CBUX', 'ARKK', 'SCHD', 'JEPI',
+  'INFR', 'IQQI', 'XDWH'
 ]);
 
 export interface ExtractedPosition {
@@ -54,6 +55,7 @@ export interface ExtractedPosition {
   pnl: number | null;
   pnl_percent?: number | null;
   currency?: string | null;
+  exchange?: string | null;
   source_page?: number;
   needs_verification?: boolean;
 }
@@ -68,6 +70,7 @@ interface EditablePosition extends ExtractedPosition {
   verification_status?: "confirmed" | "corrected" | "uncertain";
   corrected_ticker?: string;
   verification_notes?: string;
+  exchange?: string | null;
 }
 
 export interface ExtractionMetadata {
@@ -121,6 +124,8 @@ export function ScreenshotPreviewTable({
         selected: true,
         verified: !p.needs_verification,
         originalTicker: p.needs_verification ? p.ticker : undefined,
+        exchange: p.exchange || null,
+        currency: p.currency || null,
       };
     })
   );
@@ -542,6 +547,8 @@ export function ScreenshotPreviewTable({
               {hasSourcePages && <TableHead className="w-16">Page</TableHead>}
               <TableHead>Type</TableHead>
               <TableHead>Category</TableHead>
+              <TableHead>Exchange</TableHead>
+              <TableHead>Currency</TableHead>
               <TableHead className="text-right">Shares</TableHead>
               <TableHead className="text-right">Avg Price</TableHead>
               <TableHead className="text-right">Current</TableHead>
@@ -701,6 +708,22 @@ export function ScreenshotPreviewTable({
                       <SelectItem value="theme">Theme</SelectItem>
                     </SelectContent>
                   </Select>
+                </TableCell>
+                <TableCell>
+                  <Input
+                    value={pos.exchange || ""}
+                    onChange={(e) => updatePosition(pos.id, "exchange", e.target.value || null)}
+                    placeholder="LSE"
+                    className="h-8 w-20"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    value={pos.currency || ""}
+                    onChange={(e) => updatePosition(pos.id, "currency", e.target.value || null)}
+                    placeholder="USD"
+                    className="h-8 w-16"
+                  />
                 </TableCell>
                 <TableCell className="text-right">
                   <Input

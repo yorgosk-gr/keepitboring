@@ -79,6 +79,18 @@ CATEGORY:
 - country: single-country ETFs (India, Japan, etc)
 - theme: sector-specific ETFs
 
+EXCHANGE AND CURRENCY:
+For each position, identify:
+- The stock exchange it trades on (use short codes):
+  LSE, XETRA, NASDAQ, NYSE, ASX, EURONEXT, SIX, TSE, HKEX
+- The trading currency: USD, EUR, GBP, AUD, JPY, CHF, HKD
+
+Common patterns in IBKR:
+- US stocks (AAPL, AMZN, META): NASDAQ or NYSE, USD
+- iShares UCITS ETFs (VWRA, CSPX, IGLN): LSE, USD or GBP
+- Xtrackers ETFs: XETRA, EUR
+- Australian stocks (TEA): ASX, AUD
+
 VALIDATION — check each row before returning:
 - current_price must be POSITIVE
 - avg_price must be POSITIVE
@@ -101,6 +113,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
       "market_value": 15806,
       "pnl": 19.52,
       "pnl_percent": null,
+      "exchange": "NASDAQ" or "LSE" or "XETRA" etc,
       "currency": "USD",
       "position_type": "stock" or "etf",
       "category": "equity" or "bond" or "commodity" or "gold" or "country" or "theme",
