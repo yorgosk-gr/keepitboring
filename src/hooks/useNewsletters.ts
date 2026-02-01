@@ -80,7 +80,9 @@ export function useNewsletters() {
 
       // Upload file to storage only if a file is provided
       if (file) {
-        filePath = `${user.id}/${Date.now()}-${file.name}`;
+        // Sanitize filename for storage (preserve original name in database)
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        filePath = `${user.id}/${Date.now()}-${safeName}`;
         const { error: uploadError } = await supabase.storage
           .from("uploads")
           .upload(filePath, file);
