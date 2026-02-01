@@ -1,10 +1,60 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+// Yahoo Finance exchange suffixes for UCITS ETFs and international stocks.
+// Without these suffixes, Yahoo matches the wrong security.
+// .L = London Stock Exchange, .DE = XETRA, .AX = ASX Australia
+const EXCHANGE_SUFFIXES: Record<string, string> = {
+  // Portfolio ETFs on LSE
+  VWRA: ".L", CSPX: ".L", IDTM: ".L", IMID: ".L", NDIA: ".L",
+  CMOD: ".L", IGLN: ".L", EIMI: ".L", IJPA: ".L", IMEU: ".L",
+  IB01: ".L", CBUX: ".L",
+  // Portfolio ETFs on XETRA
+  XDWH: ".DE",
+  // Irish-domiciled iShares on LSE
+  IWDA: ".L", SWDA: ".L", IWDD: ".L", ISAC: ".L", SSAC: ".L",
+  IUSA: ".L", IUIT: ".L", CSUS: ".L", CSUSS: ".L", ISF: ".L",
+  EMIM: ".L", IEEM: ".L", CNYA: ".L", ISJP: ".L", IBZL: ".L",
+  IUSP: ".L", LQDE: ".L", LQDA: ".L", AGGG: ".L", IEAC: ".L",
+  IEGA: ".L", IBTS: ".L", IBTM: ".L", DTLA: ".L", IHYG: ".L",
+  ITPS: ".L", SGLN: ".L", INRG: ".L", INFR: ".L", IQQI: ".L",
+  RBOT: ".L", DGTL: ".L", HEAL: ".L", ISPY: ".L", AGED: ".L",
+  IWDP: ".L", IPRP: ".L", IUKD: ".L",
+  IUFS: ".L", IUES: ".L", IUMS: ".L", IUHE: ".L", ICUS: ".L",
+  // iShares on XETRA
+  EUNL: ".DE", SXR8: ".DE", CNDX: ".DE", CSNDX: ".DE",
+  QDVE: ".DE", SMEA: ".DE", MEUD: ".DE", SXRZ: ".DE", IUSQ: ".DE",
+  // Vanguard UCITS on LSE
+  VWRD: ".L", VUAA: ".L", VUSA: ".L", VFEM: ".L", VFEA: ".L",
+  VMID: ".L", VHYL: ".L", VEVE: ".L", VDEV: ".L", VECP: ".L",
+  VGOV: ".L", V3AA: ".L", VDST: ".L",
+  // Vanguard on XETRA
+  VWCE: ".DE", VAGF: ".DE",
+  // Xtrackers on XETRA
+  XDWD: ".DE", XDEM: ".DE", XD9U: ".DE", XDWT: ".DE",
+  XDWL: ".DE", XDWP: ".DE", XDWS: ".DE",
+  // SPDR on LSE
+  SWRD: ".L", ACWD: ".L", SPYY: ".L", SPYD: ".L",
+  SPPE: ".DE",
+  // Other UCITS ETFs
+  EQQQ: ".L", PHAU: ".L", PHAG: ".L", PPFB: ".L", AIGC: ".L",
+  EXSA: ".DE",
+  // International stocks in portfolio
+  GRE1: ".L",   // Greencoat Renewables
+  III: ".L",     // 3i Group
+  TEA: ".AX",    // Tasmea Ltd (ASX)
+};
+
+function getYahooTicker(ticker: string): string {
+  const upper = ticker.toUpperCase();
+  const suffix = EXCHANGE_SUFFIXES[upper];
+  if (suffix) return upper + suffix;
+  return upper; // US-listed stocks need no suffix
+}
 
 interface PriceResult {
   ticker: string;
@@ -14,205 +64,66 @@ interface PriceResult {
   source: string;
 }
 
+async function fetchYahooPrice(ticker: string): Promise<PriceResult | null> {
+  const yahooTicker = getYahooTicker(ticker);
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooTicker)}?range=1d&interval=1d`;
+    const response = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    if (!response.ok) {
+      console.error(`Yahoo error for ${yahooTicker}: ${response.status}`);
+      return null;
+    }
+    const data = await response.json();
+    const meta = data?.chart?.result?.[0]?.meta;
+    if (!meta) return null;
+    const price = meta.regularMarketPrice ?? meta.previousClose;
+    if (!price || price === 0) return null;
+    return {
+      ticker: ticker.toUpperCase(),
+      current_price: Math.round(price * 100) / 100,
+      currency: meta.currency || "USD",
+      price_date: meta.regularMarketTime
+        ? new Date(meta.regularMarketTime * 1000).toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0],
+      source: `Yahoo Finance (${yahooTicker})`,
+    };
+  } catch (error) {
+    console.error(`Fetch error for ${yahooTicker}:`, error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
-
   try {
     const { tickers } = await req.json() as { tickers: string[] };
-    
-    if (!tickers || !Array.isArray(tickers) || tickers.length === 0) {
+    if (!tickers?.length) {
       return new Response(
         JSON.stringify({ error: "No tickers provided" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    // Get user's Anthropic API key from user_settings table
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    
-    const authHeader = req.headers.get("Authorization");
-    const token = authHeader?.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Authentication required" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    
-    // Fetch API key from user_settings
-    const { data: settings } = await supabase
-      .from("user_settings")
-      .select("anthropic_api_key")
-      .eq("user_id", user.id)
-      .single();
-    
-    const apiKey = settings?.anthropic_api_key;
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "Anthropic API key not configured. Please add it in Settings." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log(`Fetching prices for ${tickers.length} tickers: ${tickers.join(", ")}`);
-
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
-        tools: [
-          {
-            type: "web_search_20250305",
-            name: "web_search",
-          },
-        ],
-        messages: [
-          {
-            role: "user",
-            content: `Search for the current stock/ETF prices for these tickers. Return ONLY valid JSON:
-{
-  "prices": [
-    {
-      "ticker": "AAPL",
-      "current_price": 235.50,
-      "currency": "USD",
-      "price_date": "2026-01-31",
-      "source": "where you found this price"
-    }
-  ],
-  "not_found": ["any tickers you could not find prices for"]
-}
-
-Tickers to look up: ${tickers.join(", ")}
-
-Important:
-- Get the most recent closing price or current trading price
-- For European-listed ETFs (VWRA, CSPX, IGLN, EIMI, IWDA, etc), get prices in their trading currency (GBP for LSE, EUR for Euronext/Xetra)
-- If a ticker trades on multiple exchanges, prefer the London Stock Exchange or Euronext for European ETFs
-- For US stocks/ETFs, use USD prices
-- Include the date of the price (most recent trading day)
-- Always return numeric prices without currency symbols
-
-Return ONLY valid JSON, no markdown or explanation.`,
-          },
-        ],
-      }),
+    console.log(`Yahoo Finance: fetching ${tickers.length} tickers`);
+    const results = await Promise.allSettled(tickers.map(t => fetchYahooPrice(t)));
+    const prices: PriceResult[] = [];
+    const notFound: string[] = [];
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled" && r.value) prices.push(r.value);
+      else notFound.push(tickers[i]);
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Anthropic API error:", response.status, errorText);
-      
-      if (response.status === 401) {
-        return new Response(
-          JSON.stringify({ error: "Invalid Anthropic API key. Please check your API key in Settings." }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limited. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 402 || errorText.includes("credit balance")) {
-        return new Response(
-          JSON.stringify({ error: "Anthropic API credits exhausted. Please add credits to your Anthropic account." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      return new Response(
-        JSON.stringify({ error: "Price lookup service unavailable", details: errorText }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const aiResponse = await response.json();
-    
-    // Handle Claude API errors
-    if (aiResponse.error) {
-      console.error("Claude API error:", aiResponse.error);
-      return new Response(
-        JSON.stringify({ error: aiResponse.error.message || "Price lookup failed" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    
-    // Extract text from all content blocks
-    const fullResponse = aiResponse.content
-      ?.filter((block: { type: string }) => block.type === "text")
-      .map((block: { text: string }) => block.text)
-      .join("\n");
-
-    if (!fullResponse) {
-      console.error("Empty response from Claude:", JSON.stringify(aiResponse));
-      return new Response(
-        JSON.stringify({ error: "No response from price lookup service" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Parse the JSON response
-    let priceResult;
-    try {
-      let jsonStr = fullResponse.trim();
-      
-      // Remove markdown code blocks if present
-      if (jsonStr.startsWith("```json")) {
-        jsonStr = jsonStr.slice(7);
-      }
-      if (jsonStr.startsWith("```")) {
-        jsonStr = jsonStr.slice(3);
-      }
-      if (jsonStr.endsWith("```")) {
-        jsonStr = jsonStr.slice(0, -3);
-      }
-      jsonStr = jsonStr.trim();
-
-      priceResult = JSON.parse(jsonStr);
-    } catch (parseError) {
-      console.error("Failed to parse price response:", fullResponse);
-      return new Response(
-        JSON.stringify({ 
-          error: "Could not parse price response",
-          raw_response: fullResponse 
-        }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const prices: PriceResult[] = priceResult.prices || [];
-    const notFound: string[] = priceResult.not_found || [];
-
-    console.log(`Successfully fetched ${prices.length} prices, ${notFound.length} not found`);
-
+    console.log(`Done: ${prices.length} found, ${notFound.length} not found`);
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        prices,
-        not_found: notFound,
-        fetched_at: new Date().toISOString()
-      }),
+      JSON.stringify({ success: true, prices, not_found: notFound, fetched_at: new Date().toISOString() }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
   } catch (error) {
-    console.error("Error fetching prices:", error);
+    console.error("Price fetch error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error occurred" }),
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
