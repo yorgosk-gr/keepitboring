@@ -71,91 +71,144 @@ serve(async (req) => {
     const isSingleImage = images.length === 1;
     
     // IBKR-focused prompt with clear column identification
-    const systemPrompt = `You are extracting portfolio data from Interactive Brokers (IBKR) screenshots.
+    const systemPrompt = `You are extracting portfolio data from Interactive Brokers (IBKR) mobile app screenshots.
 
-IBKR TABLE COLUMNS (left to right):
-- Financial Instrument (ticker + description)
-- Position (number of shares — always positive, usually a whole number)
-- Currency
-- Market Price (current price per share — ALWAYS POSITIVE)
-- Market Value (total value = shares × market price)
-- Average Price (cost basis per share — ALWAYS POSITIVE)
-- Unrealized P&L (profit/loss — CAN BE NEGATIVE)
+IBKR MOBILE APP COLUMNS (left to right):
+1. **Instrument** — ticker in bold + exchange code in small grey text below (e.g. "LSEETF", "NASDAQ.NMS", "NYSE", "LSE", "AEB", "SBF", "IBIS2", "ASX")
+2. **Avg Price** — average cost per share. This is the PER-SHARE cost, NOT total cost.
+3. **Cst Bss** — total cost basis (= avg_price × shares). May appear in green or red. May show "K" suffix (e.g. "157.7K" = 157,700). IGNORE this column for pricing — use Avg Price instead.
+4. **Cur** — trading currency (USD, GBP, EUR, AUD). This column may or may not be visible depending on the user's scroll position.
+5. **Position** — number of shares/units held. May show "K" suffix (e.g. "2.18K" = 2,180, "5.00K" = 5,000, "1.93K" = 1,930).
+6. **P&L** — unrealized profit/loss. CAN BE NEGATIVE (shown in red). Often partially cut off on the right edge.
 
-CRITICAL MISTAKES TO AVOID:
-1. Unrealized P&L can be NEGATIVE. Current price is ALWAYS POSITIVE. Do NOT confuse them.
-2. Market Value is a large number. Shares is smaller. Do NOT swap them.
-3. Cost Basis is TOTAL cost. Average Price is PER SHARE. Use Average Price.
+The columns may vary depending on how the user has configured the view. Sometimes **Mkt Val** (market value) is visible instead of or in addition to other columns. If Mkt Val is visible, it shows total position value (= shares × current_price), and may be truncated with "..." on the right.
 
-${!isSingleImage ? `These are ${images.length} pages from the SAME portfolio view — the full position list did not fit on one screen. Combine and deduplicate positions across all pages.` : ""}
+CALCULATING CURRENT PRICE:
+The mobile app typically does NOT show a "current price" column. Calculate it:
+  current_price = avg_price + (pnl / shares)
+Or if Mkt Val is visible:
+  current_price = market_value / shares
+If P&L is cut off or unreadable, set current_price = avg_price as a fallback and mark needs_verification: true.
 
-STOCK vs ETF IDENTIFICATION:
-Classify each position as stock or etf:
-- ETF indicators: name contains iShares, Vanguard, SPDR, ETF, UCITS, Index, Tracker
-- Known ETF tickers: VWRA, CSPX, IDTM, IMID, NDIA, CMOD, IGLN, EIMI, COPX, IJPA, IMEU, IB01, SPY, QQQ, VTI, VOO
-- If unsure, set needs_verification: true
+CALCULATING MARKET VALUE:
+  market_value = shares × current_price
+If Mkt Val is visible in the screenshot, use that value and cross-check against shares × current_price.
+
+CRITICAL — DECIMAL PRECISION:
+IBKR shows prices with full decimal precision. The "." is ALWAYS a decimal point, NEVER a thousands separator:
+- "738.0537" = seven hundred thirty-eight point zero five three seven ≈ 738
+- "175.0894" = one hundred seventy-five point zero nine ≈ 175
+- "299.4440" = two hundred ninety-nine point forty-four ≈ 299
+- "27.7889" = twenty-seven point seventy-nine ≈ 28
+- "9.575" = nine point five eight ≈ 10
+- "5.402" = five point four zero ≈ 5
+- "2.3499" = two point thirty-five ≈ 2
+These are NEVER in the thousands. A value of 738.0537 means approximately $738, NOT $738,054.
+
+CRITICAL — GBP PENCE HANDLING:
+Some LSE-listed stocks (NOT ETFs) are priced in GBP pence, not pounds.
+How to detect: the Cur column shows "GBP", the exchange is "LSE" (not "LSEETF"), and the avg_price seems disproportionately large compared to the cost basis.
+
+Example: III (3i Group) — exchange "LSE", currency "GBP", avg_price 3118.50
+- 3118.50 is in PENCE. Divide by 100 → £31.185 per share.
+- Cost basis 4,268 ÷ 100 shares = £42.68 per share? No — 3118.50p × 100 = £3,118.50 cost basis. The Cst Bss confirms this.
+- For the output: report avg_price as 31.185 (pounds, not pence), currency as "GBP"
+- Calculate current_price in pounds too: current_price = avg_price_in_pounds + (pnl / shares)
+
+DO NOT apply pence conversion to LSEETF positions — those are already in whole currency units (USD).
+
+CRITICAL — "K" SUFFIX:
+The letter K means ×1,000:
+- Position column: "2.18K" = 2,180 shares, "5.00K" = 5,000, "1.93K" = 1,930
+- Cst Bss column: "157.7K" = 157,700, "13.3K" = 13,300
+- Cash balances: "13.3K" = 13,300, "13.8K" = 13,800
+
+CRITICAL — DEDUPLICATION:
+When multiple screenshot pages are provided, positions WILL overlap between pages. The user scrolls down and takes another screenshot, so some positions appear on both pages.
+- If the same ticker appears on multiple pages, include it ONLY ONCE.
+- Use the instance with the most complete/readable data.
+- Mark source_page as the page where you got the best reading.
+
+EXCHANGE CODE → EXCHANGE + CURRENCY MAPPING:
+- "NASDAQ.NMS" or "NASDAQ.SCM" → exchange: "NASDAQ", currency: "USD"
+- "NYSE" → exchange: "NYSE", currency: "USD"
+- "LSEETF" → exchange: "LSE", currency: "USD" (UCITS ETFs on LSE trade in USD)
+- "LSE" (without ETF) → exchange: "LSE", currency: "GBP" (UK stocks, often in pence — see pence rules above)
+- "AEB" → exchange: "EURONEXT", currency: "EUR" (Amsterdam)
+- "SBF" → exchange: "EURONEXT", currency: "EUR" (Paris)
+- "IBIS2" → exchange: "XETRA", currency: "EUR"
+- "ASX" → exchange: "ASX", currency: "AUD"
+
+If the Cur column is visible, ALWAYS use it — it overrides the mapping above.
+
+STOCK vs ETF CLASSIFICATION:
+- Exchange label "LSEETF" → always ETF
+- Exchange label "NASDAQ.NMS", "NYSE", "LSE", "ASX" → usually stock (unless name contains ETF/UCITS/Index)
+- Exchange label "SBF" with ticker GRE1 → ETF (Amundi MSCI Greece)
+- Exchange label "AEB" → could be either; check if name contains ETF indicators
+- ETF name indicators: iShares, Vanguard, SPDR, Xtrackers, Amundi, WisdomTree, Invesco, ETF, UCITS, Index, Tracker
 
 CATEGORY:
-- equity: stock index ETFs, individual stocks
-- bond: treasury, fixed income, government bond ETFs
-- commodity: commodity basket, copper, oil ETFs
-- gold: gold or precious metal ETFs
-- country: single-country ETFs (India, Japan, etc)
-- theme: sector-specific ETFs
+- equity: stock index ETFs (VWRA, CSPX, EIMI, IMEU, IMID), individual stocks (AAPL, AMZN, META, etc.)
+- bond: treasury/fixed income ETFs (IDTM, IB01)
+- commodity: commodity ETFs (CMOD, COPX)
+- gold: gold/precious metal ETFs (IGLN)
+- country: single-country ETFs (NDIA=India, IJPA=Japan, IBZL=Brazil, GRE1=Greece)
+- theme: sector/thematic ETFs (XDWH, CBUX=infrastructure)
 
-EXCHANGE AND CURRENCY:
-For each position, identify:
-- The stock exchange it trades on (use short codes):
-  LSE, XETRA, NASDAQ, NYSE, ASX, EURONEXT, SIX, TSE, HKEX
-- The trading currency: USD, EUR, GBP, AUD, JPY, CHF, HKD
+CASH BALANCES:
+IBKR shows cash at the bottom of the position list:
+- "AUD Cash ... 501.19" → AUD: 501.19
+- "EUR Cash ... 0.41" → EUR: 0.41
+- "USD Cash ... 13.3K" → USD: 13300
+- "Total Cash ... 13.8K" → ignore (it's the sum)
+Extract individual currency balances into cash_balances. Do NOT include "Total Cash".
 
-Common patterns in IBKR:
-- US stocks (AAPL, AMZN, META): NASDAQ or NYSE, USD
-- iShares UCITS ETFs (VWRA, CSPX, IGLN): LSE, USD or GBP
-- Xtrackers ETFs: XETRA, EUR
-- Australian stocks (TEA): ASX, AUD
+TOTAL PORTFOLIO VALUE:
+Look for "Net Liquidation Value" at the top of the first screenshot. Extract this number as total_value.
 
-VALIDATION — check each row before returning:
-- current_price must be POSITIVE
-- avg_price must be POSITIVE
-- market_value should approximately equal shares × current_price
-- If it doesn't match, you swapped columns. Fix it.
+VALIDATION — CHECK EVERY ROW:
+1. avg_price must be positive and reasonable for the security type
+2. shares must be positive
+3. market_value = shares × current_price (calculate this yourself, don't trust truncated Mkt Val)
+4. If avg_price looks like thousands but Cst Bss ÷ shares ≈ avg_price, you're reading the decimal wrong
+5. For GBP pence stocks: after conversion, avg_price should be in the tens, not thousands
 
-Return ONLY valid JSON (no markdown, no code blocks):
+FINAL CROSS-CHECK:
+Sum all position market_values + total cash. Compare to Net Liquidation Value from the top of the screenshot.
+If your sum differs by more than 10%, you have errors — review positions with largest market_value first.
+The Net Liquidation Value in these screenshots is typically around 500,000-510,000.
+
+${!isSingleImage ? `MULTI-PAGE INSTRUCTIONS: These are ${images.length} pages from the SAME portfolio view. The user scrolled and took multiple screenshots, so there WILL be overlapping positions. Deduplicate — include each ticker only once. Cash balances typically appear only on the last page.` : ""}
+
+Return ONLY valid JSON (no markdown, no code blocks, no explanation):
 {
   "detected_broker": "Interactive Brokers",
-  "detected_currency": "USD" or "EUR" or "mixed",
+  "detected_currency": "mixed",
   "extraction_quality": "good" or "partial" or "poor",
   "positions": [
     {
       "ticker": "AAPL",
       "name": "Apple Inc",
-      "isin": "US0378331005" or null,
+      "isin": null,
       "shares": 61,
       "avg_price": 258.80,
-      "current_price": 259.12,
-      "market_value": 15806,
-      "pnl": 19.52,
+      "current_price": 259.62,
+      "market_value": 15837,
+      "pnl": 50.02,
       "pnl_percent": null,
-      "exchange": "NASDAQ" or "LSE" or "XETRA" etc,
+      "exchange": "NASDAQ",
       "currency": "USD",
-      "position_type": "stock" or "etf",
-      "category": "equity" or "bond" or "commodity" or "gold" or "country" or "theme",
+      "position_type": "stock",
+      "category": "equity",
       "needs_verification": false,
       "source_page": 1
     }
   ],
-  "cash_balances": {},
-  "total_value": null,
+  "cash_balances": { "AUD": 501.19, "EUR": 0.41, "USD": 13300 },
+  "total_value": 509737,
   "extraction_notes": "any issues or ambiguities"
-}
-
-Rules:
-- Use null for values you cannot clearly read
-- Ticker symbols only in the ticker field (no exchange suffixes like .DE or .L)
-- Numbers without currency symbols or thousand separators
-- Set needs_verification: true for any ticker you're not 100% confident about
-- Include source_page (1, 2, 3...) for multi-image extractions`;
+}`;
 
     // Build the content array with all images
     const userContent: Array<{ type: string; image_url?: { url: string }; text?: string }> = [];
