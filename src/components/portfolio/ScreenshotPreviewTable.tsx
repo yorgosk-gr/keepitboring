@@ -299,9 +299,22 @@ export function ScreenshotPreviewTable({
     setIsImporting(true);
 
     try {
+      // Delete all existing positions first - new screenshots represent complete portfolio state
+      const { error: deleteError } = await supabase
+        .from("positions")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (deleteError) {
+        console.error("Failed to clear existing positions:", deleteError);
+        toast.error("Failed to clear existing positions");
+        setIsImporting(false);
+        return;
+      }
+
       const totalMV = toImport.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
 
-      const positionsToUpsert = toImport.map((p) => ({
+      const positionsToInsert = toImport.map((p) => ({
         user_id: user.id,
         ticker: p.ticker.toUpperCase(),
         name: p.name || null,
@@ -313,37 +326,18 @@ export function ScreenshotPreviewTable({
         market_value: p.market_value,
         weight_percent: totalMV > 0 ? ((p.market_value ?? 0) / totalMV) * 100 : 0,
         bet_type: "core",
-        confidence_level: 5,
       }));
 
-      for (const pos of positionsToUpsert) {
-        const { data: existing } = await supabase
-          .from("positions")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("ticker", pos.ticker)
-          .maybeSingle();
+      // Insert all new positions in one batch
+      const { error: insertError } = await supabase
+        .from("positions")
+        .insert(positionsToInsert);
 
-        if (existing) {
-          const { error } = await supabase
-            .from("positions")
-            .update({
-              name: pos.name,
-              position_type: pos.position_type,
-              category: pos.category,
-              shares: pos.shares,
-              avg_cost: pos.avg_cost,
-              current_price: pos.current_price,
-              market_value: pos.market_value,
-              weight_percent: pos.weight_percent,
-            })
-            .eq("id", existing.id);
-
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.from("positions").insert(pos);
-          if (error) throw error;
-        }
+      if (insertError) {
+        console.error("Failed to insert positions:", insertError);
+        toast.error("Failed to import positions");
+        setIsImporting(false);
+        return;
       }
 
       const stocksValue = toImport
