@@ -12,7 +12,6 @@ serve(async (req) => {
   }
 
   try {
-    // Get user's Anthropic API key from user_settings table
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -35,18 +34,12 @@ serve(async (req) => {
       });
     }
 
-    // Fetch API key from user_settings
-    const { data: settings } = await supabase
-      .from("user_settings")
-      .select("anthropic_api_key")
-      .eq("user_id", user.id)
-      .single();
-    
-    const apiKey = settings?.anthropic_api_key;
-    if (!apiKey) {
+    // Use Lovable AI gateway instead of user API key
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
       return new Response(
-        JSON.stringify({ error: "Anthropic API key not configured. Please add it in Settings." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "AI service not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -125,69 +118,58 @@ ${JSON.stringify(decisions, null, 2)}
 
 Analyze this portfolio and return the JSON response.`;
 
-    console.log("Calling Anthropic API for portfolio analysis...");
+    console.log("Calling Lovable AI gateway for portfolio analysis...");
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 8192,
-        system: systemPrompt,
+        model: "google/gemini-2.5-pro",
         messages: [
+          { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
+        max_tokens: 8192,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Anthropic API error:", response.status, errorText);
+      console.error("AI gateway error:", response.status, errorText);
 
-      if (response.status === 401) {
+      if (response.status === 429) {
         return new Response(
-          JSON.stringify({ error: "Invalid Anthropic API key. Please check your API key in Settings." }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
-      if (response.status === 402 || errorText.includes("credit balance")) {
-        return new Response(JSON.stringify({ error: "Anthropic API credits exhausted. Please add credits to your Anthropic account." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      throw new Error(`Anthropic API error: ${response.status}`);
+
+      return new Response(
+        JSON.stringify({ error: "AI analysis failed. Please try again." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const aiResponse = await response.json();
     
-    // Handle Claude API errors
-    if (aiResponse.error) {
-      console.error("Claude API error:", aiResponse.error);
-      return new Response(
-        JSON.stringify({ error: aiResponse.error.message || "Analysis failed" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    
-    // Claude returns content as an array of blocks
-    const content = aiResponse.content
-      ?.filter((block: { type: string }) => block.type === "text")
-      .map((block: { text: string }) => block.text)
-      .join("\n");
+    // OpenAI-compatible format: choices[0].message.content
+    const content = aiResponse.choices?.[0]?.message?.content;
 
     if (!content) {
-      throw new Error("Empty response from AI");
+      console.error("Empty AI response:", JSON.stringify(aiResponse));
+      return new Response(
+        JSON.stringify({ error: "AI returned empty response. Please try again." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     console.log("AI Response received:", content.substring(0, 200));
