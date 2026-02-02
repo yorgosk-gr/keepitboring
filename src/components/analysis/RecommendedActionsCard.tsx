@@ -81,6 +81,27 @@ export function RecommendedActionsCard({
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">{action.reasoning}</p>
+                  {action.trades_involved && action.trades_involved.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <span className="text-xs text-muted-foreground">Trades:</span>
+                      {action.trades_involved.map((trade, i) => (
+                        <Badge
+                          key={i}
+                          variant="outline"
+                          className={cn(
+                            "text-xs font-mono",
+                            trade.startsWith("SELL")
+                              ? "bg-destructive/10 text-destructive border-destructive/20"
+                              : trade.startsWith("BUY")
+                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                              : "bg-muted"
+                          )}
+                        >
+                          {trade}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 pt-2">
                     <Button
                       variant="ghost"

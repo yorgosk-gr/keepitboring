@@ -36,6 +36,13 @@ export default function Analysis() {
       thesis_checks: historyItem.thesis_checks ?? [],
       market_signals: historyItem.market_signals!,
       recommended_actions: historyItem.recommended_actions ?? [],
+      trade_recommendations: (historyItem as any).trade_recommendations ?? [],
+      rebalancing_summary: (historyItem as any).rebalancing_summary ?? {
+        total_sells: "€0",
+        total_buys: "€0",
+        net_cash_impact: "€0",
+        primary_goal: "N/A",
+      },
       portfolio_health_score: historyItem.health_score ?? 0,
       key_risks: historyItem.key_risks ?? [],
       summary: historyItem.summary ?? "",
