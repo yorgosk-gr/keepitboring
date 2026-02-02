@@ -221,6 +221,8 @@ export function useDashboardData() {
     stocksPercent,
     etfsPercent,
     cashPercent,
+    stocksValue,
+    etfsValue,
     categoryBreakdown,
     daysSinceUpdate,
     daysSincePriceRefresh,
