@@ -135,12 +135,12 @@ export function InsightsModal({
   const { positions } = usePositions();
   const portfolioTickers = positions.map((p) => p.ticker.toUpperCase());
 
-  // Group insights by type
+  // Group insights by type (matching actual database values)
   const stockMentions = insights.filter((i) => i.insight_type === "stock_mention");
-  const macroViews = insights.filter((i) => i.insight_type?.startsWith("macro_"));
-  const sectorViews = insights.filter((i) => i.insight_type?.startsWith("sector_"));
+  const macroViews = insights.filter((i) => i.insight_type === "macro");
+  const sentimentViews = insights.filter((i) => i.insight_type === "sentiment");
+  const recommendations = insights.filter((i) => i.insight_type === "recommendation");
   const bubbleSignals = insights.filter((i) => i.insight_type === "bubble_signal");
-  const keyTakeaways = insights.filter((i) => i.insight_type === "key_takeaway");
 
   const renderInsightList = (items: Insight[], emptyMessage: string) => {
     if (items.length === 0) {
@@ -180,8 +180,16 @@ export function InsightsModal({
             <Skeleton className="h-24 w-full" />
           </div>
         ) : (
-          <Tabs defaultValue="stocks" className="w-full">
+          <Tabs defaultValue="macro" className="w-full">
             <TabsList className="w-full grid grid-cols-5">
+              <TabsTrigger value="macro" className="gap-1">
+                Macro
+                {macroViews.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                    {macroViews.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="stocks" className="gap-1">
                 Stocks
                 {stockMentions.length > 0 && (
@@ -190,8 +198,22 @@ export function InsightsModal({
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="macro">Macro</TabsTrigger>
-              <TabsTrigger value="sectors">Sectors</TabsTrigger>
+              <TabsTrigger value="sentiment" className="gap-1">
+                Sentiment
+                {sentimentViews.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                    {sentimentViews.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="recommendations" className="gap-1">
+                Actions
+                {recommendations.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                    {recommendations.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="bubbles" className="gap-1">
                 ⚠️ Bubbles
                 {bubbleSignals.length > 0 && (
@@ -200,18 +222,20 @@ export function InsightsModal({
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="takeaways">Takeaways</TabsTrigger>
             </TabsList>
 
             <ScrollArea className="h-[50vh] mt-4">
-              <TabsContent value="stocks" className="mt-0">
-                {renderInsightList(stockMentions, "No stock mentions found")}
-              </TabsContent>
               <TabsContent value="macro" className="mt-0">
                 {renderInsightList(macroViews, "No macro views found")}
               </TabsContent>
-              <TabsContent value="sectors" className="mt-0">
-                {renderInsightList(sectorViews, "No sector views found")}
+              <TabsContent value="stocks" className="mt-0">
+                {renderInsightList(stockMentions, "No stock mentions found")}
+              </TabsContent>
+              <TabsContent value="sentiment" className="mt-0">
+                {renderInsightList(sentimentViews, "No sentiment analysis found")}
+              </TabsContent>
+              <TabsContent value="recommendations" className="mt-0">
+                {renderInsightList(recommendations, "No recommendations found")}
               </TabsContent>
               <TabsContent value="bubbles" className="mt-0">
                 {bubbleSignals.length === 0 ? (
@@ -243,9 +267,6 @@ export function InsightsModal({
                     ))}
                   </div>
                 )}
-              </TabsContent>
-              <TabsContent value="takeaways" className="mt-0">
-                {renderInsightList(keyTakeaways, "No key takeaways found")}
               </TabsContent>
             </ScrollArea>
           </Tabs>
