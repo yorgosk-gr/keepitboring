@@ -371,6 +371,7 @@ export type Database = {
           confidence_level: number | null
           created_at: string
           current_price: number | null
+          exchange: string | null
           id: string
           last_review_date: string | null
           manually_classified: boolean | null
@@ -391,6 +392,7 @@ export type Database = {
           confidence_level?: number | null
           created_at?: string
           current_price?: number | null
+          exchange?: string | null
           id?: string
           last_review_date?: string | null
           manually_classified?: boolean | null
@@ -411,6 +413,7 @@ export type Database = {
           confidence_level?: number | null
           created_at?: string
           current_price?: number | null
+          exchange?: string | null
           id?: string
           last_review_date?: string | null
           manually_classified?: boolean | null

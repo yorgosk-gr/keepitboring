@@ -238,6 +238,7 @@ export function PositionsTable({
               <th className="text-left pb-3 font-medium w-32">Name</th>
               <th className="text-left pb-3 font-medium w-16">Type</th>
               <th className="text-left pb-3 font-medium w-20">Category</th>
+              <th className="text-left pb-3 font-medium w-16">Exchange</th>
               <th className="text-center pb-3 font-medium w-12">Ccy</th>
               <th className="text-right pb-3 font-medium w-16">Shares</th>
               <th className="text-right pb-3 font-medium w-20">Avg Cost</th>
@@ -289,6 +290,9 @@ export function PositionsTable({
                     </td>
                     <td className="py-3">{getTypeBadge(position.position_type)}</td>
                     <td className="py-3 text-muted-foreground text-xs">{mapCategory(position.category)}</td>
+                    <td className="py-3 text-muted-foreground text-xs font-mono">
+                      {position.exchange || "—"}
+                    </td>
                     <td className="py-3 text-center text-muted-foreground text-xs font-mono">
                       {currency}
                     </td>
