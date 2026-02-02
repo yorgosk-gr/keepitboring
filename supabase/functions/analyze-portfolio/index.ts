@@ -49,7 +49,12 @@ serve(async (req) => {
 
 PHILOSOPHY SUMMARY:
 - Margin of safety is paramount
-- 80% passive ETFs / 20% selective stocks
+- ASSET CLASS TARGETS (by total portfolio value):
+  • Equities max 70% (this includes BOTH individual stocks AND equity ETFs like VWRA, CSPX, IMID, IMEU, NDIA, IJPA, IBZL, GRE1, XDWH, CBUX, EIMI, and all individual stocks)
+  • Bonds max 20% (bond ETFs like IDTM, IB01)
+  • Commodities + Gold + Crypto max 10% (CMOD, COPX, IGLN, and any crypto positions)
+  • Cash: remainder
+- STOCK vs ETF SPLIT: within the equities allocation, target 15-25% individual stocks and 75-85% ETFs
 - Position limits: single stock max 8%, themed ETF max 15%, sector max 25%
 - Quality: prefer high ROIC and earnings yield
 - Think probabilistically, not in certainties
@@ -60,10 +65,14 @@ PHILOSOPHY SUMMARY:
 You MUST respond with valid JSON only, no other text. The JSON must match this exact structure:
 {
   "allocation_check": {
-    "stocks_percent": number,
-    "stocks_status": "ok" | "warning" | "critical",
-    "etfs_percent": number,
-    "etfs_status": "ok" | "warning" | "critical",
+    "equities_percent": number,
+    "equities_status": "ok" | "warning" | "critical",
+    "bonds_percent": number,
+    "bonds_status": "ok" | "warning" | "critical",
+    "commodities_percent": number,
+    "commodities_status": "ok" | "warning" | "critical",
+    "cash_percent": number,
+    "stocks_vs_etf_split": "e.g. 18% stocks / 82% ETFs within equities",
     "issues": ["list of allocation issues"]
   },
   "position_alerts": [
