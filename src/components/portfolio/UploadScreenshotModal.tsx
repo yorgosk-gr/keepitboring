@@ -233,7 +233,7 @@ export function UploadScreenshotModal({ open, onClose, onImportComplete }: Uploa
     <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className={cn(
         "bg-card border-border",
-        state === "preview" ? "max-w-4xl" : "max-w-2xl"
+        state === "preview" ? "max-w-5xl max-h-[90vh] overflow-hidden" : "max-w-2xl"
       )}>
         <DialogHeader>
           <DialogTitle className="text-foreground">
