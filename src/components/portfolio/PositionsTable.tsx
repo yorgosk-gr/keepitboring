@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { ChevronDown, ChevronUp, Pencil, Trash2, FileText, Star, Search, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Pencil, Trash2, FileText, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,7 +14,7 @@ import type { Position } from "@/hooks/usePositions";
 import { ETFInfoTooltip } from "./ETFInfoTooltip";
 import { useETFMetadata } from "@/hooks/useETFMetadata";
 
-type SortField = "ticker" | "market_value" | "weight_percent" | "pnl_percent" | "confidence_level";
+type SortField = "ticker" | "market_value" | "weight_percent" | "pnl_percent";
 type SortDirection = "asc" | "desc";
 
 interface PositionsTableProps {
@@ -45,6 +45,17 @@ function calculatePnL(position: Position) {
   const pnlPercent = ((currentPrice - avgCost) / avgCost) * 100;
   
   return { value: pnlValue, percent: pnlPercent };
+}
+
+// Map old categories to new simplified categories
+function mapCategory(category: string | null): string {
+  if (!category) return "Equities";
+  const lower = category.toLowerCase();
+  if (lower === "bond" || lower === "bonds") return "Bonds";
+  if (lower === "commodity" || lower === "commodities") return "Commodities";
+  if (lower === "crypto" || lower === "cryptocurrency") return "Crypto";
+  // equity, stock, country, theme, gold -> Equities
+  return "Equities";
 }
 
 function getTypeBadge(type: string | null) {
@@ -87,18 +98,21 @@ function getTierBadge(tier: string | null) {
   }
 }
 
-function ConfidenceStars({ level }: { level: number | null }) {
-  const stars = level ? Math.min(5, Math.round((level / 10) * 5)) : 0;
-  return (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Star
-          key={i}
-          className={`w-3.5 h-3.5 ${i < stars ? "text-warning fill-warning" : "text-muted-foreground/30"}`}
-        />
-      ))}
-    </div>
-  );
+// Format numbers with US locale (commas as thousands separator)
+function formatNumber(value: number | null, decimals = 2): string {
+  if (value === null || value === undefined) return "—";
+  return value.toLocaleString("en-US", { 
+    minimumFractionDigits: decimals, 
+    maximumFractionDigits: decimals 
+  });
+}
+
+function formatWholeNumber(value: number | null): string {
+  if (value === null || value === undefined) return "—";
+  return value.toLocaleString("en-US", { 
+    minimumFractionDigits: 0, 
+    maximumFractionDigits: 0 
+  });
 }
 
 export function PositionsTable({
@@ -153,10 +167,6 @@ export function PositionsTable({
         case "pnl_percent":
           aVal = calculatePnL(a).percent;
           bVal = calculatePnL(b).percent;
-          break;
-        case "confidence_level":
-          aVal = a.confidence_level ?? 0;
-          bVal = b.confidence_level ?? 0;
           break;
         default:
           return 0;
@@ -228,6 +238,7 @@ export function PositionsTable({
               <th className="text-left pb-3 font-medium w-32">Name</th>
               <th className="text-left pb-3 font-medium w-16">Type</th>
               <th className="text-left pb-3 font-medium w-20">Category</th>
+              <th className="text-center pb-3 font-medium w-12">Ccy</th>
               <th className="text-right pb-3 font-medium w-16">Shares</th>
               <th className="text-right pb-3 font-medium w-20">Avg Cost</th>
               <th className="text-right pb-3 font-medium w-20">Price</th>
@@ -237,7 +248,6 @@ export function PositionsTable({
               <SortHeader field="weight_percent">Weight</SortHeader>
               <SortHeader field="pnl_percent">P&L</SortHeader>
               <th className="text-left pb-3 font-medium w-20">Tier</th>
-              <SortHeader field="confidence_level">Conf.</SortHeader>
               <th className="text-right pb-3 font-medium w-24">Actions</th>
             </tr>
           </thead>
@@ -246,6 +256,9 @@ export function PositionsTable({
               const pnl = calculatePnL(position);
               const isExpanded = expandedId === position.id;
               const isSelected = selectedIds.includes(position.id);
+              // Default to USD unless position has a different currency stored
+              // For now we use USD as default - the currency can be stored in position metadata if needed
+              const currency = "USD";
               
               return (
                 <>
@@ -275,18 +288,21 @@ export function PositionsTable({
                       {position.name || "—"}
                     </td>
                     <td className="py-3">{getTypeBadge(position.position_type)}</td>
-                    <td className="py-3 text-muted-foreground capitalize text-xs">{position.category || "—"}</td>
-                    <td className="py-3 text-right font-mono text-xs">
-                      {position.shares?.toLocaleString("de-DE", { maximumFractionDigits: 2 }) || "—"}
+                    <td className="py-3 text-muted-foreground text-xs">{mapCategory(position.category)}</td>
+                    <td className="py-3 text-center text-muted-foreground text-xs font-mono">
+                      {currency}
                     </td>
                     <td className="py-3 text-right font-mono text-xs">
-                      €{position.avg_cost?.toLocaleString("de-DE", { minimumFractionDigits: 2 }) || "—"}
+                      {formatNumber(position.shares, 0)}
                     </td>
                     <td className="py-3 text-right font-mono text-xs">
-                      €{position.current_price?.toLocaleString("de-DE", { minimumFractionDigits: 2 }) || "—"}
+                      {formatNumber(position.avg_cost)}
+                    </td>
+                    <td className="py-3 text-right font-mono text-xs">
+                      {formatNumber(position.current_price)}
                     </td>
                     <td className="py-3 text-right font-mono font-semibold text-base text-foreground">
-                      €{position.market_value?.toLocaleString("de-DE", { minimumFractionDigits: 0 }) || "—"}
+                      {formatWholeNumber(position.market_value)}
                     </td>
                     <td className="py-3">
                       <div className="flex items-center gap-2">
@@ -299,7 +315,7 @@ export function PositionsTable({
                     <td className="py-3 text-right">
                       <div className="flex flex-col items-end">
                         <span className={`font-mono font-medium ${pnl.value === 0 ? "text-muted-foreground" : pnl.value > 0 ? "text-primary" : "text-destructive"}`}>
-                          {pnl.value >= 0 ? "+" : ""}€{pnl.value.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          {pnl.value >= 0 ? "+" : ""}{formatWholeNumber(pnl.value)}
                         </span>
                         <span className={`text-xs ${pnl.percent === 0 ? "text-muted-foreground" : pnl.percent > 0 ? "text-primary" : "text-destructive"}`}>
                           {pnl.percent >= 0 ? "+" : ""}{pnl.percent.toFixed(2)}%
@@ -308,13 +324,6 @@ export function PositionsTable({
                     </td>
                     <td className="py-3">
                       {position.bet_type ? getTierBadge(position.bet_type) : (
-                        <span className="text-muted-foreground/40 text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="py-3">
-                      {position.confidence_level && position.confidence_level > 0 ? (
-                        <ConfidenceStars level={position.confidence_level} />
-                      ) : (
                         <span className="text-muted-foreground/40 text-xs">—</span>
                       )}
                     </td>
