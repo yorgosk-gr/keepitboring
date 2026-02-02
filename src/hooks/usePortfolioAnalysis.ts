@@ -11,10 +11,14 @@ import { selectSmartInsights } from "./useSmartInsightSelection";
 import { toast } from "sonner";
 
 export interface AllocationCheck {
-  stocks_percent: number;
-  stocks_status: "ok" | "warning" | "critical";
-  etfs_percent: number;
-  etfs_status: "ok" | "warning" | "critical";
+  equities_percent: number;
+  equities_status: "ok" | "warning" | "critical";
+  bonds_percent: number;
+  bonds_status: "ok" | "warning" | "critical";
+  commodities_percent: number;
+  commodities_status: "ok" | "warning" | "critical";
+  cash_percent: number;
+  stocks_vs_etf_split: string;
   issues: string[];
 }
 

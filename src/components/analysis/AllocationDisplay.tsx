@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Progress } from "@/components/ui/progress";
-import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, XCircle, PieChart } from "lucide-react";
 import type { AllocationCheck } from "@/hooks/usePortfolioAnalysis";
 
 interface AllocationDisplayProps {
@@ -31,56 +30,109 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
   };
 
   return (
-    <div className="stat-card space-y-6">
+    <div className="stat-card space-y-5">
       <h3 className="text-lg font-semibold text-foreground">Allocation Check</h3>
 
-      {/* Stocks */}
+      {/* Equities */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {getStatusIcon(allocation.stocks_status)}
-            <span className="font-medium">Stocks</span>
+            {getStatusIcon(allocation.equities_status)}
+            <span className="font-medium">Equities</span>
           </div>
           <span className="text-sm">
-            {allocation.stocks_percent.toFixed(1)}% 
-            <span className="text-muted-foreground"> / Target: 15-25%</span>
+            {allocation.equities_percent?.toFixed(1) ?? 0}% 
+            <span className="text-muted-foreground"> / Target: ≤70%</span>
           </span>
         </div>
         <div className="relative h-3 rounded-full bg-secondary overflow-hidden">
           <div 
-            className={cn("h-full transition-all", getStatusColor(allocation.stocks_status))}
-            style={{ width: `${Math.min(allocation.stocks_percent, 100)}%` }}
+            className={cn("h-full transition-all", getStatusColor(allocation.equities_status))}
+            style={{ width: `${Math.min(allocation.equities_percent ?? 0, 100)}%` }}
           />
-          {/* Target zone indicator */}
-          <div className="absolute top-0 bottom-0 left-[15%] w-[10%] bg-foreground/10 border-l border-r border-foreground/20" />
+          {/* Target zone indicator at 70% */}
+          <div className="absolute top-0 bottom-0 left-[70%] w-px bg-foreground/40" />
         </div>
       </div>
 
-      {/* ETFs */}
+      {/* Bonds */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {getStatusIcon(allocation.etfs_status)}
-            <span className="font-medium">ETFs</span>
+            {getStatusIcon(allocation.bonds_status)}
+            <span className="font-medium">Bonds</span>
           </div>
           <span className="text-sm">
-            {allocation.etfs_percent.toFixed(1)}% 
-            <span className="text-muted-foreground"> / Target: 75-85%</span>
+            {allocation.bonds_percent?.toFixed(1) ?? 0}% 
+            <span className="text-muted-foreground"> / Target: ≤20%</span>
           </span>
         </div>
         <div className="relative h-3 rounded-full bg-secondary overflow-hidden">
           <div 
-            className={cn("h-full transition-all", getStatusColor(allocation.etfs_status))}
-            style={{ width: `${Math.min(allocation.etfs_percent, 100)}%` }}
+            className={cn("h-full transition-all", getStatusColor(allocation.bonds_status))}
+            style={{ width: `${Math.min((allocation.bonds_percent ?? 0) * 5, 100)}%` }}
           />
-          {/* Target zone indicator */}
-          <div className="absolute top-0 bottom-0 left-[75%] w-[10%] bg-foreground/10 border-l border-r border-foreground/20" />
+          {/* Target zone indicator at 20% (scaled to 100% bar) */}
+          <div className="absolute top-0 bottom-0 left-full w-px bg-foreground/40" />
         </div>
       </div>
+
+      {/* Commodities + Gold + Crypto */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {getStatusIcon(allocation.commodities_status)}
+            <span className="font-medium">Commodities / Gold / Crypto</span>
+          </div>
+          <span className="text-sm">
+            {allocation.commodities_percent?.toFixed(1) ?? 0}% 
+            <span className="text-muted-foreground"> / Target: ≤10%</span>
+          </span>
+        </div>
+        <div className="relative h-3 rounded-full bg-secondary overflow-hidden">
+          <div 
+            className={cn("h-full transition-all", getStatusColor(allocation.commodities_status))}
+            style={{ width: `${Math.min((allocation.commodities_percent ?? 0) * 10, 100)}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Cash */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-muted-foreground" />
+            <span className="font-medium">Cash</span>
+          </div>
+          <span className="text-sm">
+            {allocation.cash_percent?.toFixed(1) ?? 0}%
+          </span>
+        </div>
+        <div className="relative h-3 rounded-full bg-secondary overflow-hidden">
+          <div 
+            className="h-full transition-all bg-muted-foreground/50"
+            style={{ width: `${Math.min(allocation.cash_percent ?? 0, 100)}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Stock/ETF Split */}
+      {allocation.stocks_vs_etf_split && (
+        <div className="pt-3 border-t border-border">
+          <div className="flex items-center gap-2 text-sm">
+            <PieChart className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Within equities:</span>
+            <span className="font-medium">{allocation.stocks_vs_etf_split}</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1 ml-6">
+            Target: 15-25% stocks / 75-85% ETFs
+          </p>
+        </div>
+      )}
 
       {/* Issues */}
-      {allocation.issues.length > 0 && (
-        <div className="pt-2 border-t border-border">
+      {allocation.issues && allocation.issues.length > 0 && (
+        <div className="pt-3 border-t border-border">
           <p className="text-sm font-medium text-muted-foreground mb-2">Issues:</p>
           <ul className="space-y-1">
             {allocation.issues.map((issue, i) => (
