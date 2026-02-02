@@ -11,20 +11,20 @@ const corsHeaders = {
 const EXCHANGE_SUFFIXES: Record<string, string> = {
   // Portfolio ETFs on LSE
   VWRA: ".L", CSPX: ".L", IDTM: ".L", IMID: ".L", NDIA: ".L",
-  CMOD: ".L", IGLN: ".L", EIMI: ".L", IJPA: ".L", IMEU: ".L",
-  IB01: ".L", CBUX: ".L",
+  CMOD: ".L", IGLN: ".L", EIMI: ".L", IJPA: ".L",
+  IB01: ".L",
   // Portfolio ETFs on XETRA
   XDWH: ".DE",
   // Irish-domiciled iShares on LSE
   IWDA: ".L", SWDA: ".L", IWDD: ".L", ISAC: ".L", SSAC: ".L",
   IUSA: ".L", IUIT: ".L", CSUS: ".L", CSUSS: ".L", ISF: ".L",
-  EMIM: ".L", IEEM: ".L", CNYA: ".L", ISJP: ".L", IBZL: ".L",
+  EMIM: ".L", IEEM: ".L", CNYA: ".L", ISJP: ".L", IBZL: ".AS",
   IUSP: ".L", LQDE: ".L", LQDA: ".L", AGGG: ".L", IEAC: ".L",
   IEGA: ".L", IBTS: ".L", IBTM: ".L", DTLA: ".L", IHYG: ".L",
   ITPS: ".L", SGLN: ".L", INRG: ".L", INFR: ".L", IQQI: ".L",
   RBOT: ".L", DGTL: ".L", HEAL: ".L", ISPY: ".L", AGED: ".L",
   IWDP: ".L", IPRP: ".L", IUKD: ".L",
-  IUFS: ".L", IUES: ".L", IUMS: ".L", IUHE: ".L", ICUS: ".L",
+  IUFS: ".L", IUES: ".L", IUMS: ".L", IUHE: ".L", ICUS: ".L", IMEU: ".AS",
   // iShares on XETRA
   EUNL: ".DE", SXR8: ".DE", CNDX: ".DE", CSNDX: ".DE",
   QDVE: ".DE", SMEA: ".DE", MEUD: ".DE", SXRZ: ".DE", IUSQ: ".DE",
@@ -52,6 +52,7 @@ const EXCHANGE_SUFFIXES: Record<string, string> = {
 // IBKR uses non-standard tickers for some European ETFs.
 const YAHOO_TICKER_ALIASES: Record<string, string> = {
   GRE1: "GRE.PA",    // Amundi MSCI Greece ETF — IBKR uses "GRE1", Yahoo uses "GRE.PA" (Euronext Paris)
+  CBUX: "INFR.L",    // iShares Global Infrastructure UCITS ETF — IBKR uses "CBUX", Yahoo uses "INFR.L"
 };
 
 function getYahooTicker(ticker: string): string {
@@ -88,10 +89,19 @@ async function fetchYahooPrice(ticker: string): Promise<PriceResult | null> {
     if (!meta) return null;
     const price = meta.regularMarketPrice ?? meta.previousClose;
     if (!price || price === 0) return null;
+
+    // Auto-convert GBP pence to pounds. Yahoo returns "GBp" for pence-priced LSE securities.
+    let finalPrice = price;
+    let finalCurrency = meta.currency || "USD";
+    if (finalCurrency === "GBp") {
+      finalPrice = price / 100;
+      finalCurrency = "GBP";
+    }
+
     return {
       ticker: ticker.toUpperCase(),
-      current_price: Math.round(price * 100) / 100,
-      currency: meta.currency || "USD",
+      current_price: Math.round(finalPrice * 100) / 100,
+      currency: finalCurrency,
       price_date: meta.regularMarketTime
         ? new Date(meta.regularMarketTime * 1000).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0],
