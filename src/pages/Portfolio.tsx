@@ -35,7 +35,7 @@ export default function Portfolio() {
   } = usePositions();
 
   // Get cash balance and correct allocation percentages from dashboard data
-  const { cashBalance, cashPercent, stocksPercent, etfsPercent, totalValue } = useDashboardData();
+  const { cashBalance, cashPercent, stocksPercent, etfsPercent, stocksValue, etfsValue, totalValue } = useDashboardData();
   
   // Ticker verification
   const { verifySinglePosition, verifyPositions, isVerifying, progress: verifyProgress } = useTickerVerification();
@@ -520,6 +520,9 @@ export default function Portfolio() {
         stocksPercent={stocksPercent}
         etfsPercent={etfsPercent}
         cashPercent={cashPercent}
+        stocksValue={stocksValue}
+        etfsValue={etfsValue}
+        cashValue={cashBalance}
         isLoading={isLoading}
       />
 
