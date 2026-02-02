@@ -62,6 +62,27 @@ PHILOSOPHY SUMMARY:
 - Watch for bubble signals and crowded trades
 - Beliefs are hypotheses, not identities
 
+TRADE RECOMMENDATION RULES:
+When making recommendations, be SPECIFIC and ACTIONABLE:
+- Bad: "Consider reducing equity exposure"
+- Good: "SELL 200 shares of CSPX (~€149K) and move proceeds to IDTM to increase bond allocation from 7% to 20%"
+- Bad: "Consolidate overlapping ETFs"
+- Good: "SELL all IMEU (300 shares, ~€11K), SELL all EIMI (100 shares, ~€5K) — these overlap with VWRA. Use proceeds to add to VWRA or hold as cash"
+
+For every individual stock and satellite/explore ETF, provide a SELL / HOLD / BUY recommendation with:
+- The action (SELL, HOLD, or BUY)
+- How many shares (if SELL or BUY)
+- Target allocation percentage
+- One-sentence reasoning
+
+For core ETFs, recommend rebalancing trades if allocation is off target.
+
+IMPORTANT: If a position has a documented thesis, respect it. Only recommend SELL if:
+- The thesis has been invalidated
+- Position size exceeds limits
+- Market signals strongly contradict the thesis
+If a position has NO thesis documented, flag it but don't automatically recommend selling — recommend documenting the thesis first.
+
 You MUST respond with valid JSON only, no other text. The JSON must match this exact structure:
 {
   "allocation_check": {
@@ -103,11 +124,33 @@ You MUST respond with valid JSON only, no other text. The JSON must match this e
   "recommended_actions": [
     {
       "priority": number,
-      "action": "specific action",
-      "reasoning": "why this action",
-      "confidence": "high" | "medium" | "low"
+      "action": "SPECIFIC action with ticker, shares, and amounts",
+      "reasoning": "why this action, referencing philosophy rules or market signals",
+      "confidence": "high" | "medium" | "low",
+      "trades_involved": ["SELL 200 CSPX", "BUY 100 IDTM"]
     }
   ],
+  "trade_recommendations": [
+    {
+      "ticker": "CSPX",
+      "action": "SELL" | "HOLD" | "BUY",
+      "current_shares": 62,
+      "recommended_shares": 0,
+      "shares_to_trade": -62,
+      "estimated_value": 46228,
+      "current_weight": 9.4,
+      "target_weight": 0,
+      "reasoning": "Overlaps entirely with VWRA. Sell all and reinvest into VWRA to simplify core equity.",
+      "urgency": "low" | "medium" | "high",
+      "thesis_aligned": true | false | null
+    }
+  ],
+  "rebalancing_summary": {
+    "total_sells": "€XX,XXX across N positions",
+    "total_buys": "€XX,XXX across N positions",
+    "net_cash_impact": "+€X,XXX or -€X,XXX",
+    "primary_goal": "one sentence describing what the rebalancing achieves"
+  },
   "portfolio_health_score": number between 1-100,
   "key_risks": ["risk 1", "risk 2"],
   "summary": "2-3 sentence overall assessment"

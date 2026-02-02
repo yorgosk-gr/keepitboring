@@ -51,9 +51,31 @@ export interface RecommendedAction {
   action: string;
   reasoning: string;
   confidence: "high" | "medium" | "low";
+  trades_involved?: string[];
   completed?: boolean;
   dismissed?: boolean;
   dismiss_reason?: string;
+}
+
+export interface TradeRecommendation {
+  ticker: string;
+  action: "SELL" | "HOLD" | "BUY";
+  current_shares: number;
+  recommended_shares: number;
+  shares_to_trade: number;
+  estimated_value: number;
+  current_weight: number;
+  target_weight: number;
+  reasoning: string;
+  urgency: "low" | "medium" | "high";
+  thesis_aligned: boolean | null;
+}
+
+export interface RebalancingSummary {
+  total_sells: string;
+  total_buys: string;
+  net_cash_impact: string;
+  primary_goal: string;
 }
 
 export interface AnalysisMeta {
@@ -74,6 +96,8 @@ export interface AnalysisResult {
   thesis_checks: ThesisCheck[];
   market_signals: MarketSignals;
   recommended_actions: RecommendedAction[];
+  trade_recommendations: TradeRecommendation[];
+  rebalancing_summary: RebalancingSummary;
   portfolio_health_score: number;
   key_risks: string[];
   summary: string;

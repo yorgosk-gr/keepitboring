@@ -8,6 +8,7 @@ import { PositionAlertCard } from "./PositionAlertCard";
 import { ThesisComplianceTable } from "./ThesisComplianceTable";
 import { MarketSignalsCard } from "./MarketSignalsCard";
 import { RecommendedActionsCard } from "./RecommendedActionsCard";
+import { TradeRecommendationsCard } from "./TradeRecommendationsCard";
 import { KeyRisksCard } from "./KeyRisksCard";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import type { AnalysisResult, RecommendedAction } from "@/hooks/usePortfolioAnalysis";
@@ -139,6 +140,14 @@ export function AnalysisResultsView({
 
       {/* Market Signals */}
       <MarketSignalsCard signals={analysis.market_signals} />
+
+      {/* Trade Recommendations */}
+      {analysis.trade_recommendations && analysis.trade_recommendations.length > 0 && (
+        <TradeRecommendationsCard
+          recommendations={analysis.trade_recommendations}
+          summary={analysis.rebalancing_summary}
+        />
+      )}
 
       {/* Thesis Compliance */}
       <ThesisComplianceTable checks={analysis.thesis_checks} />
