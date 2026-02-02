@@ -7,8 +7,14 @@ interface AllocationDisplayProps {
 }
 
 export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
-  const getStatusIcon = (status: "ok" | "warning" | "critical") => {
-    switch (status) {
+  // Safe status getter with fallback
+  const getStatus = (status: "ok" | "warning" | "critical" | undefined): "ok" | "warning" | "critical" => {
+    return status ?? "ok";
+  };
+
+  const getStatusIcon = (status: "ok" | "warning" | "critical" | undefined) => {
+    const safeStatus = getStatus(status);
+    switch (safeStatus) {
       case "ok":
         return <CheckCircle2 className="w-5 h-5 text-primary" />;
       case "warning":
@@ -18,8 +24,9 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
     }
   };
 
-  const getStatusColor = (status: "ok" | "warning" | "critical") => {
-    switch (status) {
+  const getStatusColor = (status: "ok" | "warning" | "critical" | undefined) => {
+    const safeStatus = getStatus(status);
+    switch (safeStatus) {
       case "ok":
         return "bg-primary";
       case "warning":
@@ -29,6 +36,12 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
     }
   };
 
+  // Safely access allocation values with fallbacks
+  const equitiesPercent = allocation?.equities_percent ?? 0;
+  const bondsPercent = allocation?.bonds_percent ?? 0;
+  const commoditiesPercent = allocation?.commodities_percent ?? 0;
+  const cashPercent = allocation?.cash_percent ?? 0;
+
   return (
     <div className="stat-card space-y-5">
       <h3 className="text-lg font-semibold text-foreground">Allocation Check</h3>
@@ -37,18 +50,18 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {getStatusIcon(allocation.equities_status)}
+            {getStatusIcon(allocation?.equities_status)}
             <span className="font-medium">Equities</span>
           </div>
           <span className="text-sm">
-            {allocation.equities_percent?.toFixed(1) ?? 0}% 
+            {equitiesPercent.toFixed(1)}% 
             <span className="text-muted-foreground"> / Target: ≤70%</span>
           </span>
         </div>
         <div className="relative h-3 rounded-full bg-secondary overflow-hidden">
           <div 
-            className={cn("h-full transition-all", getStatusColor(allocation.equities_status))}
-            style={{ width: `${Math.min(allocation.equities_percent ?? 0, 100)}%` }}
+            className={cn("h-full transition-all", getStatusColor(allocation?.equities_status))}
+            style={{ width: `${Math.min(equitiesPercent, 100)}%` }}
           />
           {/* Target zone indicator at 70% */}
           <div className="absolute top-0 bottom-0 left-[70%] w-px bg-foreground/40" />
@@ -59,18 +72,18 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {getStatusIcon(allocation.bonds_status)}
+            {getStatusIcon(allocation?.bonds_status)}
             <span className="font-medium">Bonds</span>
           </div>
           <span className="text-sm">
-            {allocation.bonds_percent?.toFixed(1) ?? 0}% 
+            {bondsPercent.toFixed(1)}% 
             <span className="text-muted-foreground"> / Target: ≤20%</span>
           </span>
         </div>
         <div className="relative h-3 rounded-full bg-secondary overflow-hidden">
           <div 
-            className={cn("h-full transition-all", getStatusColor(allocation.bonds_status))}
-            style={{ width: `${Math.min((allocation.bonds_percent ?? 0) * 5, 100)}%` }}
+            className={cn("h-full transition-all", getStatusColor(allocation?.bonds_status))}
+            style={{ width: `${Math.min(bondsPercent * 5, 100)}%` }}
           />
           {/* Target zone indicator at 20% (scaled to 100% bar) */}
           <div className="absolute top-0 bottom-0 left-full w-px bg-foreground/40" />
@@ -81,18 +94,18 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {getStatusIcon(allocation.commodities_status)}
+            {getStatusIcon(allocation?.commodities_status)}
             <span className="font-medium">Commodities / Gold / Crypto</span>
           </div>
           <span className="text-sm">
-            {allocation.commodities_percent?.toFixed(1) ?? 0}% 
+            {commoditiesPercent.toFixed(1)}% 
             <span className="text-muted-foreground"> / Target: ≤10%</span>
           </span>
         </div>
         <div className="relative h-3 rounded-full bg-secondary overflow-hidden">
           <div 
-            className={cn("h-full transition-all", getStatusColor(allocation.commodities_status))}
-            style={{ width: `${Math.min((allocation.commodities_percent ?? 0) * 10, 100)}%` }}
+            className={cn("h-full transition-all", getStatusColor(allocation?.commodities_status))}
+            style={{ width: `${Math.min(commoditiesPercent * 10, 100)}%` }}
           />
         </div>
       </div>
@@ -105,13 +118,13 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
             <span className="font-medium">Cash</span>
           </div>
           <span className="text-sm">
-            {allocation.cash_percent?.toFixed(1) ?? 0}%
+            {cashPercent.toFixed(1)}%
           </span>
         </div>
         <div className="relative h-3 rounded-full bg-secondary overflow-hidden">
           <div 
             className="h-full transition-all bg-muted-foreground/50"
-            style={{ width: `${Math.min(allocation.cash_percent ?? 0, 100)}%` }}
+            style={{ width: `${Math.min(cashPercent, 100)}%` }}
           />
         </div>
       </div>

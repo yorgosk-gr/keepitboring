@@ -28,13 +28,57 @@ export default function Analysis() {
   };
 
   const loadFromHistory = (historyItem: typeof history[0]) => {
+    // Handle old schema (stocks_percent, etfs_percent) vs new schema (equities_percent, bonds_percent, etc.)
+    const rawAllocation = historyItem.allocation_check as any;
+    let normalizedAllocation;
+    
+    if (rawAllocation) {
+      // Check if this is old schema (has stocks_percent) or new schema (has equities_percent)
+      if (rawAllocation.equities_percent !== undefined) {
+        // New schema - use as-is
+        normalizedAllocation = rawAllocation;
+      } else {
+        // Old schema - convert to new format
+        const stocksPercent = rawAllocation.stocks_percent ?? 0;
+        const etfsPercent = rawAllocation.etfs_percent ?? 0;
+        normalizedAllocation = {
+          equities_percent: stocksPercent + etfsPercent,
+          equities_status: rawAllocation.stocks_status ?? rawAllocation.etfs_status ?? "ok",
+          bonds_percent: 0,
+          bonds_status: "ok" as const,
+          commodities_percent: 0,
+          commodities_status: "ok" as const,
+          cash_percent: 100 - stocksPercent - etfsPercent,
+          stocks_vs_etf_split: `${stocksPercent.toFixed(0)}% stocks / ${etfsPercent.toFixed(0)}% ETFs`,
+          issues: rawAllocation.issues ?? [],
+        };
+      }
+    } else {
+      // No allocation data at all
+      normalizedAllocation = {
+        equities_percent: 0,
+        equities_status: "ok" as const,
+        bonds_percent: 0,
+        bonds_status: "ok" as const,
+        commodities_percent: 0,
+        commodities_status: "ok" as const,
+        cash_percent: 100,
+        stocks_vs_etf_split: "",
+        issues: [],
+      };
+    }
+
     setCurrentAnalysis({
       id: historyItem.id,
       created_at: historyItem.created_at,
-      allocation_check: historyItem.allocation_check!,
+      allocation_check: normalizedAllocation,
       position_alerts: historyItem.position_alerts ?? [],
       thesis_checks: historyItem.thesis_checks ?? [],
-      market_signals: historyItem.market_signals!,
+      market_signals: historyItem.market_signals ?? {
+        bubble_warnings: [],
+        consensus_level: "mixed",
+        overall_sentiment: "N/A",
+      },
       recommended_actions: historyItem.recommended_actions ?? [],
       trade_recommendations: (historyItem as any).trade_recommendations ?? [],
       rebalancing_summary: (historyItem as any).rebalancing_summary ?? {
