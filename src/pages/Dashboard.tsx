@@ -48,7 +48,6 @@ export default function Dashboard() {
       bond: 0,
       commodity: 0,
       gold: 0,
-      other: 0,
     };
 
     for (const position of positions) {
@@ -59,12 +58,14 @@ export default function Dashboard() {
         const meta = etfMetadata[position.ticker];
         const category = meta?.category || position.category || "equity";
         
-        if (category === "country" || category === "theme") {
-          breakdown.other = (breakdown.other || 0) + value;
+        // Country and theme ETFs are equity funds (India, Japan, Healthcare, etc.)
+        if (category === "country" || category === "theme" || category === "equity") {
+          breakdown.equity += value;
         } else if (breakdown[category] !== undefined) {
           breakdown[category] += value;
         } else {
-          breakdown.other += value;
+          // Unknown categories default to equity
+          breakdown.equity += value;
         }
       } else {
         // Stocks are always equity
@@ -79,7 +80,6 @@ export default function Dashboard() {
       { name: "Bonds", value: total > 0 ? (breakdown.bond / total) * 100 : 0, color: "hsl(199, 89%, 48%)" },
       { name: "Commodities", value: total > 0 ? (breakdown.commodity / total) * 100 : 0, color: "hsl(38, 92%, 50%)" },
       { name: "Gold", value: total > 0 ? (breakdown.gold / total) * 100 : 0, color: "hsl(45, 93%, 47%)" },
-      { name: "Other", value: total > 0 ? (breakdown.other / total) * 100 : 0, color: "hsl(280, 65%, 60%)" },
     ].filter(item => item.value > 0);
   }, [positions, etfMetadata]);
 
@@ -92,7 +92,6 @@ export default function Dashboard() {
       japan: 0,
       india: 0,
       emerging_markets: 0,
-      other: 0,
     };
 
     for (const position of positions) {
@@ -100,15 +99,28 @@ export default function Dashboard() {
       
       if (position.position_type === "etf") {
         const meta = etfMetadata[position.ticker];
-        const geography = meta?.geography || "other";
+        const geography = meta?.geography || "global";
         
-        if (breakdown[geography] !== undefined) {
-          breakdown[geography] += value;
+        // Normalize geography values
+        if (geography === "global") {
+          breakdown.global += value;
+        } else if (geography === "us") {
+          breakdown.us += value;
+        } else if (geography === "europe" || geography === "uk" || geography === "greece") {
+          breakdown.europe += value;
+        } else if (geography === "japan") {
+          breakdown.japan += value;
+        } else if (geography === "india") {
+          breakdown.india += value;
+        } else if (geography === "emerging_markets" || geography === "emerging" || 
+                   geography === "brazil" || geography === "china") {
+          breakdown.emerging_markets += value;
         } else {
-          breakdown.other += value;
+          // Unknown geographies default to global
+          breakdown.global += value;
         }
       } else {
-        // Default stocks to US unless we have more info
+        // Default stocks to US (most stocks in portfolio are US-listed)
         breakdown.us += value;
       }
     }
@@ -122,7 +134,6 @@ export default function Dashboard() {
       { name: "Japan", value: total > 0 ? (breakdown.japan / total) * 100 : 0, color: "hsl(0, 72%, 51%)" },
       { name: "India", value: total > 0 ? (breakdown.india / total) * 100 : 0, color: "hsl(38, 92%, 50%)" },
       { name: "EM", value: total > 0 ? (breakdown.emerging_markets / total) * 100 : 0, color: "hsl(280, 65%, 60%)" },
-      { name: "Other", value: total > 0 ? (breakdown.other / total) * 100 : 0, color: "hsl(220, 9%, 46%)" },
     ].filter(item => item.value > 0);
   }, [positions, etfMetadata]);
 
