@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Trash2, AlertCircle, CheckCircle2, AlertTriangle, Info, Check, Search, RefreshCw } from "lucide-react";
+import { Loader2, Trash2, AlertCircle, CheckCircle2, AlertTriangle, Info, Check, Search, RefreshCw, ChevronDown, ChevronUp, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,7 +19,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
@@ -81,6 +80,12 @@ interface ScreenshotPreviewTableProps {
   onImportComplete: () => void;
 }
 
+// Format currency value
+const formatValue = (value: number | null, decimals = 2) => {
+  if (value === null) return "—";
+  return value.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+};
+
 export function ScreenshotPreviewTable({
   positions,
   cashBalances,
@@ -94,10 +99,8 @@ export function ScreenshotPreviewTable({
   const queryClient = useQueryClient();
   const [isImporting, setIsImporting] = useState(false);
   const [hasReviewed, setHasReviewed] = useState(false);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const { verifyPositions, verifySinglePosition, isVerifying, progress } = useTickerVerification();
-
-  const hasSourcePages = positions.some(p => p.source_page !== undefined && p.source_page > 1);
-  const hasVerificationNeeded = positions.some(p => p.needs_verification);
 
   const [editablePositions, setEditablePositions] = useState<EditablePosition[]>(
     positions.map((p, i) => {
@@ -192,16 +195,24 @@ export function ScreenshotPreviewTable({
     setEditablePositions((prev) => prev.map((p) => ({ ...p, selected })));
   };
 
+  const markAllVerified = () => {
+    setEditablePositions((prev) => prev.map((p) => ({
+      ...p,
+      verified: true,
+      needs_verification: false,
+      verification_status: "confirmed"
+    })));
+    toast.success("All positions marked as verified");
+  };
+
   const selectedCount = editablePositions.filter((p) => p.selected).length;
   const unverifiedCount = editablePositions.filter((p) => p.selected && p.needs_verification && !p.verified).length;
   const pendingCorrectionCount = editablePositions.filter(
     (p) => p.selected && p.verification_status === "corrected" && !p.verified
   ).length;
 
-  // Check if import is allowed
   const canImport = selectedCount > 0 && hasReviewed && unverifiedCount === 0 && pendingCorrectionCount === 0;
 
-  // Verify all positions needing verification
   const handleVerifyAll = async () => {
     const positionsToVerify = editablePositions
       .filter(p => p.selected && (p.needs_verification || !p.verified))
@@ -223,7 +234,6 @@ export function ScreenshotPreviewTable({
     applyVerificationResults(verified);
   };
 
-  // Verify a single position via web search
   const handleVerifySingle = async (id: string) => {
     const pos = editablePositions.find(p => p.id === id);
     if (!pos) return;
@@ -242,7 +252,6 @@ export function ScreenshotPreviewTable({
     }
   };
 
-  // Apply verification results to positions
   const applyVerificationResults = (verified: VerifiedPosition[]) => {
     setEditablePositions((prev) =>
       prev.map((p) => {
@@ -376,71 +385,52 @@ export function ScreenshotPreviewTable({
     (p) => p.selected && (p.shares === null || p.market_value === null)
   );
 
-  const getVerificationStatusBadge = (pos: EditablePosition) => {
-    if (!pos.verification_status) return null;
-
-    switch (pos.verification_status) {
-      case "confirmed":
-        return (
-          <Badge variant="default" className="bg-emerald-500/20 text-emerald-500 border-emerald-500/30 gap-1">
-            <CheckCircle2 className="w-3 h-3" />
-            Verified
-          </Badge>
-        );
-      case "corrected":
-        return (
-          <Badge variant="outline" className="border-amber-500/50 text-amber-500 gap-1">
-            <RefreshCw className="w-3 h-3" />
-            Corrected
-          </Badge>
-        );
-      case "uncertain":
-        return (
-          <Badge variant="outline" className="border-destructive/50 text-destructive gap-1">
-            <AlertCircle className="w-3 h-3" />
-            Uncertain
-          </Badge>
-        );
-    }
-  };
+  const needsAttention = unverifiedCount > 0 || pendingCorrectionCount > 0;
 
   return (
     <div className="space-y-4">
-      {/* Metadata badges */}
-      <div className="flex flex-wrap items-center gap-2">
-        {metadata?.detected_broker && (
-          <Badge variant="secondary" className="gap-1">
-            <span className="text-muted-foreground">Broker:</span>
-            {metadata.detected_broker}
-          </Badge>
-        )}
-        {metadata?.detected_currency && (
-          <Badge variant="secondary" className="gap-1">
-            <span className="text-muted-foreground">Currency:</span>
-            {metadata.detected_currency.toUpperCase()}
-          </Badge>
-        )}
-        {metadata?.extraction_quality && (
-          <Badge 
-            variant={metadata.extraction_quality === "good" ? "default" : "outline"}
-            className={cn(
-              "gap-1",
-              metadata.extraction_quality === "partial" && "border-amber-500/50 text-amber-500",
-              metadata.extraction_quality === "poor" && "border-destructive/50 text-destructive"
-            )}
-          >
-            {metadata.extraction_quality === "good" && <CheckCircle2 className="w-3 h-3" />}
-            {metadata.extraction_quality === "partial" && <AlertTriangle className="w-3 h-3" />}
-            {metadata.extraction_quality === "poor" && <AlertCircle className="w-3 h-3" />}
-            {metadata.extraction_quality === "good" ? "High quality" : 
-             metadata.extraction_quality === "partial" ? "Partial extraction" : "Low quality"}
-          </Badge>
-        )}
+      {/* Header with summary */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {metadata?.detected_broker && (
+            <Badge variant="secondary" className="gap-1">
+              {metadata.detected_broker}
+            </Badge>
+          )}
+          {metadata?.extraction_quality && (
+            <Badge 
+              variant={metadata.extraction_quality === "good" ? "default" : "outline"}
+              className={cn(
+                "gap-1",
+                metadata.extraction_quality === "good" && "bg-emerald-500/20 text-emerald-600 border-emerald-500/30",
+                metadata.extraction_quality === "partial" && "border-amber-500/50 text-amber-600",
+                metadata.extraction_quality === "poor" && "border-destructive/50 text-destructive"
+              )}
+            >
+              {metadata.extraction_quality === "good" && <CheckCircle2 className="w-3 h-3" />}
+              {metadata.extraction_quality === "partial" && <AlertTriangle className="w-3 h-3" />}
+              {metadata.extraction_quality === "poor" && <AlertCircle className="w-3 h-3" />}
+              {metadata.extraction_quality === "good" ? "Good extraction" : 
+               metadata.extraction_quality === "partial" ? "Partial" : "Low quality"}
+            </Badge>
+          )}
+          <span className="text-sm text-muted-foreground">
+            {editablePositions.length} positions extracted
+          </span>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {cashBalances && Object.keys(cashBalances).length > 0 && (
+            <span className="text-sm text-muted-foreground">
+              Cash: {Object.entries(cashBalances).map(([cur, amt]) => `${cur} ${formatValue(amt, 0)}`).join(" · ")}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Extraction notes */}
       {metadata?.extraction_notes && (
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 border border-border">
+        <div className="flex items-start gap-2 p-2.5 rounded-md bg-muted/50 border border-border">
           <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-sm text-muted-foreground">{metadata.extraction_notes}</p>
         </div>
@@ -452,322 +442,346 @@ export function ScreenshotPreviewTable({
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium flex items-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin" />
-              Verifying positions with web search...
+              Verifying positions...
             </span>
             <span className="text-sm text-muted-foreground">
-              {progress.current} of {progress.total}
+              {progress.current} / {progress.total}
             </span>
           </div>
-          <Progress value={(progress.current / progress.total) * 100} className="h-2" />
+          <Progress value={(progress.current / progress.total) * 100} className="h-1.5" />
         </div>
       )}
 
-      {/* Summary and actions */}
-      <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-4">
-          <span className="text-muted-foreground">
-            {selectedCount} of {editablePositions.length} positions selected
-          </span>
-          <Button variant="ghost" size="sm" onClick={() => toggleAll(true)} className="h-7 px-2">
+      {/* Quick actions bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-border">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => toggleAll(true)} className="h-7 px-2 text-xs">
             Select All
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => toggleAll(false)} className="h-7 px-2">
+          <Button variant="ghost" size="sm" onClick={() => toggleAll(false)} className="h-7 px-2 text-xs">
             Deselect All
           </Button>
+          <span className="text-xs text-muted-foreground">
+            {selectedCount} selected
+          </span>
         </div>
         <div className="flex items-center gap-2">
+          {needsAttention && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={markAllVerified}
+              className="h-7 px-2 text-xs gap-1"
+            >
+              <Check className="w-3 h-3" />
+              Mark All Verified
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
             onClick={handleVerifyAll}
             disabled={isVerifying}
-            className="gap-2"
+            className="h-7 px-2 text-xs gap-1"
           >
-            <Search className="w-4 h-4" />
-            Verify All with Web Search
+            <Search className="w-3 h-3" />
+            Web Verify
           </Button>
-          {cashBalances && Object.keys(cashBalances).length > 0 && (
-            <span className="text-muted-foreground">
-              Cash:{" "}
-              {Object.entries(cashBalances)
-                .map(([currency, amount]) => `${currency} ${amount.toLocaleString()}`)
-                .join(" | ")}
-            </span>
-          )}
         </div>
       </div>
 
-      {/* Warning for incomplete data */}
-      {hasIncompleteData && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-          <AlertCircle className="w-4 h-4 text-amber-500" />
-          <span className="text-sm text-amber-500">
-            Some positions have missing data. Please fill in the required values.
-          </span>
+      {/* Warning banner (collapsed) */}
+      {(hasIncompleteData || needsAttention) && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-600 text-sm">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          {hasIncompleteData && <span>Some positions have missing data.</span>}
+          {needsAttention && !hasIncompleteData && <span>{unverifiedCount + pendingCorrectionCount} position(s) need verification.</span>}
         </div>
       )}
 
-      {/* Warning for unverified positions */}
-      {(unverifiedCount > 0 || pendingCorrectionCount > 0) && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-          <AlertTriangle className="w-4 h-4 text-amber-500" />
-          <span className="text-sm text-amber-500">
-            {unverifiedCount + pendingCorrectionCount} position{(unverifiedCount + pendingCorrectionCount) !== 1 ? "s" : ""} need{(unverifiedCount + pendingCorrectionCount) === 1 ? "s" : ""} review. Please verify the highlighted rows.
-          </span>
-        </div>
-      )}
-
-      {/* Table */}
-      <ScrollArea className="h-[350px] rounded-lg border border-border">
-        <Table>
-          <TableHeader className="sticky top-0 bg-card z-10">
-            <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="w-10"></TableHead>
-              <TableHead className="w-10">Status</TableHead>
-              <TableHead>Ticker</TableHead>
-              <TableHead>Name</TableHead>
-              {hasSourcePages && <TableHead className="w-16">Page</TableHead>}
-              <TableHead>Type</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Exchange</TableHead>
-              <TableHead>Currency</TableHead>
-              <TableHead className="text-right">Shares</TableHead>
-              <TableHead className="text-right">Avg Price</TableHead>
-              <TableHead className="text-right">Current</TableHead>
-              <TableHead className="text-right">Value</TableHead>
-              <TableHead className="w-10"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {editablePositions.map((pos) => (
-              <TableRow
-                key={pos.id}
-                className={cn(
-                  "border-border",
-                  !pos.selected && "opacity-50",
-                  (pos.needs_verification && !pos.verified) && "bg-amber-500/5",
-                  pos.verification_status === "uncertain" && "bg-destructive/5"
-                )}
-              >
-                <TableCell>
-                  <input
-                    type="checkbox"
-                    checked={pos.selected}
-                    onChange={(e) => updatePosition(pos.id, "selected", e.target.checked)}
-                    className="rounded border-border"
-                  />
-                </TableCell>
-                <TableCell>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="flex items-center gap-1">
-                          {pos.verification_status ? (
-                            getVerificationStatusBadge(pos)
-                          ) : pos.needs_verification && !pos.verified ? (
-                            <AlertTriangle className="w-4 h-4 text-amber-500" />
-                          ) : (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                          )}
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {pos.verification_notes || (pos.needs_verification && !pos.verified
-                          ? `AI guessed "${pos.originalTicker || pos.ticker}" - please verify`
-                          : "Verified")}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-col gap-1">
-                    {pos.corrected_ticker && pos.verification_status === "corrected" ? (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1">
-                          <span className="line-through text-muted-foreground text-xs">{pos.ticker}</span>
-                          <span className="text-xs">→</span>
-                          <span className="font-bold text-primary">{pos.corrected_ticker}</span>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-xs text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10"
-                            onClick={() => acceptCorrection(pos.id)}
-                          >
-                            Accept
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                            onClick={() => keepOriginal(pos.id)}
-                          >
-                            Keep Original
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <Input
-                          value={pos.ticker}
-                          onChange={(e) => updatePosition(pos.id, "ticker", e.target.value)}
-                          className={cn(
-                            "h-8 w-20 font-mono font-semibold",
-                            pos.needs_verification && !pos.verified && "border-amber-500/50"
-                          )}
+      {/* Compact table with horizontal scroll */}
+      <div className="rounded-lg border border-border overflow-hidden">
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+          <Table>
+            <TableHeader className="sticky top-0 bg-card z-10">
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="w-8 px-2"></TableHead>
+                <TableHead className="w-20 px-2">Ticker</TableHead>
+                <TableHead className="min-w-[140px] px-2">Name</TableHead>
+                <TableHead className="w-16 px-2">Type</TableHead>
+                <TableHead className="w-20 px-2 text-right">Shares</TableHead>
+                <TableHead className="w-24 px-2 text-right">Avg Price</TableHead>
+                <TableHead className="w-24 px-2 text-right">Current</TableHead>
+                <TableHead className="w-28 px-2 text-right">Value</TableHead>
+                <TableHead className="w-16 px-2 text-center">Status</TableHead>
+                <TableHead className="w-10 px-2"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {editablePositions.map((pos) => {
+                const isExpanded = expandedRow === pos.id;
+                const hasCorrection = pos.verification_status === "corrected" && pos.corrected_ticker;
+                const needsReview = (pos.needs_verification && !pos.verified) || hasCorrection;
+                
+                return (
+                  <>
+                    <TableRow
+                      key={pos.id}
+                      className={cn(
+                        "border-border cursor-pointer transition-colors",
+                        !pos.selected && "opacity-50 bg-muted/30",
+                        needsReview && "bg-amber-500/5",
+                        isExpanded && "bg-muted/50"
+                      )}
+                      onClick={() => setExpandedRow(isExpanded ? null : pos.id)}
+                    >
+                      <TableCell className="px-2" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={pos.selected}
+                          onCheckedChange={(checked) => updatePosition(pos.id, "selected", checked === true)}
                         />
-                        {pos.needs_verification && !pos.verified && (
-                          <div className="flex gap-0.5">
+                      </TableCell>
+                      <TableCell className="px-2 font-mono font-semibold text-sm">
+                        {hasCorrection ? (
+                          <div className="flex items-center gap-1">
+                            <span className="line-through text-muted-foreground text-xs">{pos.ticker}</span>
+                            <span className="text-primary">{pos.corrected_ticker}</span>
+                          </div>
+                        ) : (
+                          pos.ticker
+                        )}
+                      </TableCell>
+                      <TableCell className="px-2 text-sm truncate max-w-[180px]" title={pos.name || ""}>
+                        {pos.name || <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className="px-2">
+                        <Badge variant="outline" className={cn(
+                          "text-xs font-normal",
+                          pos.position_type === "etf" ? "border-primary/30 text-primary" : "border-muted-foreground/30"
+                        )}>
+                          {pos.position_type.toUpperCase()}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="px-2 text-right text-sm tabular-nums">
+                        {formatValue(pos.shares, 0)}
+                      </TableCell>
+                      <TableCell className="px-2 text-right text-sm tabular-nums">
+                        {formatValue(pos.avg_price)}
+                      </TableCell>
+                      <TableCell className="px-2 text-right text-sm tabular-nums">
+                        {formatValue(pos.current_price)}
+                      </TableCell>
+                      <TableCell className="px-2 text-right font-medium text-sm tabular-nums">
+                        {formatValue(pos.market_value, 0)}
+                      </TableCell>
+                      <TableCell className="px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                        {pos.verified || pos.verification_status === "confirmed" ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />
+                        ) : hasCorrection ? (
+                          <div className="flex items-center justify-center gap-1">
                             <Button
                               variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10"
-                              onClick={() => verifyPositionManual(pos.id)}
-                              title="Confirm this ticker"
+                              size="sm"
+                              className="h-6 px-1.5 text-xs text-emerald-600 hover:text-emerald-700"
+                              onClick={() => acceptCorrection(pos.id)}
                             >
-                              <Check className="w-4 h-4" />
+                              Accept
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
-                              onClick={() => handleVerifySingle(pos.id)}
-                              disabled={isVerifying}
-                              title="Verify with web search"
+                              size="sm"
+                              className="h-6 px-1.5 text-xs text-muted-foreground"
+                              onClick={() => keepOriginal(pos.id)}
                             >
-                              <Search className="w-3.5 h-3.5" />
+                              Keep
                             </Button>
                           </div>
+                        ) : needsReview ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-emerald-600 hover:bg-emerald-500/10"
+                                    onClick={() => verifyPositionManual(pos.id)}
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Confirm ticker is correct</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-primary hover:bg-primary/10"
+                                    onClick={() => handleVerifySingle(pos.id)}
+                                    disabled={isVerifying}
+                                  >
+                                    <Search className="w-3.5 h-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Look up ticker online</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
                         )}
-                      </div>
+                      </TableCell>
+                      <TableCell className="px-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                            onClick={() => removePosition(pos.id)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                          {isExpanded ? (
+                            <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    
+                    {/* Expandable edit row */}
+                    {isExpanded && (
+                      <TableRow key={`${pos.id}-edit`} className="bg-muted/30 border-border">
+                        <TableCell colSpan={10} className="p-3">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">Ticker</label>
+                              <Input
+                                value={pos.ticker}
+                                onChange={(e) => updatePosition(pos.id, "ticker", e.target.value)}
+                                className="h-8 font-mono"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">Name</label>
+                              <Input
+                                value={pos.name || ""}
+                                onChange={(e) => updatePosition(pos.id, "name", e.target.value)}
+                                className="h-8"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">Type</label>
+                              <Select
+                                value={pos.position_type}
+                                onValueChange={(v) => updatePosition(pos.id, "position_type", v)}
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="stock">Stock</SelectItem>
+                                  <SelectItem value="etf">ETF</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">Category</label>
+                              <Select
+                                value={pos.category}
+                                onValueChange={(v) => updatePosition(pos.id, "category", v)}
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="equity">Equity</SelectItem>
+                                  <SelectItem value="bond">Bond</SelectItem>
+                                  <SelectItem value="commodity">Commodity</SelectItem>
+                                  <SelectItem value="gold">Gold</SelectItem>
+                                  <SelectItem value="country">Country</SelectItem>
+                                  <SelectItem value="theme">Theme</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">Shares</label>
+                              <Input
+                                type="number"
+                                value={pos.shares ?? ""}
+                                onChange={(e) => updatePosition(pos.id, "shares", e.target.value ? parseFloat(e.target.value) : null)}
+                                className="h-8"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">Avg Price</label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={pos.avg_price ?? ""}
+                                onChange={(e) => updatePosition(pos.id, "avg_price", e.target.value ? parseFloat(e.target.value) : null)}
+                                className="h-8"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">Current Price</label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={pos.current_price ?? ""}
+                                onChange={(e) => updatePosition(pos.id, "current_price", e.target.value ? parseFloat(e.target.value) : null)}
+                                className="h-8"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">Market Value</label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={pos.market_value ?? ""}
+                                onChange={(e) => updatePosition(pos.id, "market_value", e.target.value ? parseFloat(e.target.value) : null)}
+                                className="h-8"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">Exchange</label>
+                              <Input
+                                value={pos.exchange || ""}
+                                onChange={(e) => updatePosition(pos.id, "exchange", e.target.value || null)}
+                                placeholder="LSE, NYSE..."
+                                className="h-8"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">Currency</label>
+                              <Input
+                                value={pos.currency || ""}
+                                onChange={(e) => updatePosition(pos.id, "currency", e.target.value || null)}
+                                placeholder="USD, GBP..."
+                                className="h-8"
+                              />
+                            </div>
+                          </div>
+                          {pos.verification_notes && (
+                            <p className="mt-2 text-xs text-muted-foreground">{pos.verification_notes}</p>
+                          )}
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Input
-                    value={pos.name || ""}
-                    onChange={(e) => updatePosition(pos.id, "name", e.target.value)}
-                    placeholder="Company name"
-                    className="h-8 w-32"
-                  />
-                </TableCell>
-                {hasSourcePages && (
-                  <TableCell>
-                    <Badge variant="outline" className="font-normal">
-                      {pos.source_page ?? 1}
-                    </Badge>
-                  </TableCell>
-                )}
-                <TableCell>
-                  <Select
-                    value={pos.position_type}
-                    onValueChange={(v) => updatePosition(pos.id, "position_type", v)}
-                  >
-                    <SelectTrigger className="h-8 w-24">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="stock">Stock</SelectItem>
-                      <SelectItem value="etf">ETF</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <Select
-                    value={pos.category}
-                    onValueChange={(v) => updatePosition(pos.id, "category", v)}
-                  >
-                    <SelectTrigger className="h-8 w-28">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="equity">Equity</SelectItem>
-                      <SelectItem value="bond">Bond</SelectItem>
-                      <SelectItem value="commodity">Commodity</SelectItem>
-                      <SelectItem value="gold">Gold</SelectItem>
-                      <SelectItem value="country">Country</SelectItem>
-                      <SelectItem value="theme">Theme</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <Input
-                    value={pos.exchange || ""}
-                    onChange={(e) => updatePosition(pos.id, "exchange", e.target.value || null)}
-                    placeholder="LSE"
-                    className="h-8 w-20"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    value={pos.currency || ""}
-                    onChange={(e) => updatePosition(pos.id, "currency", e.target.value || null)}
-                    placeholder="USD"
-                    className="h-8 w-16"
-                  />
-                </TableCell>
-                <TableCell className="text-right">
-                  <Input
-                    type="number"
-                    value={pos.shares ?? ""}
-                    onChange={(e) =>
-                      updatePosition(pos.id, "shares", e.target.value ? parseFloat(e.target.value) : null)
-                    }
-                    className="h-8 w-20 text-right"
-                  />
-                </TableCell>
-                <TableCell className="text-right">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={pos.avg_price ?? ""}
-                    onChange={(e) =>
-                      updatePosition(pos.id, "avg_price", e.target.value ? parseFloat(e.target.value) : null)
-                    }
-                    className="h-8 w-24 text-right"
-                  />
-                </TableCell>
-                <TableCell className="text-right">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={pos.current_price ?? ""}
-                    onChange={(e) =>
-                      updatePosition(pos.id, "current_price", e.target.value ? parseFloat(e.target.value) : null)
-                    }
-                    className="h-8 w-24 text-right"
-                  />
-                </TableCell>
-                <TableCell className="text-right">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={pos.market_value ?? ""}
-                    onChange={(e) =>
-                      updatePosition(pos.id, "market_value", e.target.value ? parseFloat(e.target.value) : null)
-                    }
-                    className="h-8 w-28 text-right"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => removePosition(pos.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </ScrollArea>
+                  </>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
 
       {/* Review checkbox */}
-      <div className="flex items-center space-x-2 p-3 rounded-lg bg-muted/30 border border-border">
+      <div className="flex items-center space-x-2 px-3 py-2 rounded-md bg-muted/30 border border-border">
         <Checkbox
           id="review-confirm"
           checked={hasReviewed}
@@ -775,22 +789,20 @@ export function ScreenshotPreviewTable({
         />
         <label
           htmlFor="review-confirm"
-          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+          className="text-sm leading-none cursor-pointer"
         >
-          I have reviewed all positions and verified the data is correct
+          I've reviewed the positions and they look correct
         </label>
       </div>
 
-      {/* Actions */}
-      <div className="flex justify-between items-center">
+      {/* Footer actions */}
+      <div className="flex justify-between items-center pt-2">
         <div className="text-sm text-muted-foreground">
           {totalValue && (
-            <span>
-              Total Value: €{totalValue.toLocaleString("de-DE", { minimumFractionDigits: 2 })}
-            </span>
+            <span>Portfolio: €{totalValue.toLocaleString("de-DE", { maximumFractionDigits: 0 })}</span>
           )}
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <Button variant="outline" onClick={onCancel} disabled={isImporting || isVerifying}>
             Cancel
           </Button>
@@ -800,7 +812,7 @@ export function ScreenshotPreviewTable({
             className="gap-2"
           >
             {isImporting && <Loader2 className="w-4 h-4 animate-spin" />}
-            {`Import ${selectedCount} Position${selectedCount !== 1 ? "s" : ""}`}
+            Import {selectedCount} Position{selectedCount !== 1 ? "s" : ""}
           </Button>
         </div>
       </div>
