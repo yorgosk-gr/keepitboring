@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Upload, Plus, Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle } from "lucide-react";
+import { Upload, Plus, Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePositions, type Position, type PositionFormData } from "@/hooks/usePositions";
@@ -60,6 +60,8 @@ export default function Portfolio() {
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [deletingPosition, setDeletingPosition] = useState<Position | null>(null);
   const [loggingDecisionFor, setLoggingDecisionFor] = useState<Position | null>(null);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Load last price refresh timestamp
   useEffect(() => {
@@ -115,6 +117,26 @@ export default function Portfolio() {
     setDeletingPosition(null);
     // Recalculate weights after deleting
     setTimeout(() => recalculateWeights(), 500);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    
+    setIsBulkDeleting(true);
+    try {
+      for (const id of selectedIds) {
+        await deletePosition(id);
+      }
+      toast.success(`Deleted ${selectedIds.length} positions`);
+      setSelectedIds([]);
+      setShowBulkDeleteModal(false);
+      // Recalculate weights after deleting
+      setTimeout(() => recalculateWeights(), 500);
+    } catch (error) {
+      toast.error("Failed to delete some positions");
+    } finally {
+      setIsBulkDeleting(false);
+    }
   };
 
   const handleUploadScreenshot = () => {
@@ -455,9 +477,20 @@ export default function Portfolio() {
             </div>
           )}
           {selectedIds.length > 0 && (
-            <span className="text-sm text-muted-foreground self-center mr-2">
-              {selectedIds.length} selected
-            </span>
+            <>
+              <span className="text-sm text-muted-foreground self-center mr-2">
+                {selectedIds.length} selected
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="gap-2"
+                onClick={() => setShowBulkDeleteModal(true)}
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Selected
+              </Button>
+            </>
           )}
           <Button
             variant="outline"
@@ -587,6 +620,15 @@ export default function Portfolio() {
         isFetching={isFetchingPrices}
         progress={priceProgress}
         onApply={handleApplyPriceUpdates}
+      />
+
+      {/* Bulk Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        open={showBulkDeleteModal}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onConfirm={handleBulkDelete}
+        ticker={`${selectedIds.length} position${selectedIds.length !== 1 ? "s" : ""}`}
+        isLoading={isBulkDeleting}
       />
     </div>
   );
