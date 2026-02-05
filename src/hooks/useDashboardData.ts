@@ -131,11 +131,56 @@ export function useDashboardData() {
         .from("alerts")
         .update({ resolved: true })
         .eq("id", alertId);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
+  });
+
+  // Update cash balance mutation
+  const updateCashMutation = useMutation({
+    mutationFn: async (newCashBalance: number) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Get or create today's snapshot
+      const today = new Date().toISOString().split("T")[0];
+      
+      const { data: existingSnapshot } = await supabase
+        .from("portfolio_snapshots")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("snapshot_date", today)
+        .maybeSingle();
+
+      if (existingSnapshot) {
+        // Update existing snapshot
+        const { error } = await supabase
+          .from("portfolio_snapshots")
+          .update({ cash_balance: newCashBalance })
+          .eq("id", existingSnapshot.id);
+        
+        if (error) throw error;
+      } else {
+        // Create new snapshot with cash balance
+        const { error } = await supabase
+          .from("portfolio_snapshots")
+          .insert({
+            user_id: user.id,
+            snapshot_date: today,
+            cash_balance: newCashBalance,
+            total_value: positionsValue + newCashBalance,
+            stocks_percent: (positionsValue + newCashBalance) > 0 ? (stocksValue / (positionsValue + newCashBalance)) * 100 : 0,
+            etfs_percent: (positionsValue + newCashBalance) > 0 ? (etfsValue / (positionsValue + newCashBalance)) * 100 : 0,
+          });
+        
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["portfolio_snapshots"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 
@@ -236,5 +281,7 @@ export function useDashboardData() {
     // Mutations
     dismissAlert: dismissAlertMutation.mutate,
     isDismissing: dismissAlertMutation.isPending,
+    updateCashBalance: updateCashMutation.mutateAsync,
+    isUpdatingCash: updateCashMutation.isPending,
   };
 }
