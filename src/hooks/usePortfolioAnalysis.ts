@@ -44,6 +44,7 @@ export interface MarketSignals {
   bubble_warnings: string[];
   consensus_level: "mixed" | "bullish_consensus" | "bearish_consensus";
   overall_sentiment: string;
+  portfolio_exposure?: string;
 }
 
 export interface RecommendedAction {

@@ -78,6 +78,14 @@ export function MarketSignalsCard({ signals }: MarketSignalsCardProps) {
         </Badge>
       </div>
 
+      {/* Portfolio Exposure */}
+      {signals.portfolio_exposure && (
+        <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
+          <p className="text-sm font-medium text-amber-600 mb-1">Portfolio Exposure</p>
+          <p className="text-sm text-foreground">{signals.portfolio_exposure}</p>
+        </div>
+      )}
+
       {/* Overall Sentiment */}
       <div className="pt-4 border-t border-border">
         <p className="text-sm text-muted-foreground mb-1">Overall Sentiment</p>
