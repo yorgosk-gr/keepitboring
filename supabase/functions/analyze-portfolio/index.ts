@@ -184,7 +184,7 @@ Analyze this portfolio and return the JSON response.`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        max_tokens: 8192,
+        max_tokens: 16384,
       }),
     });
 
@@ -215,11 +215,21 @@ Analyze this portfolio and return the JSON response.`;
     
     // OpenAI-compatible format: choices[0].message.content
     const content = aiResponse.choices?.[0]?.message?.content;
+    const finishReason = aiResponse.choices?.[0]?.finish_reason;
 
     if (!content) {
       console.error("Empty AI response:", JSON.stringify(aiResponse));
       return new Response(
         JSON.stringify({ error: "AI returned empty response. Please try again." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check if response was truncated due to max_tokens
+    if (finishReason === "length") {
+      console.error("AI response was truncated (hit max_tokens limit)");
+      return new Response(
+        JSON.stringify({ error: "Analysis response was too long and got truncated. Please try again with fewer insights." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
