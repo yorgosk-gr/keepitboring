@@ -45,45 +45,35 @@ serve(async (req) => {
 
     const { positions, rules, insights, decisions } = await req.json();
 
-    const systemPrompt = `You are an investment analyst applying a specific philosophy. Analyze this portfolio.
+    const systemPrompt = `You are a portfolio analyst. Be BRIEF and DIRECT. No fluff.
 
-PHILOSOPHY SUMMARY:
-- Margin of safety is paramount
-- ASSET CLASS TARGETS (by total portfolio value):
-  • Equities max 70% (this includes BOTH individual stocks AND equity ETFs like VWRA, CSPX, IMID, IMEU, NDIA, IJPA, IBZL, GRE1, XDWH, CBUX, EIMI, and all individual stocks)
-  • Bonds max 20% (bond ETFs like IDTM, IB01)
-  • Commodities + Gold + Crypto max 10% (CMOD, COPX, IGLN, and any crypto positions)
-  • Cash: remainder
-- STOCK vs ETF SPLIT: within the equities allocation, target 15-25% individual stocks and 75-85% ETFs
-- Position limits: single stock max 8%, themed ETF max 15%, sector max 25%
-- Quality: prefer high ROIC and earnings yield
-- Think probabilistically, not in certainties
-- Process > outcomes; avoid resulting
-- Watch for bubble signals and crowded trades
-- Beliefs are hypotheses, not identities
+ALLOCATION TARGETS:
+- Equities (stocks + equity ETFs): max 70%
+- Bonds: max 20%
+- Commodities + Gold + Crypto: max 10%
+- Within equities: 15-25% stocks, 75-85% ETFs
+- Single stock max: 8%
+- Themed ETF max: 15%
 
-TRADE RECOMMENDATION RULES:
-When making recommendations, be SPECIFIC and ACTIONABLE:
-- Bad: "Consider reducing equity exposure"
-- Good: "SELL 200 shares of CSPX (~€149K) and move proceeds to IDTM to increase bond allocation from 7% to 20%"
-- Bad: "Consolidate overlapping ETFs"
-- Good: "SELL all IMEU (300 shares, ~€11K), SELL all EIMI (100 shares, ~€5K) — these overlap with VWRA. Use proceeds to add to VWRA or hold as cash"
+ANALYSIS RULES:
+1. Lead with problems. If allocation is fine, say "OK" — don't elaborate.
+2. Only flag positions that actually need action. Don't mention positions that are fine.
+3. For trade recommendations: ONLY recommend trades for positions that are oversized, have no thesis, or have invalidated thesis. Mark everything else as HOLD with minimal reasoning.
+4. Keep reasoning to ONE sentence max.
+5. Don't repeat information. If you flag something in allocation_check, don't repeat it in position_alerts.
+6. Prioritize ruthlessly: critical issues first, then warnings. Skip minor observations.
 
-For every individual stock and satellite/explore ETF, provide a SELL / HOLD / BUY recommendation with:
-- The action (SELL, HOLD, or BUY)
-- How many shares (if SELL or BUY)
-- Target allocation percentage
-- One-sentence reasoning
+TRADE RECOMMENDATIONS:
+- SELL: only if oversized, thesis invalidated, or hard rule breach
+- BUY: only if underweight vs target and cash available
+- HOLD: everything else (keep reasoning to 3-5 words like "On target" or "Thesis intact")
 
-For core ETFs, recommend rebalancing trades if allocation is off target.
+For HOLD positions, use minimal fields:
+{ "ticker": "VWRA", "action": "HOLD", "current_shares": 920, "recommended_shares": 920, "shares_to_trade": 0, "estimated_value": 157771, "current_weight": 31.5, "target_weight": 31.5, "reasoning": "Core position, on target", "urgency": "low", "thesis_aligned": true }
 
-IMPORTANT: If a position has a documented thesis, respect it. Only recommend SELL if:
-- The thesis has been invalidated
-- Position size exceeds limits
-- Market signals strongly contradict the thesis
-If a position has NO thesis documented, flag it but don't automatically recommend selling — recommend documenting the thesis first.
+Only provide detailed reasoning for SELL or BUY recommendations.
 
-You MUST respond with valid JSON only, no other text. The JSON must match this exact structure:
+You MUST respond with valid JSON only. Structure:
 {
   "allocation_check": {
     "equities_percent": number,
@@ -93,67 +83,53 @@ You MUST respond with valid JSON only, no other text. The JSON must match this e
     "commodities_percent": number,
     "commodities_status": "ok" | "warning" | "critical",
     "cash_percent": number,
-    "stocks_vs_etf_split": "e.g. 18% stocks / 82% ETFs within equities",
-    "issues": ["list of allocation issues"]
+    "stocks_vs_etf_split": "X% stocks / Y% ETFs",
+    "issues": ["ONLY list actual problems, not observations"]
   },
   "position_alerts": [
     {
       "ticker": "XXX",
-      "alert_type": "size" | "quality" | "thesis" | "sentiment",
+      "alert_type": "size" | "thesis" | "sentiment",
       "severity": "warning" | "critical",
-      "issue": "description",
-      "recent_sentiment": "bullish/bearish/neutral from newsletters",
+      "issue": "one sentence max",
+      "recent_sentiment": "bullish/bearish/neutral",
       "recommendation": "specific action"
     }
   ],
   "thesis_checks": [
     {
       "ticker": "XXX",
-      "has_thesis": true/false,
-      "has_invalidation": true/false,
-      "bet_type_declared": true/false,
-      "confidence_set": true/false,
+      "has_thesis": boolean,
+      "has_invalidation": boolean,
+      "bet_type_declared": boolean,
+      "confidence_set": boolean,
       "days_since_review": number
     }
   ],
   "market_signals": {
-    "bubble_warnings": ["any bubble language found"],
+    "bubble_warnings": ["only explicit bubble language from newsletters"],
     "consensus_level": "mixed" | "bullish_consensus" | "bearish_consensus",
-    "overall_sentiment": "description"
+    "overall_sentiment": "one sentence max"
   },
   "recommended_actions": [
     {
-      "priority": number,
-      "action": "SPECIFIC action with ticker, shares, and amounts",
-      "reasoning": "why this action, referencing philosophy rules or market signals",
+      "priority": 1,
+      "action": "specific trade with ticker and shares",
+      "reasoning": "one sentence",
       "confidence": "high" | "medium" | "low",
-      "trades_involved": ["SELL 200 CSPX", "BUY 100 IDTM"]
+      "trades_involved": ["SELL 50 CSPX"]
     }
   ],
-  "trade_recommendations": [
-    {
-      "ticker": "CSPX",
-      "action": "SELL" | "HOLD" | "BUY",
-      "current_shares": 62,
-      "recommended_shares": 0,
-      "shares_to_trade": -62,
-      "estimated_value": 46228,
-      "current_weight": 9.4,
-      "target_weight": 0,
-      "reasoning": "Overlaps entirely with VWRA. Sell all and reinvest into VWRA to simplify core equity.",
-      "urgency": "low" | "medium" | "high",
-      "thesis_aligned": true | false | null
-    }
-  ],
+  "trade_recommendations": [...],
   "rebalancing_summary": {
-    "total_sells": "€XX,XXX across N positions",
-    "total_buys": "€XX,XXX across N positions",
-    "net_cash_impact": "+€X,XXX or -€X,XXX",
-    "primary_goal": "one sentence describing what the rebalancing achieves"
+    "total_sells": "€X",
+    "total_buys": "€X",
+    "net_cash_impact": "+/-€X",
+    "primary_goal": "one sentence"
   },
-  "portfolio_health_score": number between 1-100,
-  "key_risks": ["risk 1", "risk 2"],
-  "summary": "2-3 sentence overall assessment"
+  "portfolio_health_score": 1-100,
+  "key_risks": ["max 3 risks, one sentence each"],
+  "summary": "2 sentences max. Lead with the #1 issue or 'Portfolio healthy' if no issues."
 }`;
 
     const userPrompt = `CURRENT PORTFOLIO:
