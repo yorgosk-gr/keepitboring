@@ -11,6 +11,7 @@ import Portfolio from "./pages/Portfolio";
 import Newsletters from "./pages/Newsletters";
 import Philosophy from "./pages/Philosophy";
 import Analysis from "./pages/Analysis";
+import Watchlist from "./pages/Watchlist";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
@@ -53,6 +54,16 @@ const App = () => (
                 <ProtectedRoute>
                   <AppLayout>
                     <Newsletters />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/watchlist"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <Watchlist />
                   </AppLayout>
                 </ProtectedRoute>
               }

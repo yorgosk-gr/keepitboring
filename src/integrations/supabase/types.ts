@@ -540,6 +540,69 @@ export type Database = {
         }
         Relationships: []
       }
+      watchlist: {
+        Row: {
+          category: string | null
+          created_at: string
+          currency: string | null
+          current_price: number | null
+          exchange: string | null
+          id: string
+          intended_size_percent: number | null
+          invalidation_price: number | null
+          last_price_refresh: string | null
+          name: string | null
+          notes: string | null
+          position_type: string | null
+          source: string | null
+          target_price: number
+          thesis: string | null
+          ticker: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          currency?: string | null
+          current_price?: number | null
+          exchange?: string | null
+          id?: string
+          intended_size_percent?: number | null
+          invalidation_price?: number | null
+          last_price_refresh?: string | null
+          name?: string | null
+          notes?: string | null
+          position_type?: string | null
+          source?: string | null
+          target_price: number
+          thesis?: string | null
+          ticker: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          currency?: string | null
+          current_price?: number | null
+          exchange?: string | null
+          id?: string
+          intended_size_percent?: number | null
+          invalidation_price?: number | null
+          last_price_refresh?: string | null
+          name?: string | null
+          notes?: string | null
+          position_type?: string | null
+          source?: string | null
+          target_price?: number
+          thesis?: string | null
+          ticker?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

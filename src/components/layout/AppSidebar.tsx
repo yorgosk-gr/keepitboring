@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Menu, X, TrendingUp } from "lucide-react";
+import { Menu, X, TrendingUp, Crosshair } from "lucide-react";
 import {
   Home,
   Briefcase,
@@ -20,6 +20,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 const navItems = [
   { title: "Dashboard", path: "/", icon: Home },
   { title: "Portfolio", path: "/portfolio", icon: Briefcase },
+  { title: "Watchlist", path: "/watchlist", icon: Crosshair },
   { title: "Newsletters", path: "/newsletters", icon: Newspaper },
   { title: "Philosophy", path: "/philosophy", icon: BookOpen },
   { title: "Analysis", path: "/analysis", icon: BarChart3 },
