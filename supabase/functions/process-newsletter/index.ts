@@ -164,11 +164,23 @@ Rules:
       if (cleanContent.startsWith("```")) cleanContent = cleanContent.slice(3);
       if (cleanContent.endsWith("```")) cleanContent = cleanContent.slice(0, -3);
       cleanContent = cleanContent.trim();
-      insights = JSON.parse(cleanContent);
+      
+      // Fix unescaped newlines inside JSON string values
+      // Replace literal newlines that appear inside quoted strings
+      cleanContent = cleanContent.replace(/(?<=": "(?:[^"\\]|\\.)*)(\n)(?=(?:[^"\\]|\\.)*")/g, "\\n");
+      
+      try {
+        insights = JSON.parse(cleanContent);
+      } catch {
+        // Fallback: aggressively fix newlines by replacing all newlines between quotes
+        // Remove all literal newlines/carriage returns, then restore JSON structure newlines
+        const singleLine = cleanContent.replace(/\r?\n/g, " ").replace(/\s+/g, " ");
+        insights = JSON.parse(singleLine);
+      }
     } catch (parseError) {
-      console.error("Failed to parse AI response:", content);
+      console.error("Failed to parse AI response:", content.substring(0, 1000));
       return new Response(
-        JSON.stringify({ error: "Could not parse AI response", raw: content }),
+        JSON.stringify({ error: "Could not parse AI response" }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
