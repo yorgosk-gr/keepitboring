@@ -22,6 +22,19 @@ export interface Position {
   unrealizedPL: number;
   instrumentType: InstrumentType;
   assetClass: AssetClass;
+  yahooTicker: string;
+}
+
+function deriveYahooTicker(ticker: string, currency: string, instrumentType: InstrumentType): string {
+  switch (currency) {
+    case "AUD": return `${ticker}.AX`;
+    case "EUR": return `${ticker}.PA`;
+    case "GBP": return `${ticker}.L`;
+    case "USD":
+      if (instrumentType === "ETF" || instrumentType === "ETC") return `${ticker}.L`;
+      return ticker;
+    default: return ticker;
+  }
 }
 
 export interface ParsedPortfolio {
@@ -257,6 +270,8 @@ export function parseIBKRStatement(csvText: string): ParsedPortfolio {
       warnings.push(`No FX rate found for ${currency} (${ticker}) — value may be inaccurate.`);
     }
 
+    const yahooTicker = deriveYahooTicker(ticker, currency, instrumentType);
+
     positions.push({
       ticker,
       description,
@@ -269,6 +284,7 @@ export function parseIBKRStatement(csvText: string): ParsedPortfolio {
       unrealizedPL,
       instrumentType,
       assetClass,
+      yahooTicker,
     });
   }
 

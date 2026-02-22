@@ -64,7 +64,7 @@ export function UploadCSVModal({ open, onClose, onImportComplete }: UploadCSVMod
         market_value: p.valueUSD,
         pnl: p.unrealizedPL,
         currency: p.currency,
-        exchange: null,
+        exchange: p.yahooTicker,
         needs_verification: p.assetClass === "Unknown",
         position_type: p.instrumentType === "Stock" ? "stock" as const : "etf" as const,
         category: p.assetClass === "Bonds" ? "bond" as const : p.assetClass === "Commodities" ? "commodity" as const : "equity" as const,
