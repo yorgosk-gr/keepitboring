@@ -16,6 +16,12 @@ interface PriceRefreshProgress {
   status: "idle" | "fetching" | "complete" | "error";
 }
 
+export interface TickerInfo {
+  ticker: string;
+  currency?: string;
+  instrumentType?: string;
+}
+
 const BATCH_SIZE = 10;
 
 export function usePriceRefresh() {
@@ -27,20 +33,24 @@ export function usePriceRefresh() {
   });
 
   const fetchPrices = useCallback(async (
-    tickers: string[]
+    tickers: (string | TickerInfo)[]
   ): Promise<{ prices: PriceUpdate[]; notFound: string[] }> => {
     if (tickers.length === 0) return { prices: [], notFound: [] };
 
+    const items: TickerInfo[] = tickers.map(t =>
+      typeof t === "string" ? { ticker: t } : t
+    );
+
     setIsFetching(true);
-    setProgress({ current: 0, total: tickers.length, status: "fetching" });
+    setProgress({ current: 0, total: items.length, status: "fetching" });
 
     const allPrices: PriceUpdate[] = [];
     const allNotFound: string[] = [];
-    const batches: string[][] = [];
+    const batches: TickerInfo[][] = [];
 
     // Split into batches
-    for (let i = 0; i < tickers.length; i += BATCH_SIZE) {
-      batches.push(tickers.slice(i, i + BATCH_SIZE));
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+      batches.push(items.slice(i, i + BATCH_SIZE));
     }
 
     try {
@@ -50,7 +60,7 @@ export function usePriceRefresh() {
 
         setProgress({
           current: startIndex + 1,
-          total: tickers.length,
+          total: items.length,
           status: "fetching",
         });
 
@@ -60,8 +70,7 @@ export function usePriceRefresh() {
 
         if (error) {
           console.error("Price fetch error:", error);
-          // Add all tickers from this batch to not found
-          allNotFound.push(...batch);
+          allNotFound.push(...batch.map(b => b.ticker));
           continue;
         }
 
@@ -79,14 +88,14 @@ export function usePriceRefresh() {
         }
       }
 
-      setProgress({ current: tickers.length, total: tickers.length, status: "complete" });
+      setProgress({ current: items.length, total: items.length, status: "complete" });
       return { prices: allPrices, notFound: allNotFound };
 
     } catch (error) {
       console.error("Price fetch failed:", error);
-      setProgress({ current: 0, total: tickers.length, status: "error" });
+      setProgress({ current: 0, total: items.length, status: "error" });
       toast.error("Price refresh failed. Please try again.");
-      return { prices: [], notFound: tickers };
+      return { prices: [], notFound: items.map(i => i.ticker) };
 
     } finally {
       setIsFetching(false);
