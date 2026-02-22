@@ -171,20 +171,7 @@ function deriveYahooTickerLegacy(ticker: string, currency: string, instrumentTyp
   }
 }
 
-// ── Format detection ─────────────────────────────────────────────────────────
-
-function isFlexQueryFormat(lines: string[]): boolean {
-  for (const line of lines) {
-    const cols = parseCSVLine(line);
-    if (cols.length >= 2) {
-      const col1 = cols[1]?.replace(/"/g, "").trim();
-      if (col1 === "POST" || col1 === "ACCT" || col1 === "EQUT") return true;
-    }
-    // Legacy marker
-    if (cols[0]?.replace(/"/g, "").trim() === "Open Positions") return true;
-  }
-  return false;
-}
+// (format detection is inline in parseIBKRStatement)
 
 // ── Flex Query parser ────────────────────────────────────────────────────────
 
@@ -450,15 +437,10 @@ export function parseIBKRStatement(csvText: string): ParsedPortfolio {
     .filter((l) => l.trim().length > 0);
 
   // Detect format: check if any line has a Flex Query section code in col[1]
-  let isFlexQuery = false;
-  for (const line of lines.slice(0, 50)) {
+  const isFlexQuery = lines.some(line => {
     const cols = parseCSVLine(line);
-    const col1 = cols[1]?.replace(/"/g, "").trim();
-    if (col1 === "POST" || col1 === "ACCT" || col1 === "EQUT" || col1 === "MTMP" || col1 === "RATE") {
-      isFlexQuery = true;
-      break;
-    }
-  }
+    return cols[0] === "DATA" && cols[1] === "POST";
+  });
 
   return isFlexQuery ? parseFlexQuery(lines) : parseLegacyStatement(lines);
 }
