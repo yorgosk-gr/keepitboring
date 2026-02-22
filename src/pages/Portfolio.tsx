@@ -13,6 +13,7 @@ import { PositionModal } from "@/components/portfolio/PositionModal";
 import { DeleteConfirmModal } from "@/components/portfolio/DeleteConfirmModal";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import { UploadScreenshotModal } from "@/components/portfolio/UploadScreenshotModal";
+import { UploadCSVModal } from "@/components/portfolio/UploadCSVModal";
 import { RefreshPricesModal } from "@/components/portfolio/RefreshPricesModal";
 import { CashBalanceEditor } from "@/components/portfolio/CashBalanceEditor";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,6 +59,7 @@ export default function Portfolio() {
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showCSVModal, setShowCSVModal] = useState(false);
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [deletingPosition, setDeletingPosition] = useState<Position | null>(null);
   const [loggingDecisionFor, setLoggingDecisionFor] = useState<Position | null>(null);
@@ -450,6 +452,14 @@ export default function Portfolio() {
             Upload Screenshot
           </Button>
           <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => setShowCSVModal(true)}
+          >
+            <Upload className="w-4 h-4" />
+            Import CSV
+          </Button>
+          <Button 
             className="gap-2"
             onClick={() => setShowAddModal(true)}
           >
@@ -557,6 +567,14 @@ export default function Portfolio() {
               Upload Screenshot
             </Button>
             <Button 
+              variant="outline" 
+              className="gap-2"
+              onClick={() => setShowCSVModal(true)}
+            >
+              <Upload className="w-4 h-4" />
+              Import CSV
+            </Button>
+            <Button 
               className="gap-2"
               onClick={() => setShowAddModal(true)}
             >
@@ -617,6 +635,13 @@ export default function Portfolio() {
       <UploadScreenshotModal
         open={showUploadModal}
         onClose={() => setShowUploadModal(false)}
+        onImportComplete={handleUploadComplete}
+      />
+
+      {/* Upload CSV Modal */}
+      <UploadCSVModal
+        open={showCSVModal}
+        onClose={() => setShowCSVModal(false)}
         onImportComplete={handleUploadComplete}
       />
 
