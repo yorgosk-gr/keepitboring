@@ -571,7 +571,7 @@ export function ScreenshotPreviewTable({
                           pos.category === "bond" && "border-amber-500/30 text-amber-500",
                           pos.category === "commodity" && "border-emerald-500/30 text-emerald-500",
                         )}>
-                          {pos.category === "equity" ? "Stock" : pos.category === "bond" ? "Bond" : "Commodity"}
+                          {pos.category === "equity" ? "Equity" : pos.category === "bond" ? "Bond" : "Commodity"}
                         </Badge>
                       </TableCell>
                       <TableCell className="px-2 text-sm text-muted-foreground">
