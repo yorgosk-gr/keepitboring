@@ -16,7 +16,7 @@ export interface UserSettings {
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
-  currency: "€",
+  currency: "$",
   fiscalYearStart: 1,
   rebalancingFrequency: "quarterly",
   alertSeverityThreshold: "all",

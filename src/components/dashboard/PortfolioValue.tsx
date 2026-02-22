@@ -30,7 +30,7 @@ export function PortfolioValue({
     <div className="stat-card">
       <p className="text-sm text-muted-foreground mb-1">Total Portfolio Value</p>
       <p className="text-4xl font-bold text-foreground tracking-tight">
-        €{totalValue.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+        ${totalValue.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
       </p>
       <div className="flex items-center gap-2 mt-2">
         {isPositive ? (
@@ -39,7 +39,7 @@ export function PortfolioValue({
           <TrendingDown className="w-4 h-4 text-destructive" />
         )}
         <span className={isPositive ? "text-primary font-medium" : "text-destructive font-medium"}>
-          {isPositive ? "+" : ""}€{dailyChange.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ({dailyChangePercent.toFixed(2)}%)
+          {isPositive ? "+" : ""}${dailyChange.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ({dailyChangePercent.toFixed(2)}%)
         </span>
         <span className="text-muted-foreground text-sm">Today</span>
       </div>
