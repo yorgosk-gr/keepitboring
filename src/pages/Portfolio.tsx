@@ -25,7 +25,7 @@ import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import { UploadScreenshotModal } from "@/components/portfolio/UploadScreenshotModal";
 import { UploadCSVModal } from "@/components/portfolio/UploadCSVModal";
 import { RefreshPricesModal } from "@/components/portfolio/RefreshPricesModal";
-import { CashBalanceEditor } from "@/components/portfolio/CashBalanceEditor";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,7 +47,7 @@ export default function Portfolio() {
   } = usePositions();
 
   // Get cash balance and correct allocation percentages from dashboard data
-  const { cashBalance, cashPercent, stocksPercent, etfsPercent, stocksValue, etfsValue, totalValue, updateCashBalance, isUpdatingCash } = useDashboardData();
+  const { cashBalance, cashPercent, stocksPercent, etfsPercent, stocksValue, etfsValue, totalValue, categoryBreakdown, updateCashBalance, isUpdatingCash } = useDashboardData();
   
   // Ticker verification
   const { verifySinglePosition, verifyPositions, isVerifying, progress: verifyProgress } = useTickerVerification();
@@ -552,23 +552,14 @@ export default function Portfolio() {
       </div>
 
       {/* Allocation Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2">
-          <AllocationSummary 
-            stocksPercent={stocksPercent}
-            etfsPercent={etfsPercent}
-            cashPercent={cashPercent}
-            stocksValue={stocksValue}
-            etfsValue={etfsValue}
-            cashValue={cashBalance}
-            isLoading={isLoading}
-          />
-        </div>
-        <CashBalanceEditor
-          cashBalance={cashBalance}
-          cashPercent={cashPercent}
-          onUpdate={updateCashBalance}
-          isUpdating={isUpdatingCash}
+      <div>
+        <AllocationSummary
+          equityValue={categoryBreakdown["equity"] ?? 0}
+          bondsValue={categoryBreakdown["bond"] ?? 0}
+          commoditiesValue={categoryBreakdown["commodity"] ?? 0}
+          cashValue={cashBalance}
+          totalValue={totalValue}
+          isLoading={isLoading}
         />
       </div>
 

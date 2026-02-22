@@ -1,29 +1,25 @@
 import { Progress } from "@/components/ui/progress";
 
 interface AllocationSummaryProps {
-  stocksPercent: number;
-  etfsPercent: number;
-  cashPercent?: number;
-  stocksValue?: number;
-  etfsValue?: number;
-  cashValue?: number;
+  equityValue: number;
+  bondsValue: number;
+  commoditiesValue: number;
+  cashValue: number;
+  totalValue: number;
   isLoading?: boolean;
 }
 
-// Format USD amount
-function formatUSD(value: number | undefined): string {
-  if (value === undefined) return "";
+function formatUSD(value: number): string {
   return value.toLocaleString("en-US", { maximumFractionDigits: 0 });
 }
 
-export function AllocationSummary({ 
-  stocksPercent, 
-  etfsPercent, 
-  cashPercent, 
-  stocksValue,
-  etfsValue,
+export function AllocationSummary({
+  equityValue,
+  bondsValue,
+  commoditiesValue,
   cashValue,
-  isLoading 
+  totalValue,
+  isLoading,
 }: AllocationSummaryProps) {
   if (isLoading) {
     return (
@@ -37,52 +33,30 @@ export function AllocationSummary({
     );
   }
 
+  const pct = (v: number) => (totalValue > 0 ? (v / totalValue) * 100 : 0);
+
+  const rows = [
+    { label: "Equity", value: equityValue, percent: pct(equityValue) },
+    { label: "Bonds", value: bondsValue, percent: pct(bondsValue) },
+    { label: "Commodities", value: commoditiesValue, percent: pct(commoditiesValue) },
+    { label: "Cash", value: cashValue, percent: pct(cashValue) },
+  ];
+
   return (
     <div className="stat-card">
       <h3 className="text-sm font-medium text-muted-foreground mb-3">Allocation</h3>
-      
+
       <div className="space-y-3">
-        {/* Stocks */}
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium w-14">Stocks</span>
-          <Progress value={stocksPercent} className="flex-1 h-2" />
-          <span className="text-sm font-mono w-12 text-right">{stocksPercent.toFixed(1)}%</span>
-          {stocksValue !== undefined && (
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center gap-3">
+            <span className="text-sm font-medium w-24">{row.label}</span>
+            <Progress value={row.percent} className="flex-1 h-2" />
+            <span className="text-sm font-mono w-12 text-right">{row.percent.toFixed(1)}%</span>
             <span className="text-sm text-muted-foreground font-mono w-24 text-right">
-              {formatUSD(stocksValue)}
+              {formatUSD(row.value)}
             </span>
-          )}
-        </div>
-
-        {/* ETFs */}
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium w-14">ETFs</span>
-          <Progress value={etfsPercent} className="flex-1 h-2" />
-          <span className="text-sm font-mono w-12 text-right">{etfsPercent.toFixed(1)}%</span>
-          {etfsValue !== undefined && (
-            <span className="text-sm text-muted-foreground font-mono w-24 text-right">
-              {formatUSD(etfsValue)}
-            </span>
-          )}
-        </div>
-
-        {/* Cash */}
-        {cashPercent !== undefined && cashPercent > 0 && (
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium w-14">Cash</span>
-            <Progress 
-              value={cashPercent} 
-              className="flex-1 h-2"
-              style={{ "--progress-color": "hsl(215, 20%, 50%)" } as React.CSSProperties}
-            />
-            <span className="text-sm font-mono w-12 text-right">{cashPercent.toFixed(1)}%</span>
-            {cashValue !== undefined && (
-              <span className="text-sm text-muted-foreground font-mono w-24 text-right">
-                {formatUSD(cashValue)}
-              </span>
-            )}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
