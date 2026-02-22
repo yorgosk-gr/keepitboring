@@ -428,7 +428,7 @@ export default function Portfolio() {
           <h1 className="text-2xl font-bold text-foreground">Portfolio</h1>
           <div className="flex items-center gap-3">
             <p className="text-sm text-muted-foreground">
-              {positions.length} positions • €{totalValue.toLocaleString("de-DE", { minimumFractionDigits: 0 })} total
+              {positions.length} positions • ${totalValue.toLocaleString("en-US", { minimumFractionDigits: 0 })} total
             </p>
             {lastPriceRefresh && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">

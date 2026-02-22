@@ -97,7 +97,7 @@ export function TradeRecommendationsCard({
   };
 
   const formatValue = (value: number) => {
-    return `€${Math.abs(value).toLocaleString()}`;
+    return `$${Math.abs(value).toLocaleString()}`;
   };
 
   if (!recommendations || recommendations.length === 0) {

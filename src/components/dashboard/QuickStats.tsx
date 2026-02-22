@@ -60,7 +60,7 @@ export function QuickStats({
       <StatItem 
         icon={Wallet} 
         label="Cash Balance" 
-        value={`€${cashBalance.toLocaleString("de-DE", { minimumFractionDigits: 0 })}`}
+        value={`$${cashBalance.toLocaleString("en-US", { minimumFractionDigits: 0 })}`}
         isLoading={isLoading}
       />
       <StatItem 
