@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { DecisionLogView } from "@/components/decisions/DecisionLogView";
-import { BarChart3, BookOpen, Play, Loader2, AlertCircle } from "lucide-react";
+import { BarChart3, BookOpen, Play, Loader2, AlertCircle, Sparkles } from "lucide-react";
 import { usePortfolioAnalysis, type AnalysisResult } from "@/hooks/usePortfolioAnalysis";
 import { usePositions, type Position } from "@/hooks/usePositions";
+import { useIdealAllocation, type IdealETF } from "@/hooks/useIdealAllocation";
 import { format } from "date-fns";
 
 export default function Analysis() {
@@ -18,6 +19,7 @@ export default function Analysis() {
     hasData,
   } = usePortfolioAnalysis();
   const { positions } = usePositions();
+  const { result: idealAllocation, generate: generateIdealAllocation, isGenerating: isGeneratingIdeal } = useIdealAllocation();
 
   // Auto-load latest analysis on mount
   useEffect(() => {
@@ -151,6 +153,38 @@ export default function Analysis() {
           {currentAnalysis && (
             <AnalysisTextView analysis={currentAnalysis} positions={positions} />
           )}
+
+          {/* Ideal Portfolio Allocation */}
+          <section className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Ideal Portfolio Allocation</h2>
+                <p className="text-sm text-muted-foreground">
+                  AI-recommended $100k allocation using Ireland-domiciled UCITS ETFs
+                </p>
+              </div>
+              <Button
+                onClick={() => generateIdealAllocation()}
+                disabled={isGeneratingIdeal}
+                variant="outline"
+                className="gap-2"
+              >
+                {isGeneratingIdeal ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Generate Allocation
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {idealAllocation && <IdealAllocationView data={idealAllocation} />}
+          </section>
         </TabsContent>
 
         <TabsContent value="decisions" className="mt-6">
@@ -407,5 +441,88 @@ function AllocationLine({
         <span className="text-xs text-muted-foreground ml-2">({status})</span>
       )}
     </p>
+  );
+}
+
+function IdealAllocationView({ data }: { data: { etfs: IdealETF[]; strategy_summary: string; tax_note: string } }) {
+  const assetClassColors: Record<string, string> = {
+    Equity: "text-emerald-500",
+    Bond: "text-blue-500",
+    Bonds: "text-blue-500",
+    Commodity: "text-amber-500",
+    Commodities: "text-amber-500",
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Strategy Summary */}
+      <div className="p-4 rounded-lg bg-secondary/50 border border-border">
+        <p className="text-sm text-foreground">{data.strategy_summary}</p>
+        <p className="text-xs text-muted-foreground mt-2 italic">{data.tax_note}</p>
+      </div>
+
+      {/* ETF Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-muted-foreground border-b border-border">
+              <th className="pb-2 font-medium">Ticker</th>
+              <th className="pb-2 font-medium">Name</th>
+              <th className="pb-2 font-medium">Class</th>
+              <th className="pb-2 font-medium text-right">Amount</th>
+              <th className="pb-2 font-medium text-right">Weight</th>
+              <th className="pb-2 font-medium text-right">TER</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {data.etfs.map((etf, i) => (
+              <tr key={i}>
+                <td className="py-2 font-mono font-bold">{etf.ticker}</td>
+                <td className="py-2 text-muted-foreground text-xs max-w-[200px]">{etf.name}</td>
+                <td className="py-2">
+                  <span className={assetClassColors[etf.asset_class] || "text-foreground"}>
+                    {etf.sub_category || etf.asset_class}
+                  </span>
+                </td>
+                <td className="py-2 text-right font-mono">
+                  ${etf.amount_usd.toLocaleString()}
+                </td>
+                <td className="py-2 text-right text-muted-foreground">
+                  {etf.percent.toFixed(1)}%
+                </td>
+                <td className="py-2 text-right text-muted-foreground">
+                  {etf.expense_ratio.toFixed(2)}%
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-border font-medium">
+              <td className="py-2" colSpan={3}>Total</td>
+              <td className="py-2 text-right font-mono">
+                ${data.etfs.reduce((s, e) => s + e.amount_usd, 0).toLocaleString()}
+              </td>
+              <td className="py-2 text-right">
+                {data.etfs.reduce((s, e) => s + e.percent, 0).toFixed(1)}%
+              </td>
+              <td className="py-2 text-right text-muted-foreground">
+                {(data.etfs.reduce((s, e) => s + e.expense_ratio * e.percent, 0) / 100).toFixed(3)}%
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {/* Explanations */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium text-muted-foreground">ETF Rationale</h3>
+        {data.etfs.map((etf, i) => (
+          <div key={i} className="text-sm">
+            <span className="font-mono font-bold">{etf.ticker}</span>
+            <span className="text-muted-foreground"> — {etf.explanation}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
