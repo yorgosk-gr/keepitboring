@@ -11,6 +11,7 @@ import { NewsletterArchiveTab } from "@/components/newsletters/NewsletterArchive
 import { InsightsModal } from "@/components/newsletters/InsightsModal";
 import { PasteTextModal } from "@/components/newsletters/PasteTextModal";
 import { CleanupActionsCard } from "@/components/newsletters/CleanupActionsCard";
+import { InsightsSummaryCard } from "@/components/newsletters/InsightsSummaryCard";
 
 export default function Newsletters() {
   const {
@@ -78,6 +79,9 @@ export default function Newsletters() {
           Paste Newsletter Text
         </Button>
       </div>
+
+      {/* AI Intelligence Brief */}
+      <InsightsSummaryCard />
 
       {/* Upload Zone */}
       <NewsletterUploadZone onUpload={handleUpload} />
