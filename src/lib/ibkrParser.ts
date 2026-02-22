@@ -197,6 +197,11 @@ function parseFlexQuery(lines: string[]): ParsedPortfolio {
   }
   const securitiesUSD = positions.reduce((sum, p) => sum + p.valueUSD, 0);
 
+  // If no MTMP CASH rows were found, fall back to EQUT-derived cashUSD
+  if (Object.keys(cashByCurrency).length === 0 && cashUSD > 0) {
+    cashByCurrency[baseCurrency] = cashUSD;
+  }
+
   return { accountId, accountName, statementDate, baseCurrency, totalNAV, cashUSD, securitiesUSD, positions, fxRates, cashByCurrency, warnings };
 }
 
