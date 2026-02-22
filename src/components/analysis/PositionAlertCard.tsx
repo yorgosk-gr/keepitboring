@@ -30,8 +30,8 @@ export function PositionAlertCard({ alert }: PositionAlertCardProps) {
     return styles[type] || "bg-secondary text-secondary-foreground";
   };
 
-  const getSentimentIcon = (sentiment: string) => {
-    const lower = sentiment.toLowerCase();
+  const getSentimentIcon = (sentiment: string | null | undefined) => {
+    const lower = (sentiment ?? "").toLowerCase();
     if (lower.includes("bullish")) return <TrendingUp className="w-4 h-4 text-primary" />;
     if (lower.includes("bearish")) return <TrendingDown className="w-4 h-4 text-destructive" />;
     return <Minus className="w-4 h-4 text-muted-foreground" />;
