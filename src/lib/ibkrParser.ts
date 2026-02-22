@@ -200,8 +200,8 @@ export function parseIBKRStatement(csvText: string): ParsedPortfolio {
       section === "Month & Year to Date Performance Summary" &&
       rowType === "Data"
     ) {
-      const ticker = cols[4]?.trim();
-      const desc = cols[5]?.trim();
+      const ticker = cols[3]?.trim();
+      const desc = cols[4]?.trim();
       if (ticker && desc) descriptionMap[ticker] = desc;
     }
 
