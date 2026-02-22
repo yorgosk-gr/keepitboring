@@ -165,7 +165,7 @@ For EACH position, search the web and return:
       "name": "full company/ETF name",
       "asset_type": "stock" or "etf",
       "category": "equity" | "bond" | "commodity",
-      "exchange": "primary exchange",
+      "exchange": "exchange code (use short codes: NYSE, NASDAQ, LSE, XETRA, EURONEXT, ASX, TSX, HKEX, SGX, etc.)",
       "currency": "trading currency",
       "current_price": latest price if found (number or null),
       "verification_status": "confirmed" | "corrected" | "uncertain",
