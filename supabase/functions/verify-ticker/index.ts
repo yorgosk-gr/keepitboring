@@ -76,6 +76,14 @@ serve(async (req) => {
 
     // Check cache for recently verified tickers
     const tickers = positions.map(p => p.ticker);
+
+    // Delete bad cache entries (name is "Unknown" or null)
+    await supabase
+      .from("verification_cache")
+      .delete()
+      .in("ticker", tickers)
+      .or("verified_data->name.eq.Unknown,verified_data->name.is.null");
+
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     const { data: cachedData } = await supabase
@@ -91,8 +99,13 @@ serve(async (req) => {
       }
     }
 
-    // Filter out cached positions
-    const positionsToVerify = positions.filter(p => !cachedTickers.has(p.ticker));
+    // Filter out cached positions, but re-verify if cached name is bad
+    const positionsToVerify = positions.filter(p => {
+      const cached = cachedTickers.get(p.ticker);
+      if (!cached) return true;
+      if (!cached.name || cached.name === "Unknown") return true;
+      return false;
+    });
     
     // If all positions are cached, return immediately
     if (positionsToVerify.length === 0) {
