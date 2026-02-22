@@ -211,7 +211,7 @@ export function ScreenshotPreviewTable({
     (p) => p.selected && p.verification_status === "corrected" && !p.verified
   ).length;
 
-  const canImport = selectedCount > 0 && hasReviewed && unverifiedCount === 0 && pendingCorrectionCount === 0;
+  const canImport = selectedCount > 0 && hasReviewed && pendingCorrectionCount === 0;
 
   const handleVerifyAll = async () => {
     const positionsToVerify = editablePositions
