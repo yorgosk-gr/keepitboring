@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, PlayCircle, Loader2, BookOpen, AlertTriangle } from "lucide-react";
+import { Plus, PlayCircle, Loader2, BookOpen, AlertTriangle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -32,6 +32,7 @@ export default function Philosophy() {
   const [showResultsModal, setShowResultsModal] = useState(false);
   const [isRunningAllChecks, setIsRunningAllChecks] = useState(false);
   const [checkingRuleId, setCheckingRuleId] = useState<string | null>(null);
+  const [openAuthors, setOpenAuthors] = useState<string[]>([]);
 
   // Seed default rules on first load if none exist
   useEffect(() => {
@@ -196,31 +197,55 @@ export default function Philosophy() {
       {/* Rules by Author */}
       {authorOrder
         .filter((author) => rulesByAuthor[author]?.length > 0)
-        .map((author) => (
-          <div key={author} className="space-y-4">
-            <div className="border-b border-border pb-2">
-              <h2 className="text-lg font-semibold text-foreground">
-                {authorDetails[author]?.title ?? author}
-              </h2>
-              <p className="text-xs text-muted-foreground italic">
-                {authorDetails[author]?.work}
-              </p>
+        .map((author) => {
+          const isOpen = openAuthors.includes(author);
+          return (
+            <div key={author} className="rounded-lg border border-border bg-card overflow-hidden">
+              <button
+                onClick={() =>
+                  setOpenAuthors((prev) =>
+                    prev.includes(author)
+                      ? prev.filter((a) => a !== author)
+                      : [...prev, author]
+                  )
+                }
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-secondary/30 transition-colors text-left"
+              >
+                <div>
+                  <h2 className="text-base font-semibold text-foreground">
+                    {authorDetails[author]?.title ?? author}
+                  </h2>
+                  <p className="text-xs text-muted-foreground italic">
+                    {authorDetails[author]?.work}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {rulesByAuthor[author].length} rule{rulesByAuthor[author].length !== 1 ? "s" : ""}
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
+                  />
+                </div>
+              </button>
+              {isOpen && (
+                <div className="px-5 pb-5 pt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-t border-border">
+                  {rulesByAuthor[author].map((rule) => (
+                    <PhilosophyRuleCard
+                      key={rule.id}
+                      rule={rule}
+                      checkResult={checkResults.get(rule.id)}
+                      onCheck={handleCheckRule}
+                      onUpdate={(id, updates) => updateRule({ id, updates })}
+                      onDelete={handleDeleteRule}
+                      isChecking={checkingRuleId === rule.id}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {rulesByAuthor[author].map((rule) => (
-                <PhilosophyRuleCard
-                  key={rule.id}
-                  rule={rule}
-                  checkResult={checkResults.get(rule.id)}
-                  onCheck={handleCheckRule}
-                  onUpdate={(id, updates) => updateRule({ id, updates })}
-                  onDelete={handleDeleteRule}
-                  isChecking={checkingRuleId === rule.id}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
+          );
+        })}
 
       {/* Add Rule Modal */}
       <AddRuleModal
