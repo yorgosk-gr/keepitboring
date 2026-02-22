@@ -111,9 +111,10 @@ export default function Philosophy() {
     Duke: { title: "Annie Duke", work: "Thinking in Bets" },
     Marks: { title: "Howard Marks", work: "The Most Important Thing" },
     Kindleberger: { title: "Charles Kindleberger", work: "Manias, Panics, and Crashes" },
-    Taleb: { title: "Nassim Taleb", work: "Antifragile" },
+    Taleb: { title: "Nassim Taleb", work: "Fooled by Randomness / The Black Swan / Antifragile" },
     Lefèvre: { title: "Edwin Lefèvre", work: "Reminiscences of a Stock Operator" },
     Erkan: { title: "Erkan", work: "Portfolio Strategy" },
+    Clason: { title: "George S. Clason", work: "The Richest Man in Babylon" },
     Other: { title: "Other", work: "Custom rules" },
   };
 
@@ -174,7 +175,7 @@ export default function Philosophy() {
               Rules sourced from investment classics
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Graham • Malkiel • Siegel • Greenblatt • Thorndike • Duke • Marks • Kindleberger • Taleb • Lefèvre • Erkan
+              Graham • Malkiel • Siegel • Greenblatt • Thorndike • Duke • Marks • Kindleberger • Taleb • Lefèvre • Erkan • Clason
             </p>
           </div>
         </div>
