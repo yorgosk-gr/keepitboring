@@ -513,7 +513,7 @@ export function ScreenshotPreviewTable({
                 <TableHead className="w-20 px-2 text-right">Shares</TableHead>
                 <TableHead className="w-24 px-2 text-right">Avg Price</TableHead>
                 <TableHead className="w-24 px-2 text-right">Current</TableHead>
-                <TableHead className="w-28 px-2 text-right">Value</TableHead>
+                <TableHead className="w-28 px-2 text-right">Value (USD)</TableHead>
                 <TableHead className="w-16 px-2 text-center">Status</TableHead>
                 <TableHead className="w-10 px-2"></TableHead>
               </TableRow>
@@ -583,9 +583,11 @@ export function ScreenshotPreviewTable({
                         {formatValue(pos.shares, 0)}
                       </TableCell>
                       <TableCell className="px-2 text-right text-sm tabular-nums">
+                        <span className="text-muted-foreground text-xs mr-0.5">{pos.currency || "USD"}</span>
                         {formatValue(pos.avg_price)}
                       </TableCell>
                       <TableCell className="px-2 text-right text-sm tabular-nums">
+                        <span className="text-muted-foreground text-xs mr-0.5">{pos.currency || "USD"}</span>
                         {formatValue(pos.current_price)}
                       </TableCell>
                       <TableCell className="px-2 text-right font-medium text-sm tabular-nums">
