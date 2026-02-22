@@ -20,33 +20,73 @@ function formatRules(rules: any[]): string {
 
 function formatBrief(brief: any): string {
   if (!brief) return "No intelligence brief available — use strategic allocation only.";
-
   const parts: string[] = [];
   parts.push("INTELLIGENCE BRIEF (use this to inform tactical tilts):");
   parts.push("Executive Summary: " + (brief.executive_summary || "N/A"));
-
   if (brief.key_points && brief.key_points.length > 0) {
     parts.push("\nKey Points:");
     for (const kp of brief.key_points) {
       parts.push("- [" + kp.relevance + "] " + kp.title + ": " + kp.detail);
     }
   }
-
   if (brief.market_themes && brief.market_themes.length > 0) {
     parts.push("\nMarket Themes:");
     for (const mt of brief.market_themes) {
       parts.push("- " + mt.theme + " (" + mt.sentiment + "): " + mt.portfolio_impact);
     }
   }
-
   if (brief.contrarian_signals && brief.contrarian_signals.length > 0) {
     parts.push("\nContrarian Signals:");
     for (const cs of brief.contrarian_signals) {
       parts.push("- " + cs);
     }
   }
-
   parts.push("\nUse these signals to adjust tactical weights.");
+  return parts.join("\n");
+}
+
+function formatPositions(positions: any[]): string {
+  if (!positions || positions.length === 0) return "";
+  return positions.map((p: any) => {
+    return "- " + p.ticker + " (" + (p.name || "Unknown") + "): " +
+      (p.shares || 0) + " shares, $" + ((p.market_value || 0).toFixed(0)) +
+      " (" + ((p.weight_percent || 0).toFixed(1)) + "%), category: " + (p.category || "unknown") +
+      ", type: " + (p.position_type || "unknown");
+  }).join("\n");
+}
+
+function formatAnalysis(analysis: any): string {
+  if (!analysis) return "";
+  const parts: string[] = [];
+  parts.push("Health Score: " + (analysis.portfolio_health_score || "N/A") + "/100");
+  parts.push("Summary: " + (analysis.summary || "N/A"));
+
+  if (analysis.allocation_check) {
+    const a = analysis.allocation_check;
+    parts.push("\nCurrent Allocation:");
+    parts.push("- Equities: " + (a.equities_percent || 0).toFixed(1) + "% (" + (a.equities_status || "ok") + ")");
+    parts.push("- Bonds: " + (a.bonds_percent || 0).toFixed(1) + "% (" + (a.bonds_status || "ok") + ")");
+    parts.push("- Commodities: " + (a.commodities_percent || 0).toFixed(1) + "% (" + (a.commodities_status || "ok") + ")");
+    parts.push("- Cash: " + (a.cash_percent || 0).toFixed(1) + "%");
+  }
+
+  if (analysis.industry_recommendations && analysis.industry_recommendations.length > 0) {
+    parts.push("\nIndustry Recommendations from Analysis:");
+    for (const rec of analysis.industry_recommendations) {
+      parts.push("- " + rec.stance.toUpperCase() + " " + rec.industry + ": " + rec.reasoning);
+    }
+  }
+
+  if (analysis.trade_recommendations && analysis.trade_recommendations.length > 0) {
+    const nonHold = analysis.trade_recommendations.filter((t: any) => t.action !== "HOLD");
+    if (nonHold.length > 0) {
+      parts.push("\nActive Trade Recommendations:");
+      for (const tr of nonHold) {
+        parts.push("- " + tr.action + " " + tr.ticker + ": " + tr.reasoning);
+      }
+    }
+  }
+
   return parts.join("\n");
 }
 
@@ -82,7 +122,29 @@ serve(async (req) => {
       });
     }
 
-    const { rules, intelligence_brief } = await req.json();
+    const { rules, intelligence_brief, mode, positions, analysis } = await req.json();
+    const isAdjustMode = mode === "adjust" && positions && positions.length > 0;
+
+    const modeContext = isAdjustMode ? [
+      "",
+      "MODE: ADJUST CURRENT PORTFOLIO",
+      "The investor already holds positions. Your job is to recommend an IDEAL TARGET allocation that:",
+      "- Accounts for what they already own (don't recommend ETFs they already hold at target weight)",
+      "- Identifies GAPS in their current portfolio (missing asset classes, geographies, etc.)",
+      "- Highlights OVERLAPS with their current holdings",
+      "- Suggests what to ADD to reach the ideal, not rebuild from scratch",
+      "- In the strategy_summary, explain how this complements their existing portfolio",
+      "",
+      "CURRENT POSITIONS:",
+      formatPositions(positions),
+      "",
+      ...(analysis ? ["LATEST ANALYSIS RESULTS:", formatAnalysis(analysis), ""] : []),
+    ] : [
+      "",
+      "MODE: CLEAN SLATE",
+      "Build an ideal portfolio from scratch, ignoring any existing holdings.",
+      "",
+    ];
 
     const systemPrompt = [
       "You are an expert portfolio construction advisor specializing in tax-efficient investing for non-US residents.",
@@ -96,6 +158,7 @@ serve(async (req) => {
       "INVESTMENT PHILOSOPHY RULES:",
       formatRules(rules),
       "",
+      ...modeContext,
       "REQUIREMENTS:",
       "1. Recommend exactly 6 to 10 ETFs",
       "2. All ETFs MUST be Ireland-domiciled UCITS ETFs (traded on London Stock Exchange, Euronext, or Xetra)",
@@ -150,6 +213,10 @@ serve(async (req) => {
       '}',
     ].join("\n");
 
+    const userMessage = isAdjustMode
+      ? "Generate the ideal $100,000 ETF portfolio that complements my current holdings. Account for gaps and overlaps. Return only the JSON object."
+      : "Generate the ideal $100,000 portfolio allocation using Ireland-domiciled UCITS ETFs. Return only the JSON object.";
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -160,7 +227,7 @@ serve(async (req) => {
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: "Generate the ideal $100,000 portfolio allocation using Ireland-domiciled UCITS ETFs. Return only the JSON object." },
+          { role: "user", content: userMessage },
         ],
         max_tokens: 4000,
       }),

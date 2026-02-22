@@ -2,7 +2,11 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePhilosophyRules } from "./usePhilosophyRules";
+import { usePositions } from "./usePositions";
 import { toast } from "sonner";
+import type { AnalysisResult } from "./usePortfolioAnalysis";
+
+export type IdealAllocationMode = "clean_slate" | "adjust";
 
 export interface IdealETF {
   ticker: string;
@@ -25,10 +29,12 @@ export interface IdealAllocationResult {
 
 export function useIdealAllocation() {
   const { rules } = usePhilosophyRules();
+  const { positions } = usePositions();
   const [result, setResult] = useState<IdealAllocationResult | null>(null);
+  const [mode, setMode] = useState<IdealAllocationMode>("clean_slate");
 
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (params: { mode: IdealAllocationMode; currentAnalysis?: AnalysisResult | null }) => {
       const activeRules = rules.filter((r) => r.is_active);
 
       // Fetch latest intelligence brief
@@ -42,12 +48,20 @@ export function useIdealAllocation() {
         console.warn("Could not fetch intelligence brief:", e);
       }
 
-      const { data, error } = await supabase.functions.invoke("ideal-allocation", {
-        body: {
-          rules: activeRules,
-          intelligence_brief: intelligenceBrief,
-        },
-      });
+      const body: any = {
+        rules: activeRules,
+        intelligence_brief: intelligenceBrief,
+        mode: params.mode === "adjust" ? "adjust" : "clean_slate",
+      };
+
+      if (params.mode === "adjust") {
+        body.positions = positions;
+        if (params.currentAnalysis) {
+          body.analysis = params.currentAnalysis;
+        }
+      }
+
+      const { data, error } = await supabase.functions.invoke("ideal-allocation", { body });
 
       if (error) throw error;
       if (data.error) throw new Error(data.error);
@@ -65,7 +79,10 @@ export function useIdealAllocation() {
 
   return {
     result,
-    generate: mutation.mutate,
+    mode,
+    setMode,
+    generate: (currentAnalysis?: AnalysisResult | null) =>
+      mutation.mutate({ mode, currentAnalysis }),
     isGenerating: mutation.isPending,
   };
 }
