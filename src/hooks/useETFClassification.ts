@@ -8,7 +8,7 @@ export interface ETFClassification {
   full_name: string;
   issuer: string;
   tracks: string;
-  category: "equity" | "bond" | "commodity" | "gold" | "country" | "theme";
+  category: "equity" | "bond" | "commodity";
   sub_category: string;
   geography: string;
   is_broad_market: boolean;

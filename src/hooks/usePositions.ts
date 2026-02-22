@@ -28,7 +28,7 @@ export interface PositionFormData {
   ticker: string;
   name?: string;
   position_type: "stock" | "etf";
-  category: "equity" | "bond" | "commodity" | "gold" | "country" | "theme";
+  category: "equity" | "bond" | "commodity";
   shares: number;
   avg_cost: number;
   current_price: number;

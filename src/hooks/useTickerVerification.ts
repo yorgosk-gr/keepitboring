@@ -16,7 +16,7 @@ export interface VerifiedPosition {
   verified_ticker: string;
   name: string;
   asset_type: "stock" | "etf";
-  category: "equity" | "bond" | "commodity" | "gold" | "country" | "theme";
+  category: "equity" | "bond" | "commodity";
   exchange: string;
   currency: string;
   current_price: number | null;

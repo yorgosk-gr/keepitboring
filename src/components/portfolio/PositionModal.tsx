@@ -13,7 +13,7 @@ const positionSchema = z.object({
   ticker: z.string().min(1, "Ticker is required").max(10, "Ticker too long"),
   name: z.string().max(100, "Name too long").optional(),
   position_type: z.enum(["stock", "etf"]),
-  category: z.enum(["equity", "bond", "commodity", "gold", "country", "theme"]),
+  category: z.enum(["equity", "bond", "commodity"]),
   shares: z.number().positive("Shares must be positive"),
   avg_cost: z.number().positive("Average cost must be positive"),
   current_price: z.number().positive("Current price must be positive"),
@@ -198,11 +198,8 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="equity">Equity</SelectItem>
-                  <SelectItem value="bond">Bonds</SelectItem>
+                  <SelectItem value="bond">Bond</SelectItem>
                   <SelectItem value="commodity">Commodity</SelectItem>
-                  <SelectItem value="gold">Gold</SelectItem>
-                  <SelectItem value="country">Country</SelectItem>
-                  <SelectItem value="theme">Theme</SelectItem>
                 </SelectContent>
               </Select>
             </div>
