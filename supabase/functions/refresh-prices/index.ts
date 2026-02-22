@@ -29,13 +29,46 @@ function getYahooTicker(ticker: string, currency?: string, instrumentType?: stri
 
 interface PriceResult {
   ticker: string;
-  current_price: number;
-  currency: string;
+  current_price: number;       // price in USD
+  local_price: number;         // price in original currency
+  currency: string;            // original currency
+  fx_rate: number;             // rate used: 1 local = fx_rate USD
   price_date: string;
   source: string;
 }
 
-async function fetchYahooPrice(ticker: string, currency?: string, instrumentType?: string): Promise<PriceResult | null> {
+// Fetch FX rate from Yahoo Finance: returns how many USD per 1 unit of currency
+async function fetchFXRate(currency: string): Promise<number> {
+  if (currency === "USD") return 1;
+  
+  const pair = `${currency}USD=X`;
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(pair)}?range=1d&interval=1d`;
+    const response = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    if (!response.ok) {
+      console.error(`FX rate error for ${pair}: ${response.status}`);
+      return 0;
+    }
+    const data = await response.json();
+    const meta = data?.chart?.result?.[0]?.meta;
+    const rate = meta?.regularMarketPrice ?? meta?.previousClose;
+    if (!rate || rate === 0) return 0;
+    console.log(`FX rate ${currency}/USD = ${rate}`);
+    return rate;
+  } catch (error) {
+    console.error(`FX fetch error for ${pair}:`, error);
+    return 0;
+  }
+}
+
+async function fetchYahooPrice(
+  ticker: string,
+  currency?: string,
+  instrumentType?: string,
+  fxRates?: Record<string, number>
+): Promise<PriceResult | null> {
   const yahooTicker = getYahooTicker(ticker, currency, instrumentType);
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooTicker)}?range=1d&interval=1d`;
@@ -52,18 +85,24 @@ async function fetchYahooPrice(ticker: string, currency?: string, instrumentType
     const price = meta.regularMarketPrice ?? meta.previousClose;
     if (!price || price === 0) return null;
 
-    // Auto-convert GBP pence to pounds. Yahoo returns "GBp" for pence-priced LSE securities.
-    let finalPrice = price;
-    let finalCurrency = meta.currency || "USD";
-    if (finalCurrency === "GBp") {
-      finalPrice = price / 100;
-      finalCurrency = "GBP";
+    // Auto-convert GBP pence to pounds
+    let localPrice = price;
+    let localCurrency = meta.currency || currency || "USD";
+    if (localCurrency === "GBp") {
+      localPrice = price / 100;
+      localCurrency = "GBP";
     }
+
+    // Convert to USD
+    const fxRate = fxRates?.[localCurrency] ?? (localCurrency === "USD" ? 1 : 0);
+    const usdPrice = fxRate > 0 ? localPrice * fxRate : localPrice;
 
     return {
       ticker: ticker.toUpperCase(),
-      current_price: Math.round(finalPrice * 100) / 100,
-      currency: finalCurrency,
+      current_price: Math.round(usdPrice * 100) / 100,
+      local_price: Math.round(localPrice * 100) / 100,
+      currency: localCurrency,
+      fx_rate: fxRate,
       price_date: meta.regularMarketTime
         ? new Date(meta.regularMarketTime * 1000).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0],
@@ -81,7 +120,6 @@ serve(async (req) => {
   }
   try {
     const body = await req.json();
-    // Support both old format { tickers: string[] } and new format { tickers: TickerInfo[] }
     const tickerItems: { ticker: string; currency?: string; instrumentType?: string }[] =
       Array.isArray(body.tickers)
         ? body.tickers.map((t: string | { ticker: string; currency?: string; instrumentType?: string }) =>
@@ -94,9 +132,36 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Determine which FX rates we need
+    const uniqueCurrencies = new Set<string>();
+    for (const item of tickerItems) {
+      if (item.currency && item.currency !== "USD") {
+        uniqueCurrencies.add(item.currency);
+      }
+    }
+
+    // Fetch FX rates in parallel
+    const fxRates: Record<string, number> = { USD: 1 };
+    if (uniqueCurrencies.size > 0) {
+      console.log(`Fetching FX rates for: ${[...uniqueCurrencies].join(", ")}`);
+      const fxResults = await Promise.allSettled(
+        [...uniqueCurrencies].map(async (cur) => {
+          const rate = await fetchFXRate(cur);
+          return { currency: cur, rate };
+        })
+      );
+      for (const result of fxResults) {
+        if (result.status === "fulfilled" && result.value.rate > 0) {
+          fxRates[result.value.currency] = result.value.rate;
+        }
+      }
+      console.log("FX rates:", JSON.stringify(fxRates));
+    }
+
     console.log(`Yahoo Finance: fetching ${tickerItems.length} tickers`);
     const results = await Promise.allSettled(
-      tickerItems.map(t => fetchYahooPrice(t.ticker, t.currency, t.instrumentType))
+      tickerItems.map(t => fetchYahooPrice(t.ticker, t.currency, t.instrumentType, fxRates))
     );
     const prices: PriceResult[] = [];
     const notFound: string[] = [];
@@ -106,7 +171,7 @@ serve(async (req) => {
     });
     console.log(`Done: ${prices.length} found, ${notFound.length} not found`);
     return new Response(
-      JSON.stringify({ success: true, prices, not_found: notFound, fetched_at: new Date().toISOString() }),
+      JSON.stringify({ success: true, prices, not_found: notFound, fx_rates: fxRates, fetched_at: new Date().toISOString() }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

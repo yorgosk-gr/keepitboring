@@ -257,9 +257,8 @@ export function PositionsTable({
               const pnl = calculatePnL(position);
               const isExpanded = expandedId === position.id;
               const isSelected = selectedIds.includes(position.id);
-              // Default to USD unless position has a different currency stored
-              // For now we use USD as default - the currency can be stored in position metadata if needed
-              const currency = "USD";
+              // Use stored currency, default to USD
+              const currency = (position as any).currency || "USD";
               
               return (
                 <>

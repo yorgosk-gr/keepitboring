@@ -4,8 +4,10 @@ import { toast } from "sonner";
 
 export interface PriceUpdate {
   ticker: string;
-  current_price: number;
-  currency: string;
+  current_price: number;    // USD-converted price
+  local_price: number;      // price in original currency
+  currency: string;         // original currency
+  fx_rate: number;          // 1 local = fx_rate USD
   price_date: string;
   source: string;
 }
