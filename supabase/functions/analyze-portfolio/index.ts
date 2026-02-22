@@ -83,7 +83,7 @@ The user has defined these specific rules. Use their EXACT min/max values:
 ${buildAllocationTargets(rules)}
 ONLY if NO user rule exists for a given asset class, fall back to:
 - Equities: max 70%, Bonds: max 20%, Commodities: max 10%
-- Within equities: 15-25% stocks, 75-85% ETFs, Single stock: max 8%
+- Within equities: 15-25% stocks, 75-85% ETFs (these are % OF EQUITIES, not total portfolio), Single stock: max 8%
 The user's rules ALWAYS override these defaults. For example, if the user's Bond Allocation rule says max 30%, then 30% is the limit — NOT 20%.
 
 EXTENDED PRINCIPLES (Taleb, Kindleberger, Thorndike, Clason):
@@ -182,7 +182,7 @@ JSON structure:
       { "label": "Copper Miners", "percent": 1.0, "positions": ["COPX"] }
     ],
     "cash_percent": number,
-    "stocks_vs_etf_split": "X% stocks / Y% ETFs",
+    "stocks_vs_etf_split": "X% stocks / Y% ETFs (WITHIN equities only, must sum to ~100%)",
     "equity_by_geography": [
       { "region": "US", "percent": 35.2, "positions": ["IUQA", "AMZN", "META"], "recommendation": "Near target" },
       { "region": "Europe", "percent": 12.0, "positions": ["IMEU", "III"], "recommendation": "Consider adding" },
@@ -363,7 +363,8 @@ ${(intelligence_brief.contrarian_signals || []).map((cs: string) => `- ${cs}`).j
 
 USE THIS INTELLIGENCE BRIEF to drive your trade recommendations and reallocation suggestions. Each recommended action should reference specific brief themes where applicable.` : "No Intelligence Brief available — rely on raw insights above."}
 
-IMPORTANT: The allocation percentages must be calculated relative to TOTAL PORTFOLIO VALUE ($${(total_portfolio_value ?? 0).toFixed(2)}), which includes the cash balance of $${(cash_balance ?? 0).toFixed(2)}. Cash percent should reflect this.
+IMPORTANT: The allocation percentages (equities_percent, bonds_percent, commodities_percent, cash_percent) must be calculated relative to TOTAL PORTFOLIO VALUE ($${(total_portfolio_value ?? 0).toFixed(2)}), which includes the cash balance of $${(cash_balance ?? 0).toFixed(2)}. Cash percent should reflect this.
+CRITICAL: stocks_vs_etf_split must show the split WITHIN equities only (stocks as % of equities, ETFs as % of equities). These two numbers must sum to approximately 100%. Do NOT use total portfolio as the denominator for this field.
 
 Analyze this portfolio and return the JSON response.`;
 
