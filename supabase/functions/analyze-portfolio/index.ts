@@ -71,7 +71,7 @@ SCORING RULES (be harsh):
 - Do NOT deduct points for missing investment thesis — ignore thesis documentation entirely
 - Minimum score: 10
 
-Example: 78% equities (breach) = -20, two stocks no thesis = -6, one stock near size limit = -10. Score = 100 - 20 - 6 - 10 = 64.
+Example: 78% equities (breach) = -20, one stock near size limit = -10. Score = 100 - 20 - 10 = 70.
 
 ALLOCATION TARGETS (from user's active philosophy rules):
 ${buildAllocationTargets(rules)}
@@ -89,7 +89,7 @@ TALEB — Apply as a skepticism layer on all analysis:
 - Flag any thesis based primarily on trend continuation as NARRATIVE RISK: HIGH
 - Identify HIDDEN CONCENTRATION: 3+ positions that would fall together in a risk-off event (e.g. multiple equity ETFs, correlated growth stocks)
 - Health scores above 75 must include this note in summary: "Score reflects current data quality, not future certainty — tail risks are by definition not visible in present signals"
-- Flag any position with no drawdown since purchase as: "No stress test in holding period — tail risk unknown"
+- Do NOT flag positions for "no stress test in holding period" or "no drawdown since purchase" — this is not actionable
 - Assess each stock: is the business FRAGILE (dependent on one input) or ROBUST (multiple revenue streams, pricing power, low leverage)?
 
 KINDLEBERGER — Bubble phase per sector:
@@ -113,8 +113,8 @@ CLASON — Cash discipline:
 NO REPETITION RULE:
 - State each fact ONCE in the most relevant section
 - allocation_check.issues: allocation problems only
-- key_risks: portfolio-level risks, not allocation (that's already covered)
-- position_alerts: individual position problems
+- DO NOT use a separate key_risks array — merge all risks into position_alerts instead
+- position_alerts: individual position problems AND portfolio-level risks
 - DO NOT repeat "78% equities" in multiple sections
 
 INSIGHT RULE — Connect the dots:
@@ -133,9 +133,12 @@ INTELLIGENCE BRIEF INTEGRATION:
 
 THESIS COMPLIANCE:
 - SKIP thesis compliance entirely. Do NOT generate thesis_checks.
-- Do NOT generate warnings or alerts about missing thesis documentation.
-- Do NOT recommend "Document investment thesis" as an action.
+- Do NOT generate warnings, alerts, key_risks, or recommended_actions about missing thesis documentation, undocumented thesis, or "document investment thesis".
+- Do NOT mention "no invalidation criteria" or "missing thesis" anywhere in the output.
 - Only recommend SELL based on: allocation breaches, Intelligence Brief signals, valuation concerns, or fundamental problems.
+
+STRESS TEST RULE:
+- Do NOT generate alerts or warnings about "no stress test in holding period", "no drawdown since purchase", or "tail risk unknown due to no drawdown". These are not actionable.
 
 TRADE RECOMMENDATIONS:
 Return trade_recommendations array with EVERY position. Format:
@@ -280,7 +283,7 @@ JSON structure:
         "risk": "All would fall together in risk-off event despite geographic diversity"
       }
     ],
-    "untested_positions": ["tickers with no drawdown since purchase"],
+    "untested_positions": [],
     "fragile_positions": ["tickers with fragile business models"],
     "narrative_risk_positions": ["tickers whose thesis relies on trend continuation"]
   },
@@ -302,10 +305,7 @@ JSON structure:
     "deployment_plan": "noted"
   },
   "portfolio_health_score": number,
-  "key_risks": [
-    "AI/tech exposure (META, CRWD) vulnerable to bubble correction per newsletter signals",
-    "No invalidation criteria on any position increases drawdown risk"
-  ],
+  "key_risks": [],
   "summary": "3 sentences. First: biggest allocation or compliance problem. Second: most important Taleb/Kindleberger risk. Third: top action."
 }`;
 

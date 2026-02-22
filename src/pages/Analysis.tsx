@@ -197,8 +197,15 @@ export default function Analysis() {
 
 function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResult; positions?: Position[] }) {
   const alloc = analysis.allocation_check;
-  const criticalAlerts = analysis.position_alerts.filter((a) => a.severity === "critical" && a.alert_type !== "thesis");
-  const warningAlerts = analysis.position_alerts.filter((a) => a.severity === "warning" && a.alert_type !== "thesis");
+  const filteredAlerts = analysis.position_alerts.filter((a) => 
+    a.alert_type !== "thesis" && 
+    !a.issue?.toLowerCase().includes("no stress test") &&
+    !a.issue?.toLowerCase().includes("no drawdown since") &&
+    !a.issue?.toLowerCase().includes("thesis") &&
+    !a.issue?.toLowerCase().includes("undocumented")
+  );
+  const criticalAlerts = filteredAlerts.filter((a) => a.severity === "critical");
+  const warningAlerts = filteredAlerts.filter((a) => a.severity === "warning");
 
   return (
     <article className="max-w-3xl space-y-8 text-foreground">
@@ -231,12 +238,22 @@ function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResu
         </div>
       </section>
 
-      {/* Key Risks */}
-      {analysis.key_risks.length > 0 && (
+      {/* Key Risks (filtered, shown only if not empty after removing thesis/stress-test items) */}
+      {analysis.key_risks.filter(r => 
+        !r.toLowerCase().includes("thesis") && 
+        !r.toLowerCase().includes("no stress test") &&
+        !r.toLowerCase().includes("invalidation criteria") &&
+        !r.toLowerCase().includes("undocumented")
+      ).length > 0 && (
         <section>
           <h2 className="text-lg font-semibold mb-3 border-b border-border pb-2">Key Risks</h2>
           <ul className="space-y-2">
-            {analysis.key_risks.map((risk, i) => (
+            {analysis.key_risks.filter(r => 
+              !r.toLowerCase().includes("thesis") && 
+              !r.toLowerCase().includes("no stress test") &&
+              !r.toLowerCase().includes("invalidation criteria") &&
+              !r.toLowerCase().includes("undocumented")
+            ).map((risk, i) => (
               <li key={i} className="text-sm text-muted-foreground">
                 <span className="text-destructive font-medium">{i + 1}.</span> {risk}
               </li>
