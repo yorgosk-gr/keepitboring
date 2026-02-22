@@ -31,6 +31,8 @@ export const KNOWN_ETFS: Record<string, ETFInfo> = {
   XDWH: { ticker: "XDWH", name: "Xtrackers MSCI World Health Care UCITS ETF", category: "theme", geography: "global", is_broad_market: false, exchange: "XETRA", currency: "EUR" },
   IBZL: { ticker: "IBZL", name: "iShares MSCI Brazil UCITS ETF USD (Dist)", category: "country", geography: "brazil", is_broad_market: false, exchange: "LSE", currency: "USD" },
   GRE1: { ticker: "GRE1", name: "Amundi MSCI Greece UCITS ETF Dist", category: "country", geography: "greece", is_broad_market: false, exchange: "EURONEXT", currency: "EUR" },
+  GRE: { ticker: "GRE", name: "Amundi MSCI Greece UCITS ETF Dist", category: "country", geography: "greece", is_broad_market: false, exchange: "EURONEXT", currency: "EUR" },
+  IUQA: { ticker: "IUQA", name: "iShares Edge MSCI USA Quality Factor UCITS ETF (USD Acc)", category: "equity", geography: "us", is_broad_market: true, exchange: "LSE", currency: "USD" },
 
   // === POPULAR UCITS ETFs (Europe/LSE/XETRA) ===
   VWCE: { ticker: "VWCE", name: "Vanguard FTSE All-World UCITS ETF (EUR Acc)", category: "equity", geography: "global", is_broad_market: true, exchange: "XETRA", currency: "EUR" },
