@@ -59,7 +59,7 @@ export async function selectSmartInsights(
         is_archived
       )
     `)
-    .eq("is_summarized", false)
+    .neq("is_summarized", true)
     .gte("created_at", ninetyDaysAgo.toISOString())
     .order("created_at", { ascending: false });
 

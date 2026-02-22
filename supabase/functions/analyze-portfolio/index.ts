@@ -289,8 +289,16 @@ CASH AS % OF PORTFOLIO: ${total_portfolio_value ? ((cash_balance / total_portfol
 ACTIVE RULES:
 ${JSON.stringify(rules, null, 2)}
 
-RECENT INSIGHTS (30 days):
-${JSON.stringify(insights, null, 2)}
+NEWSLETTER INTELLIGENCE (last 90 days, ${insights?.length ?? 0} insights from processed newsletters):
+
+BUBBLE & RISK SIGNALS (${insights?.filter((i: any) => i.insight_type === 'bubble_signal').length ?? 0}):
+${(insights?.filter((i: any) => i.insight_type === 'bubble_signal') ?? []).map((i: any) => `- [${i.source_name ?? 'Newsletter'}] ${i.content} (sentiment: ${i.sentiment})`).join('\n') || 'None'}
+
+MACRO VIEWS (${insights?.filter((i: any) => i.insight_type === 'macro_view').length ?? 0}):
+${(insights?.filter((i: any) => i.insight_type === 'macro_view') ?? []).map((i: any) => `- [${i.source_name ?? 'Newsletter'}] ${i.content}`).join('\n') || 'None'}
+
+PORTFOLIO TICKER MENTIONS (${insights?.filter((i: any) => i.tickers_mentioned?.some((t: string) => positions?.map((p: any) => p.ticker).includes(t))).length ?? 0}):
+${(insights?.filter((i: any) => i.tickers_mentioned?.some((t: string) => positions?.map((p: any) => p.ticker).includes(t))) ?? []).map((i: any) => `- [${i.source_name ?? 'Newsletter'}] Tickers: ${i.tickers_mentioned?.join(', ')} — ${i.content} (sentiment: ${i.sentiment})`).join('\n') || 'None'}
 
 RECENT DECISION LOG:
 ${JSON.stringify(decisions, null, 2)}
