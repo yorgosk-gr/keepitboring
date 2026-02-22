@@ -433,19 +433,22 @@ Analyze this portfolio and return the JSON response.`;
     let analysisResult;
     try {
       let jsonString = content.trim();
-      // Remove markdown code blocks if present
-      if (jsonString.startsWith("```json")) {
-        jsonString = jsonString.slice(7);
-      } else if (jsonString.startsWith("```")) {
-        jsonString = jsonString.slice(3);
+      // Extract JSON from markdown code blocks or surrounding text
+      const jsonBlockMatch = jsonString.match(/```json\s*([\s\S]*?)```/);
+      if (jsonBlockMatch) {
+        jsonString = jsonBlockMatch[1].trim();
+      } else {
+        // Try to find raw JSON object in the response
+        const firstBrace = jsonString.indexOf('{');
+        const lastBrace = jsonString.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+          jsonString = jsonString.substring(firstBrace, lastBrace + 1);
+        }
       }
-      if (jsonString.endsWith("```")) {
-        jsonString = jsonString.slice(0, -3);
-      }
-      analysisResult = JSON.parse(jsonString.trim());
+      analysisResult = JSON.parse(jsonString);
     } catch (parseError) {
       console.error("Failed to parse AI response:", parseError);
-      console.error("Raw content:", content);
+      console.error("Raw content (first 500):", content.substring(0, 500));
       throw new Error("Failed to parse AI analysis response");
     }
 
