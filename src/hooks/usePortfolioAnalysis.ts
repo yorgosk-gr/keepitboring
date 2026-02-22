@@ -194,6 +194,17 @@ export function usePortfolioAnalysis() {
       const cashBalance = snapshotData?.cash_balance ?? 0;
       const totalValue = snapshotData?.total_value ?? 0;
 
+      // Fetch latest intelligence brief for enhanced recommendations
+      let intelligenceBrief = null;
+      try {
+        const { data: briefData, error: briefError } = await supabase.functions.invoke("summarize-insights");
+        if (!briefError && briefData && !briefData.error) {
+          intelligenceBrief = briefData;
+        }
+      } catch (e) {
+        console.warn("Could not fetch intelligence brief for analysis:", e);
+      }
+
       const { data, error } = await supabase.functions.invoke("analyze-portfolio", {
         body: {
           positions,
@@ -212,6 +223,7 @@ export function usePortfolioAnalysis() {
           etf_classifications: etfClassifications,
           cash_balance: cashBalance,
           total_portfolio_value: totalValue,
+          intelligence_brief: intelligenceBrief,
         },
       });
 

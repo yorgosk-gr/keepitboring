@@ -60,7 +60,7 @@ serve(async (req) => {
       );
     }
 
-    const { positions, rules, insights, decisions, cash_balance, total_portfolio_value } = await req.json();
+    const { positions, rules, insights, decisions, cash_balance, total_portfolio_value, intelligence_brief } = await req.json();
 
     const systemPrompt = `You are a strict portfolio compliance officer. Your job is to find problems and give specific fixes.
 
@@ -122,6 +122,15 @@ INSIGHT RULE — Connect the dots:
 - If newsletters mention sector rotation AND portfolio is heavy in that sector, connect them
 - Don't just list bubble warnings — link them to specific holdings
 
+INTELLIGENCE BRIEF INTEGRATION:
+- If an Intelligence Brief is provided, treat it as the PRIMARY research signal layer
+- Use the brief's key_points, action_items, market_themes, and contrarian_signals to DRIVE reallocation recommendations
+- For each action_item in the brief, evaluate whether it should become a trade recommendation (BUY/SELL/TRIM/ADD)
+- For each market_theme, assess which positions benefit or are at risk, and recommend reallocation accordingly
+- Contrarian signals should inform position sizing: if consensus is crowded, reduce; if contrarian opportunity, consider adding
+- The brief's executive_summary should inform the overall portfolio strategy direction
+- Explicitly reference the Intelligence Brief when making recommendations: e.g. "Per Intelligence Brief: Mag 7 rotation underway — trim AMZN exposure"
+
 THESIS COMPLIANCE:
 - List ALL individual stocks, not just ones with problems
 - Show pass/fail for each
@@ -134,7 +143,7 @@ Return trade_recommendations array with EVERY position. Format:
 
 CRITICAL: The recommended_actions should have COMPLETE reasoning visible, not cut off. Each action needs:
 - What to do (specific ticker and shares)
-- Why (one clear sentence)
+- Why (one clear sentence, referencing Intelligence Brief themes where applicable)
 - What it achieves (e.g., "reduces equity to 68%")
 
 JSON structure:
@@ -280,6 +289,23 @@ ${JSON.stringify(insights, null, 2)}
 
 RECENT DECISION LOG:
 ${JSON.stringify(decisions, null, 2)}
+
+${intelligence_brief ? `INTELLIGENCE BRIEF (synthesized from ${intelligence_brief.newsletters_analyzed ?? 0} newsletters, ${intelligence_brief.insights_analyzed ?? 0} insights):
+Executive Summary: ${intelligence_brief.executive_summary || "N/A"}
+
+Key Points:
+${(intelligence_brief.key_points || []).map((kp: any) => `- [${kp.relevance}] ${kp.title}: ${kp.detail}`).join("\n")}
+
+Action Items from Brief:
+${(intelligence_brief.action_items || []).map((ai: any) => `- [${ai.urgency}] ${ai.action} — ${ai.reasoning}`).join("\n")}
+
+Market Themes:
+${(intelligence_brief.market_themes || []).map((mt: any) => `- ${mt.theme} (${mt.sentiment}, ${mt.source_count} sources): ${mt.portfolio_impact}`).join("\n")}
+
+Contrarian Signals:
+${(intelligence_brief.contrarian_signals || []).map((cs: string) => `- ${cs}`).join("\n")}
+
+USE THIS INTELLIGENCE BRIEF to drive your trade recommendations and reallocation suggestions. Each recommended action should reference specific brief themes where applicable.` : "No Intelligence Brief available — rely on raw insights above."}
 
 IMPORTANT: The allocation percentages must be calculated relative to TOTAL PORTFOLIO VALUE ($${(total_portfolio_value ?? 0).toFixed(2)}), which includes the cash balance of $${(cash_balance ?? 0).toFixed(2)}. Cash percent should reflect this.
 
