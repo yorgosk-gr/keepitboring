@@ -256,10 +256,10 @@ export function RefreshPricesModal({
                           {update.position.name || "—"}
                         </TableCell>
                         <TableCell className="text-right font-mono text-muted-foreground">
-                          €{update.oldPrice.toLocaleString("de-DE", { minimumFractionDigits: 2 })}
+                          ${update.oldPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                         </TableCell>
                         <TableCell className="text-right font-mono font-medium">
-                          €{update.newPrice.toLocaleString("de-DE", { minimumFractionDigits: 2 })}
+                          ${update.newPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className={cn(

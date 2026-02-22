@@ -225,7 +225,7 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="avg_cost">Avg Cost (€) *</Label>
+              <Label htmlFor="avg_cost">Avg Cost ($) *</Label>
               <Input
                 id="avg_cost"
                 type="number"
@@ -239,7 +239,7 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="current_price">Current Price (€) *</Label>
+              <Label htmlFor="current_price">Current Price ($) *</Label>
               <Input
                 id="current_price"
                 type="number"
@@ -259,7 +259,7 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
               <div>
                 <span className="text-xs text-muted-foreground">Market Value</span>
                 <p className="text-lg font-semibold text-foreground">
-                  €{marketValue.toLocaleString("de-DE", { minimumFractionDigits: 2 })}
+                  ${marketValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                 </p>
               </div>
               <div>

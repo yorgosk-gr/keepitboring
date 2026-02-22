@@ -794,7 +794,7 @@ export function ScreenshotPreviewTable({
       <div className="flex justify-between items-center pt-2">
         <div className="text-sm text-muted-foreground">
           {totalValue && (
-            <span>Portfolio: €{totalValue.toLocaleString("de-DE", { maximumFractionDigits: 0 })}</span>
+            <span>Portfolio: ${totalValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
           )}
         </div>
         <div className="flex gap-2">
