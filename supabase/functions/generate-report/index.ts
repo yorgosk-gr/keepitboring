@@ -4,9 +4,17 @@
  const corsHeaders = {
    "Access-Control-Allow-Origin": "*",
    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
- };
- 
- serve(async (req) => {
+};
+
+function buildRulesSection(rulesCompliance: any[]): string {
+  if (!rulesCompliance || rulesCompliance.length === 0) return "No custom rules defined.";
+  return rulesCompliance.map((r: any) => {
+    const icon = r.status === "ok" ? "✅" : r.status === "warning" ? "⚠️" : "🔴";
+    return `- ${icon} ${r.name} [${r.type}]: ${r.message}`;
+  }).join("\n");
+}
+
+serve(async (req) => {
    if (req.method === "OPTIONS") {
      return new Response("ok", { headers: corsHeaders });
    }
@@ -52,26 +60,25 @@
        monthYear
      } = await req.json();
  
-     const systemPrompt = `You are a portfolio report writer. Be CONCISE. No fluff.
- 
- RULES:
- 1. NEVER fabricate data. If no historical baseline exists, say "First month — no comparison available."
- 2. Use bullet points, not paragraphs. 
- 3. Tables must be simple: | Col1 | Col2 | Col3 | with proper markdown.
- 4. Each section: 3-5 bullet points MAX.
- 5. Skip sections that have no meaningful data.
- 6. Total report length: under 800 words.
- 
- ALLOCATION TARGETS:
- - Equities (stocks + equity ETFs): max 70%
- - Bonds: max 20%  
- - Commodities + Gold + Crypto: max 10%
- - Within equities: 15-25% stocks, 75-85% ETFs
- 
- TONE: Direct, factual. No hedging language ("it appears", "seems to"). State facts or say "unknown."
- 
- End with: "Process over outcomes. Stay humble."`;
- 
+    const systemPrompt = `You are a portfolio report writer. Be CONCISE. No fluff.
+
+RULES:
+1. NEVER fabricate data. If no historical baseline exists, say "First month — no comparison available."
+2. Use bullet points, not paragraphs. 
+3. Tables must be simple: | Col1 | Col2 | Col3 | with proper markdown.
+4. Each section: 3-5 bullet points MAX.
+5. Skip sections that have no meaningful data.
+6. Total report length: under 800 words.
+
+ALLOCATION COMPLIANCE (from user's rules):
+${buildRulesSection(rulesCompliance)}
+
+Use these rule results for the Allocation table — do NOT use hardcoded targets.
+
+TONE: Direct, factual. No hedging language ("it appears", "seems to"). State facts or say "unknown."
+
+End with: "Process over outcomes. Stay humble."`;
+
      const hasHistoricalData = portfolioValueStart && portfolioValueStart > 0;
  
      const userPrompt = `Generate a monthly portfolio report. Keep it SHORT.
