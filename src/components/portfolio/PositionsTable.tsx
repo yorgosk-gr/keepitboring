@@ -275,7 +275,7 @@ export function PositionsTable({
                 <span className="text-foreground">Value ($)</span>
               </SortHeader>
               <SortHeader field="weight_percent">Weight</SortHeader>
-              <th className="text-right pb-3 font-medium w-24">Actions</th>
+              <th className="text-right pb-3 font-medium w-24"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -289,7 +289,7 @@ export function PositionsTable({
                 <>
                   <tr
                     key={position.id}
-                    className={`hover:bg-secondary/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                    className={`group hover:bg-secondary/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
                   >
                     <td className="py-3 pr-2">
                       <Checkbox
@@ -341,7 +341,7 @@ export function PositionsTable({
                       </div>
                     </td>
                     <td className="py-3">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         {onVerify && (
                           <TooltipProvider>
                             <Tooltip>
@@ -352,7 +352,6 @@ export function PositionsTable({
                                   className="h-7 w-7"
                                   onClick={() => onVerify(position)}
                                   disabled={isVerifying}
-                                  title="Verify with web search"
                                 >
                                   {isVerifying && verifyingId === position.id ? (
                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -361,37 +360,17 @@ export function PositionsTable({
                                   )}
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>
-                                Verify ticker &amp; update price
-                              </TooltipContent>
+                              <TooltipContent>Verify ticker &amp; update price</TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => onLogDecision(position)}
-                          title="Log decision"
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onLogDecision(position)}>
                           <FileText className="w-3.5 h-3.5" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => onEdit(position)}
-                          title="Edit"
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(position)}>
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 hover:bg-destructive/20 hover:text-destructive"
-                          onClick={() => onDelete(position)}
-                          title="Delete"
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-destructive/20 hover:text-destructive" onClick={() => onDelete(position)}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>
