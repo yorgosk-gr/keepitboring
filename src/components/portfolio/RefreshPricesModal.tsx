@@ -29,8 +29,10 @@ interface PriceUpdatePreview {
   position: Position;
   newPrice: number;
   oldPrice: number;
+  localPrice?: number;
   changePercent: number;
   currency: string;
+  fxRate: number;
   source: string;
   selected: boolean;
 }
@@ -76,8 +78,10 @@ export function RefreshPricesModal({
         position,
         newPrice: price.current_price,
         oldPrice,
+        localPrice: price.local_price,
         changePercent,
         currency: price.currency,
+        fxRate: price.fx_rate ?? 1,
         source: price.source,
         selected: true,
       };
@@ -104,8 +108,10 @@ export function RefreshPricesModal({
         position,
         newPrice: price.current_price,
         oldPrice,
+        localPrice: price.local_price,
         changePercent,
         currency: price.currency,
+        fxRate: price.fx_rate ?? 1,
         source: price.source,
         selected: true,
       };
@@ -259,7 +265,14 @@ export function RefreshPricesModal({
                           ${update.oldPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                         </TableCell>
                         <TableCell className="text-right font-mono font-medium">
-                          ${update.newPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                          <div className="flex flex-col items-end">
+                            <span>${update.newPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                            {update.currency !== "USD" && (
+                              <span className="text-xs text-muted-foreground">
+                                {update.currency} {update.localPrice?.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className={cn(

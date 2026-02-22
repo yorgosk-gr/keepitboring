@@ -324,6 +324,7 @@ export function ScreenshotPreviewTable({
         position_type: p.position_type,
         category: p.category,
         exchange: p.exchange || null,
+        currency: p.currency || "USD",
         shares: p.shares,
         avg_cost: p.avg_price,
         current_price: p.current_price,

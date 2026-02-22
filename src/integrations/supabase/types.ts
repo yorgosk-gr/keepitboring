@@ -370,6 +370,7 @@ export type Database = {
           category: string | null
           confidence_level: number | null
           created_at: string
+          currency: string | null
           current_price: number | null
           exchange: string | null
           id: string
@@ -391,6 +392,7 @@ export type Database = {
           category?: string | null
           confidence_level?: number | null
           created_at?: string
+          currency?: string | null
           current_price?: number | null
           exchange?: string | null
           id?: string
@@ -412,6 +414,7 @@ export type Database = {
           category?: string | null
           confidence_level?: number | null
           created_at?: string
+          currency?: string | null
           current_price?: number | null
           exchange?: string | null
           id?: string
