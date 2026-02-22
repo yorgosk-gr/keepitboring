@@ -147,6 +147,7 @@ Rules:
 
     const aiResponse = await response.json();
     const content = aiResponse.choices?.[0]?.message?.content;
+    const finishReason = aiResponse.choices?.[0]?.finish_reason;
 
     if (!content) {
       console.error("No content in AI response:", aiResponse);
@@ -156,31 +157,37 @@ Rules:
       );
     }
 
+    // Check if response was truncated due to token limit
+    if (finishReason === "length") {
+      console.error("AI response truncated (finish_reason: length)");
+      return new Response(
+        JSON.stringify({ error: "Newsletter too long — try splitting it into smaller sections" }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Parse the JSON response
     let insights;
     try {
-      let cleanContent = content.trim();
-      if (cleanContent.startsWith("```json")) cleanContent = cleanContent.slice(7);
-      if (cleanContent.startsWith("```")) cleanContent = cleanContent.slice(3);
-      if (cleanContent.endsWith("```")) cleanContent = cleanContent.slice(0, -3);
-      cleanContent = cleanContent.trim();
-      
-      // Fix unescaped newlines inside JSON string values
-      // Replace literal newlines that appear inside quoted strings
-      cleanContent = cleanContent.replace(/(?<=": "(?:[^"\\]|\\.)*)(\n)(?=(?:[^"\\]|\\.)*")/g, "\\n");
-      
+      let jsonString = content.trim();
+      if (jsonString.includes("```json")) {
+        jsonString = jsonString.split("```json")[1].split("```")[0];
+      } else if (jsonString.includes("```")) {
+        jsonString = jsonString.split("```")[1].split("```")[0];
+      }
+      jsonString = jsonString.trim();
+
       try {
-        insights = JSON.parse(cleanContent);
+        insights = JSON.parse(jsonString);
       } catch {
-        // Fallback: aggressively fix newlines by replacing all newlines between quotes
-        // Remove all literal newlines/carriage returns, then restore JSON structure newlines
-        const singleLine = cleanContent.replace(/\r?\n/g, " ").replace(/\s+/g, " ");
+        // Fallback: collapse all whitespace to handle newlines inside string values
+        const singleLine = jsonString.replace(/\r?\n/g, " ").replace(/\s+/g, " ");
         insights = JSON.parse(singleLine);
       }
     } catch (parseError) {
       console.error("Failed to parse AI response:", content.substring(0, 1000));
       return new Response(
-        JSON.stringify({ error: "Could not parse AI response" }),
+        JSON.stringify({ error: "Could not parse AI response", raw: content.substring(0, 500) }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
