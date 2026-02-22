@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { DecisionLogView } from "@/components/decisions/DecisionLogView";
 import { BarChart3, BookOpen, Play, Loader2, AlertCircle } from "lucide-react";
 import { usePortfolioAnalysis, type AnalysisResult } from "@/hooks/usePortfolioAnalysis";
+import { usePositions, type Position } from "@/hooks/usePositions";
 import { format } from "date-fns";
 
 export default function Analysis() {
@@ -16,6 +17,7 @@ export default function Analysis() {
     isAnalyzing,
     hasData,
   } = usePortfolioAnalysis();
+  const { positions } = usePositions();
 
   // Auto-load latest analysis on mount
   useEffect(() => {
@@ -147,7 +149,7 @@ export default function Analysis() {
 
           {/* Analysis as readable text */}
           {currentAnalysis && (
-            <AnalysisTextView analysis={currentAnalysis} />
+            <AnalysisTextView analysis={currentAnalysis} positions={positions} />
           )}
         </TabsContent>
 
@@ -159,7 +161,8 @@ export default function Analysis() {
   );
 }
 
-function AnalysisTextView({ analysis }: { analysis: AnalysisResult }) {
+function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResult; positions?: Position[] }) {
+  const positionMap = new Map(positions.map((p) => [p.ticker, p]));
   const alloc = analysis.allocation_check;
   const criticalAlerts = analysis.position_alerts.filter((a) => a.severity === "critical");
   const warningAlerts = analysis.position_alerts.filter((a) => a.severity === "warning");
@@ -343,7 +346,13 @@ function AnalysisTextView({ analysis }: { analysis: AnalysisResult }) {
                   <tr key={i}>
                     <td className="py-2 font-mono font-bold">{tc.ticker}</td>
                     <td className="py-2">{tc.has_thesis ? <span className="text-emerald-500">✓</span> : <span className="text-destructive">✗</span>}</td>
-                    <td className="py-2">{tc.bet_type_declared ? <span className="text-emerald-500">✓</span> : <span className="text-destructive">✗</span>}</td>
+                    <td className="py-2">
+                      {tc.bet_type_declared ? (
+                        <span className="text-foreground capitalize">{positionMap.get(tc.ticker)?.bet_type || "—"}</span>
+                      ) : (
+                        <span className="text-destructive">✗</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
