@@ -212,7 +212,7 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
           <p className="text-sm font-medium text-muted-foreground mb-2">Issues:</p>
           <ul className="space-y-1">
             {allocation.issues.map((issue, i) => (
-              <li key={i} className="text-sm text-destructive flex items-start gap-2">
+              <li key={i} className="text-sm text-foreground flex items-start gap-2">
                 <span className="mt-1">•</span>
                 {issue}
               </li>
