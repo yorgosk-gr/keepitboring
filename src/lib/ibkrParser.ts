@@ -47,6 +47,7 @@ export interface ParsedPortfolio {
   securitiesUSD: number;
   positions: Position[];
   fxRates: Record<string, number>;
+  cashByCurrency: Record<string, number>;
   warnings: string[];
 }
 
@@ -170,6 +171,7 @@ export function parseIBKRStatement(csvText: string): ParsedPortfolio {
   let totalNAV = 0;
 
   const descriptionMap: Record<string, string> = {};
+  const cashByCurrency: Record<string, number> = {};
   const fxRates: Record<string, number> = { USD: 1.0 };
 
   for (const line of lines) {
@@ -201,6 +203,19 @@ export function parseIBKRStatement(csvText: string): ParsedPortfolio {
       const ticker = cols[4]?.trim();
       const desc = cols[5]?.trim();
       if (ticker && desc) descriptionMap[ticker] = desc;
+    }
+
+    // Cash Report: per-currency ending balances
+    if (
+      section === "Cash Report" &&
+      rowType === "Data" &&
+      cols[2] === "Ending Cash" &&
+      cols[3] !== "Base Currency Summary"
+    ) {
+      const val = parseNumber(cols[4]);
+      if (Math.abs(val) >= 0.01) {
+        cashByCurrency[cols[3]] = val;
+      }
     }
   }
 
@@ -300,6 +315,7 @@ export function parseIBKRStatement(csvText: string): ParsedPortfolio {
     securitiesUSD,
     positions,
     fxRates,
+    cashByCurrency,
     warnings,
   };
 }

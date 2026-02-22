@@ -70,7 +70,7 @@ export function UploadCSVModal({ open, onClose, onImportComplete }: UploadCSVMod
         category: p.assetClass === "Bonds" ? "bond" as const : p.assetClass === "Commodities" ? "commodity" as const : "equity" as const,
       }));
 
-      setCashBalances({ USD: portfolio.cashUSD });
+      setCashBalances(portfolio.cashByCurrency);
       setWarnings(portfolio.warnings);
 
       // Auto-verify all positions
