@@ -110,7 +110,10 @@ export function ScreenshotPreviewTable({
           .test(p.name) : false;
 
       const detectedType = lookup?.type || (nameIndicatesETF ? "etf" : "stock");
-      const detectedCategory = lookup?.category || "equity";
+      const nameForCategory = (p.name || "").toLowerCase();
+      const nameIndicatesCommodity = /\bgold\b|silver|copper|commodit|platinum|palladium|oil\b|crude|natural gas|wheat|corn|soybean|uranium|lithium|nickel|aluminium|aluminum|iron ore|tin\b|zinc\b|lead\b|coal\b/i.test(nameForCategory);
+      const nameIndicatesBond = /\bbond\b|treasury|treas\b|gilt|fixed income|iboxx|0-1yr|7-10y|10y|govt|government bond/i.test(nameForCategory);
+      const detectedCategory = lookup?.category || (nameIndicatesCommodity ? "commodity" : nameIndicatesBond ? "bond" : "equity");
       const detectedName = p.name && p.name !== "Company name" ? p.name : (lookup?.name || p.name);
 
       return {
