@@ -508,6 +508,8 @@ export function ScreenshotPreviewTable({
                 <TableHead className="min-w-[140px] px-2">Name</TableHead>
                 <TableHead className="w-16 px-2">Type</TableHead>
                 <TableHead className="w-24 px-2">Category</TableHead>
+                <TableHead className="w-16 px-2">Ccy</TableHead>
+                <TableHead className="w-20 px-2">Exchange</TableHead>
                 <TableHead className="w-20 px-2 text-right">Shares</TableHead>
                 <TableHead className="w-24 px-2 text-right">Avg Price</TableHead>
                 <TableHead className="w-24 px-2 text-right">Current</TableHead>
@@ -570,6 +572,12 @@ export function ScreenshotPreviewTable({
                         )}>
                           {pos.category === "equity" ? "Stock" : pos.category === "bond" ? "Bond" : "Commodity"}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="px-2 text-sm text-muted-foreground">
+                        {pos.currency || "—"}
+                      </TableCell>
+                      <TableCell className="px-2 text-sm text-muted-foreground truncate max-w-[80px]" title={pos.exchange || ""}>
+                        {pos.exchange || "—"}
                       </TableCell>
                       <TableCell className="px-2 text-right text-sm tabular-nums">
                         {formatValue(pos.shares, 0)}
