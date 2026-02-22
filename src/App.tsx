@@ -12,7 +12,7 @@ import Newsletters from "./pages/Newsletters";
 import Philosophy from "./pages/Philosophy";
 import Analysis from "./pages/Analysis";
 import Watchlist from "./pages/Watchlist";
-import Reports from "./pages/Reports";
+
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -84,16 +84,6 @@ const App = () => (
                 <ProtectedRoute>
                   <AppLayout>
                     <Analysis />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/reports"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Reports />
                   </AppLayout>
                 </ProtectedRoute>
               }
