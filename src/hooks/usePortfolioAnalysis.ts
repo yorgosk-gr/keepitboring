@@ -7,7 +7,6 @@ import { usePhilosophyRules } from "./usePhilosophyRules";
 import { useDecisionLogs } from "./useDecisionLogs";
 import { useAllETFMetadata } from "./useAllETFMetadata";
 import { useSettings } from "./useSettings";
-import { useDashboardData } from "./useDashboardData";
 import { selectSmartInsights } from "./useSmartInsightSelection";
 import { toast } from "sonner";
 
@@ -128,7 +127,6 @@ export function usePortfolioAnalysis() {
   const { decisions } = useDecisionLogs();
   const { data: etfMetadata = {} } = useAllETFMetadata();
   const { settings } = useSettings();
-  const { cashBalance, positionsValue } = useDashboardData();
   const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisResult | null>(null);
 
   // Fetch analysis history
@@ -184,6 +182,16 @@ export function usePortfolioAnalysis() {
 
       // Get unique newsletter count
       const uniqueNewsletterIds = new Set(selectedInsights.map((i) => i.newsletter_id));
+
+      // Fetch cash balance from latest snapshot
+      const { data: snapshotData } = await supabase
+        .from("portfolio_snapshots")
+        .select("cash_balance")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      const cashBalance = snapshotData?.cash_balance ?? 0;
 
       // Calculate live portfolio values
       const livePositionsValue = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
