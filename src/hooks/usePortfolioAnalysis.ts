@@ -183,6 +183,17 @@ export function usePortfolioAnalysis() {
       // Get unique newsletter count
       const uniqueNewsletterIds = new Set(selectedInsights.map((i) => i.newsletter_id));
 
+      // Fetch latest cash balance from portfolio snapshot
+      const { data: snapshotData } = await supabase
+        .from("portfolio_snapshots")
+        .select("cash_balance, total_value")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      const cashBalance = snapshotData?.cash_balance ?? 0;
+      const totalValue = snapshotData?.total_value ?? 0;
+
       const { data, error } = await supabase.functions.invoke("analyze-portfolio", {
         body: {
           positions,
@@ -199,6 +210,8 @@ export function usePortfolioAnalysis() {
           })),
           decisions: recentDecisions,
           etf_classifications: etfClassifications,
+          cash_balance: cashBalance,
+          total_portfolio_value: totalValue,
         },
       });
 
