@@ -14,7 +14,7 @@ import type { Position } from "@/hooks/usePositions";
 import { ETFInfoTooltip } from "./ETFInfoTooltip";
 import { useETFMetadata } from "@/hooks/useETFMetadata";
 
-type SortField = "ticker" | "market_value" | "weight_percent";
+type SortField = "ticker" | "name" | "position_type" | "category" | "exchange" | "currency" | "shares" | "avg_cost" | "current_price" | "market_value" | "weight_percent";
 type SortDirection = "asc" | "desc";
 
 interface PositionsTableProps {
@@ -156,6 +156,38 @@ export function PositionsTable({
           return sortDirection === "asc" 
             ? a.ticker.localeCompare(b.ticker)
             : b.ticker.localeCompare(a.ticker);
+        case "name":
+          return sortDirection === "asc"
+            ? (a.name || "").localeCompare(b.name || "")
+            : (b.name || "").localeCompare(a.name || "");
+        case "position_type":
+          return sortDirection === "asc"
+            ? (a.position_type || "").localeCompare(b.position_type || "")
+            : (b.position_type || "").localeCompare(a.position_type || "");
+        case "category":
+          return sortDirection === "asc"
+            ? mapCategory(a.category).localeCompare(mapCategory(b.category))
+            : mapCategory(b.category).localeCompare(mapCategory(a.category));
+        case "exchange":
+          return sortDirection === "asc"
+            ? (a.exchange || "").localeCompare(b.exchange || "")
+            : (b.exchange || "").localeCompare(a.exchange || "");
+        case "currency":
+          return sortDirection === "asc"
+            ? ((a as any).currency || "USD").localeCompare((b as any).currency || "USD")
+            : ((b as any).currency || "USD").localeCompare((a as any).currency || "USD");
+        case "shares":
+          aVal = a.shares ?? 0;
+          bVal = b.shares ?? 0;
+          break;
+        case "avg_cost":
+          aVal = a.avg_cost ?? 0;
+          bVal = b.avg_cost ?? 0;
+          break;
+        case "current_price":
+          aVal = a.current_price ?? 0;
+          bVal = b.current_price ?? 0;
+          break;
         case "market_value":
           aVal = a.market_value ?? 0;
           bVal = b.market_value ?? 0;
@@ -231,14 +263,14 @@ export function PositionsTable({
                 />
               </th>
               <SortHeader field="ticker">Ticker</SortHeader>
-              <th className="text-left pb-3 font-medium w-32">Name</th>
-              <th className="text-left pb-3 font-medium w-16">Type</th>
-              <th className="text-left pb-3 font-medium w-20">Category</th>
-              <th className="text-left pb-3 font-medium w-16">Exchange</th>
-              <th className="text-center pb-3 font-medium w-12">Ccy</th>
-              <th className="text-right pb-3 font-medium w-16">Shares</th>
-              <th className="text-right pb-3 font-medium w-20">Avg Cost</th>
-              <th className="text-right pb-3 font-medium w-20">Price</th>
+              <SortHeader field="name">Name</SortHeader>
+              <SortHeader field="position_type">Type</SortHeader>
+              <SortHeader field="category">Category</SortHeader>
+              <SortHeader field="exchange">Exchange</SortHeader>
+              <SortHeader field="currency">Ccy</SortHeader>
+              <SortHeader field="shares">Shares</SortHeader>
+              <SortHeader field="avg_cost">Avg Cost</SortHeader>
+              <SortHeader field="current_price">Price</SortHeader>
               <SortHeader field="market_value">
                 <span className="text-foreground">Value ($)</span>
               </SortHeader>
