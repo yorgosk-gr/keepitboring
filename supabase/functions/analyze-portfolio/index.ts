@@ -81,7 +81,34 @@ If the user has not defined specific allocation rules, use these defaults:
 - Commodities + Gold + Crypto: max 10%
 - Within equities: 15-25% stocks, 75-85% ETFs
 - Single stock: max 8%
-Always prioritize the user's custom rules over the defaults above.
+  Always prioritize the user's custom rules over the defaults above.
+
+EXTENDED PRINCIPLES (Taleb, Kindleberger, Thorndike, Clason):
+
+TALEB — Apply as a skepticism layer on all analysis:
+- Flag any thesis based primarily on trend continuation as NARRATIVE RISK: HIGH
+- Identify HIDDEN CONCENTRATION: 3+ positions that would fall together in a risk-off event (e.g. multiple equity ETFs, correlated growth stocks)
+- Health scores above 75 must include this note in summary: "Score reflects current data quality, not future certainty — tail risks are by definition not visible in present signals"
+- Flag any position with no drawdown since purchase as: "No stress test in holding period — tail risk unknown"
+- Assess each stock: is the business FRAGILE (dependent on one input) or ROBUST (multiple revenue streams, pricing power, low leverage)?
+
+KINDLEBERGER — Bubble phase per sector:
+- For each sector/asset class in the portfolio, assign one of: DISPLACEMENT | CREDIT EXPANSION | EUPHORIA | DISTRESS | REVULSION
+- Positions in EUPHORIA: flag for thesis review
+- Positions in REVULSION: flag as potential contrarian opportunity
+- Overwhelming newsletter consensus on any theme = CROWDED TRADE warning
+
+THORNDIKE — Capital allocation quality (stocks only, not ETFs):
+- Is management buying or selling their own shares?
+- Is capex growing faster than revenue? Flag as CAPITAL MISALLOCATION if so
+- Is the company FCF positive or negative?
+- Flag any major acquisition in past 12 months
+- Classify CEO as OPERATOR or ALLOCATOR (allocators outperform per Thorndike)
+
+CLASON — Cash discipline:
+- Cash > 10% of portfolio = IDLE CAPITAL WARNING
+- If cash has been above 10% for more than one period = DRIFTED CASH (flag more strongly)
+- Note if no capital was deployed in the current period
 
 NO REPETITION RULE:
 - State each fact ONCE in the most relevant section
@@ -192,12 +219,50 @@ JSON structure:
     "net_cash_impact": "+€X",
     "primary_goal": "Reduce equity from 78% to 70% and exit positions without thesis"
   },
+  "bubble_phase_map": [
+    {
+      "sector": "US Equities",
+      "positions": ["IUQA", "AMZN"],
+      "phase": "EUPHORIA",
+      "reasoning": "one sentence",
+      "action": "Flag for thesis review"
+    }
+  ],
+  "tail_risk_summary": {
+    "correlation_clusters": [
+      {
+        "cluster_name": "Global Equity ETFs",
+        "positions": ["IUQA", "IJPA", "IMEU", "EIMI"],
+        "risk": "All would fall together in risk-off event despite geographic diversity"
+      }
+    ],
+    "untested_positions": ["tickers with no drawdown since purchase"],
+    "fragile_positions": ["tickers with fragile business models"],
+    "narrative_risk_positions": ["tickers whose thesis relies on trend continuation"]
+  },
+  "capital_allocation_flags": [
+    {
+      "ticker": "AMZN",
+      "ceo_type": "ALLOCATOR",
+      "fcf_positive": true,
+      "buyback_activity": "Active buyback program",
+      "capex_vs_revenue": "ok",
+      "acquisition_warning": false,
+      "notes": "one sentence"
+    }
+  ],
+  "cash_assessment": {
+    "cash_percent": 5.2,
+    "status": "ok",
+    "message": "specific Clason-rule assessment",
+    "deployment_plan": "noted"
+  },
   "portfolio_health_score": number,
   "key_risks": [
     "AI/tech exposure (META, CRWD) vulnerable to bubble correction per newsletter signals",
     "No invalidation criteria on any position increases drawdown risk"
   ],
-  "summary": "2 sentences. First: biggest problem. Second: top action."
+  "summary": "3 sentences. First: biggest allocation or compliance problem. Second: most important Taleb/Kindleberger risk. Third: top action."
 }`;
 
     const userPrompt = `CURRENT PORTFOLIO:
