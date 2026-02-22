@@ -81,6 +81,8 @@ export function UploadCSVModal({ open, onClose, onImportComplete }: UploadCSVMod
         shares: p.shares,
         current_price: p.current_price,
         market_value: p.market_value,
+        currency: p.currency,
+        exchange: p.exchange,
       }));
 
       const verified = await verifyPositions(toVerify);

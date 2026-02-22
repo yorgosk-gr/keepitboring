@@ -13,6 +13,8 @@ interface PositionToVerify {
   shares?: number | null;
   current_price?: number | null;
   market_value?: number | null;
+  currency?: string | null;
+  exchange?: string | null;
 }
 
 interface VerifiedPosition {
@@ -149,6 +151,8 @@ serve(async (req) => {
               role: "user",
               content: `Verify these portfolio positions. For each one, confirm or correct the ticker symbol and fill in any missing data.
 
+IMPORTANT: Each position includes currency and/or exchange context from the broker statement. Use this to disambiguate tickers that exist on multiple exchanges. For example, "TEA" with currency "AUD" is TASMEA LTD on ASX, NOT Tearlach Resources on TSXV.
+
 Positions to verify:
 ${JSON.stringify(positionsToVerify, null, 2)}
 
@@ -160,7 +164,7 @@ For EACH position, search the web and return:
       "verified_ticker": "correct ticker after verification",
       "name": "full company/ETF name",
       "asset_type": "stock" or "etf",
-      "category": "equity" | "bond" | "commodity" | "gold" | "country" | "theme",
+      "category": "equity" | "bond" | "commodity",
       "exchange": "primary exchange",
       "currency": "trading currency",
       "current_price": latest price if found (number or null),
@@ -172,11 +176,13 @@ For EACH position, search the web and return:
 
 Specific things to check:
 - Is this ticker valid and actively traded?
+- CRITICAL: Use the provided currency and exchange to identify the correct listing. A ticker traded in AUD is on ASX, EUR on European exchanges, GBP on LSE, USD on US exchanges or LSE (for UCITS ETFs).
 - If an ISIN was provided, does it match the ticker?
-- For ETFs: what does it track? Classify as equity/bond/commodity/gold/country/theme
+- For ETFs: what does it track? Classify as equity/bond/commodity
 - For stocks: what sector? Is it a real operating company?
 - If the original ticker seems wrong, what is the correct one?
 - Get the latest price if possible
+- Category must be one of: "equity", "bond", "commodity" (no other values)
 
 Return ONLY valid JSON, no markdown or explanation.`,
             },
