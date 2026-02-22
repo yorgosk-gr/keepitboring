@@ -67,38 +67,57 @@ export function useTickerVerification() {
           status: "verifying",
         });
 
-        const { data, error } = await supabase.functions.invoke("verify-ticker", {
-          body: { positions: batch },
-        });
+        // Retry loop for rate limiting
+        let retries = 0;
+        const MAX_RETRIES = 3;
+        let success = false;
 
-        if (error) {
-          console.error("Verification error:", error);
-          
-          // Add unverified fallbacks for this batch
-          for (const pos of batch) {
-            allVerified.push({
-              original_ticker: pos.ticker,
-              verified_ticker: pos.ticker,
-              name: pos.name || "Unknown",
-              asset_type: "stock",
-              category: "equity",
-              exchange: "Unknown",
-              currency: "USD",
-              current_price: pos.current_price || null,
-              verification_status: "uncertain",
-              notes: "Verification failed: " + error.message,
-            });
+        while (retries <= MAX_RETRIES && !success) {
+          const { data, error } = await supabase.functions.invoke("verify-ticker", {
+            body: { positions: batch },
+          });
+
+          if (error) {
+            const isRateLimit = error.message?.includes("429") || 
+              (typeof error === "object" && "status" in error && (error as any).status === 429);
+            
+            if (isRateLimit && retries < MAX_RETRIES) {
+              retries++;
+              const backoff = Math.min(15000 * retries, 60000); // 15s, 30s, 45s
+              console.warn(`Rate limited on batch ${i + 1}, retrying in ${backoff / 1000}s (attempt ${retries}/${MAX_RETRIES})`);
+              await new Promise(resolve => setTimeout(resolve, backoff));
+              continue;
+            }
+
+            console.error("Verification error:", error);
+            // Add unverified fallbacks for this batch
+            for (const pos of batch) {
+              allVerified.push({
+                original_ticker: pos.ticker,
+                verified_ticker: pos.ticker,
+                name: pos.name || "Unknown",
+                asset_type: "stock",
+                category: "equity",
+                exchange: "Unknown",
+                currency: "USD",
+                current_price: pos.current_price || null,
+                verification_status: "uncertain",
+                notes: "Verification failed: " + error.message,
+              });
+            }
+            success = true; // exit retry loop
+            continue;
           }
-          continue;
+
+          if (data?.verified_positions) {
+            allVerified.push(...data.verified_positions);
+          }
+          success = true;
         }
 
-        if (data?.verified_positions) {
-          allVerified.push(...data.verified_positions);
-        }
-
-        // Add a small delay between batches to avoid rate limiting
+        // Longer delay between batches to respect Anthropic rate limits (30k tokens/min)
         if (i < batches.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 12000));
         }
       }
 
