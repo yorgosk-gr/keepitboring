@@ -59,7 +59,7 @@ export default function Dashboard() {
         const category = meta?.category || position.category || "equity";
         
         // Country and theme ETFs are equity funds (India, Japan, Healthcare, etc.)
-        if (category === "country" || category === "theme" || category === "equity") {
+        if (category === "equity") {
           breakdown.equity += value;
         } else if (breakdown[category] !== undefined) {
           breakdown[category] += value;

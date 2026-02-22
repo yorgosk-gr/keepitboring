@@ -386,7 +386,7 @@ export function usePhilosophyRules() {
         const countryEtfs = positions.filter((p) => {
           if (p.position_type !== "etf") return false;
           const meta = etfMetadata[p.ticker];
-          return meta?.category === "country" || p.category === "country";
+          return meta?.category === "equity" && meta?.geography && !meta?.is_broad_market;
         });
         const violating = countryEtfs.filter(
           (p) => rule.threshold_max && getPositionWeight(p) > rule.threshold_max
@@ -408,8 +408,7 @@ export function usePhilosophyRules() {
           const meta = etfMetadata[p.ticker];
           // Theme = not broad market AND not purely a category ETF (commodity, gold, bond are fine)
           return meta?.is_broad_market === false || 
-                 (!meta && p.category !== "equity") ||
-                 meta?.category === "theme";
+                 (!meta && p.category !== "equity");
         });
         const violating = themeEtfs.filter(
           (p) => rule.threshold_max && getPositionWeight(p) > rule.threshold_max
