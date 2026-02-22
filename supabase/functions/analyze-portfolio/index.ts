@@ -6,6 +6,23 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function buildAllocationTargets(rules: any[]): string {
+  if (!rules || rules.length === 0) return "(No custom rules defined — use defaults below)";
+  return rules.map((r: any) => {
+    let line = `- ${r.name}`;
+    if (r.description) line += `: ${r.description}`;
+    if (r.threshold_min != null && r.threshold_max != null) {
+      line += ` (min: ${r.threshold_min}%, max: ${r.threshold_max}%)`;
+    } else if (r.threshold_max != null) {
+      line += ` (max: ${r.threshold_max}%)`;
+    } else if (r.threshold_min != null) {
+      line += ` (min: ${r.threshold_min}%)`;
+    }
+    if (r.rule_type) line += ` [type: ${r.rule_type}]`;
+    return line;
+  }).join("\n");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -56,12 +73,15 @@ SCORING RULES (be harsh):
 
 Example: 78% equities (breach) = -20, one stock no thesis = -20, two stocks no invalidation = -10 each. Score = 100 - 20 - 20 - 10 - 10 = 40.
 
-ALLOCATION TARGETS:
+ALLOCATION TARGETS (from user's active philosophy rules):
+${buildAllocationTargets(rules)}
+If the user has not defined specific allocation rules, use these defaults:
 - Equities (stocks + equity ETFs): max 70%
 - Bonds: max 20%
 - Commodities + Gold + Crypto: max 10%
 - Within equities: 15-25% stocks, 75-85% ETFs
 - Single stock: max 8%
+Always prioritize the user's custom rules over the defaults above.
 
 NO REPETITION RULE:
 - State each fact ONCE in the most relevant section
