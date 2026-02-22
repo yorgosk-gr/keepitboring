@@ -244,7 +244,7 @@ export function PositionsTable({
               <th className="text-right pb-3 font-medium w-20">Avg Cost</th>
               <th className="text-right pb-3 font-medium w-20">Price</th>
               <SortHeader field="market_value">
-                <span className="text-foreground">Value</span>
+                <span className="text-foreground">Value ($)</span>
               </SortHeader>
               <SortHeader field="weight_percent">Weight</SortHeader>
               <SortHeader field="pnl_percent">P&L</SortHeader>
