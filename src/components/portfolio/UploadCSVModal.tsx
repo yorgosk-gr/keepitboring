@@ -73,38 +73,36 @@ export function UploadCSVModal({ open, onClose, onImportComplete }: UploadCSVMod
       setCashBalances({ USD: portfolio.cashUSD });
       setWarnings(portfolio.warnings);
 
-      // Auto-verify positions with empty/blank names
-      const needsLookup = mapped.filter((p) => !p.name || !p.name.trim());
-      if (needsLookup.length > 0) {
-        setState("verifying");
-        const toVerify = needsLookup.map((p) => ({
-          ticker: p.ticker,
-          name: p.name,
-          shares: p.shares,
-          current_price: p.current_price,
-          market_value: p.market_value,
-        }));
+      // Auto-verify all positions
+      setState("verifying");
+      const toVerify = mapped.map((p) => ({
+        ticker: p.ticker,
+        name: p.name,
+        shares: p.shares,
+        current_price: p.current_price,
+        market_value: p.market_value,
+      }));
 
-        const verified = await verifyPositions(toVerify);
+      const verified = await verifyPositions(toVerify);
 
-        // Enrich mapped positions with verification results
-        const enriched = mapped.map((p) => {
-          const match = verified.find(
-            (v) => v.original_ticker.toUpperCase() === p.ticker.toUpperCase()
-          );
-          if (!match) return p;
-          return {
-            ...p,
-            name: match.name || p.name,
-            needs_verification: match.verification_status === "uncertain",
-          } as ExtractedPosition;
-        });
+      const enriched = mapped.map((p) => {
+        const match = verified.find(
+          (v) => v.original_ticker.toUpperCase() === p.ticker.toUpperCase()
+        );
+        if (!match) return p;
+        const extra = p as any;
+        return {
+          ...p,
+          name: match.name && match.name !== "Unknown" ? match.name : p.name,
+          position_type: match.asset_type || extra.position_type,
+          category: match.category || extra.category,
+          exchange: match.exchange || p.exchange,
+          currency: match.currency || p.currency,
+          needs_verification: match.verification_status === "uncertain",
+        } as ExtractedPosition;
+      });
 
-        setPositions(enriched);
-      } else {
-        setPositions(mapped);
-      }
-
+      setPositions(enriched);
       setState("preview");
       toast.success(`Parsed ${mapped.length} positions from CSV`);
     } catch (error) {
