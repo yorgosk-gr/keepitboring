@@ -298,15 +298,15 @@ ${JSON.stringify(rules, null, 2)}
 ETF CLASSIFICATIONS (use these to correctly identify each ETF's asset class when calculating allocation percentages — do not guess based on ticker name):
 ${JSON.stringify(etf_classifications, null, 2)}
 
-NEWSLETTER INTELLIGENCE (last 90 days, ${insights?.length ?? 0} insights from processed newsletters):
+NEWSLETTER INTELLIGENCE (${insights?.length ?? 0} insights from processed newsletters):
 
 BUBBLE & RISK SIGNALS (${bubbleInsights.length}):
-${bubbleInsights.map((i: any) => `- [${i.source_name ?? 'Newsletter'}] ${i.content} (sentiment: ${i.sentiment})`).join('\n') || 'None'}
+${bubbleInsights.map((i: any) => `- [${i.source_name ?? 'Newsletter'}] ${i.content} (sentiment: ${i.sentiment})`).join('\n') || 'None detected'}
 
 MACRO VIEWS (${macroInsights.length}):
 ${macroInsights.map((i: any) => `- [${i.source_name ?? 'Newsletter'}] ${i.content}`).join('\n') || 'None'}
 
-PORTFOLIO TICKER MENTIONS (${portfolioInsights.length}):
+YOUR PORTFOLIO MENTIONED IN NEWSLETTERS (${portfolioInsights.length}):
 ${portfolioInsights.map((i: any) => `- [${i.source_name ?? 'Newsletter'}] Tickers: ${i.tickers_mentioned?.join(', ')} — ${i.content} (sentiment: ${i.sentiment})`).join('\n') || 'None'}
 
 RECENT DECISION LOG:
