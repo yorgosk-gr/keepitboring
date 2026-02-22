@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Upload, AlertCircle, AlertTriangle, FileSpreadsheet } from "lucide-react";
+import { Upload, AlertCircle, AlertTriangle, FileSpreadsheet, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -7,10 +7,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ScreenshotPreviewTable, type ExtractedPosition } from "./ScreenshotPreviewTable";
 import { parseIBKRStatement, getAllocationSummary } from "@/lib/ibkrParser";
+import { useTickerVerification } from "@/hooks/useTickerVerification";
 
 interface UploadCSVModalProps {
   open: boolean;
@@ -18,7 +20,7 @@ interface UploadCSVModalProps {
   onImportComplete: () => void;
 }
 
-type ProcessingState = "idle" | "preview" | "error";
+type ProcessingState = "idle" | "verifying" | "preview" | "error";
 
 export function UploadCSVModal({ open, onClose, onImportComplete }: UploadCSVModalProps) {
   const [state, setState] = useState<ProcessingState>("idle");
@@ -27,6 +29,7 @@ export function UploadCSVModal({ open, onClose, onImportComplete }: UploadCSVMod
   const [cashBalances, setCashBalances] = useState<Record<string, number>>({});
   const [warnings, setWarnings] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { verifyPositions, isVerifying, progress } = useTickerVerification();
 
   const handleClose = () => {
     setFileName(null);
@@ -67,9 +70,41 @@ export function UploadCSVModal({ open, onClose, onImportComplete }: UploadCSVMod
         category: p.assetClass === "Bonds" ? "bond" as const : p.assetClass === "Commodities" ? "commodity" as const : "equity" as const,
       }));
 
-      setPositions(mapped);
       setCashBalances({ USD: portfolio.cashUSD });
       setWarnings(portfolio.warnings);
+
+      // Auto-verify positions with empty/blank names
+      const needsLookup = mapped.filter((p) => !p.name || !p.name.trim());
+      if (needsLookup.length > 0) {
+        setState("verifying");
+        const toVerify = needsLookup.map((p) => ({
+          ticker: p.ticker,
+          name: p.name,
+          shares: p.shares,
+          current_price: p.current_price,
+          market_value: p.market_value,
+        }));
+
+        const verified = await verifyPositions(toVerify);
+
+        // Enrich mapped positions with verification results
+        const enriched = mapped.map((p) => {
+          const match = verified.find(
+            (v) => v.original_ticker.toUpperCase() === p.ticker.toUpperCase()
+          );
+          if (!match) return p;
+          return {
+            ...p,
+            name: match.name || p.name,
+            needs_verification: match.verification_status === "uncertain",
+          } as ExtractedPosition;
+        });
+
+        setPositions(enriched);
+      } else {
+        setPositions(mapped);
+      }
+
       setState("preview");
       toast.success(`Parsed ${mapped.length} positions from CSV`);
     } catch (error) {
@@ -114,7 +149,7 @@ export function UploadCSVModal({ open, onClose, onImportComplete }: UploadCSVMod
           </DialogTitle>
         </DialogHeader>
 
-        {state !== "preview" ? (
+        {state !== "preview" && state !== "verifying" ? (
           <div className="space-y-4">
             {/* Drop Zone */}
             <div
@@ -156,6 +191,19 @@ export function UploadCSVModal({ open, onClose, onImportComplete }: UploadCSVMod
             <div className="flex gap-3 justify-end">
               <Button variant="outline" onClick={handleClose}>Cancel</Button>
             </div>
+          </div>
+        ) : state === "verifying" ? (
+          <div className="flex flex-col items-center justify-center py-12 space-y-4">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <p className="text-foreground font-medium">Looking up position names...</p>
+            {progress.total > 0 && (
+              <div className="w-64 space-y-2">
+                <Progress value={(progress.current / progress.total) * 100} className="h-1.5" />
+                <p className="text-xs text-muted-foreground text-center">
+                  {progress.current} / {progress.total} positions
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-3 overflow-auto max-h-[calc(90vh-6rem)]">
