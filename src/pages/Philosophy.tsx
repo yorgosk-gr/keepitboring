@@ -89,23 +89,34 @@ export default function Philosophy() {
     });
   };
 
-  // Group rules by type
-  const rulesByType = rules.reduce((acc, rule) => {
-    const type = rule.rule_type || "other";
-    if (!acc[type]) acc[type] = [];
-    acc[type].push(rule);
+  // Group rules by author
+  const rulesByAuthor = rules.reduce((acc, rule) => {
+    const books = rule.source_books && rule.source_books.length > 0 ? rule.source_books : ["Other"];
+    books.forEach((book) => {
+      if (!acc[book]) acc[book] = [];
+      if (!acc[book].find((r) => r.id === rule.id)) {
+        acc[book].push(rule);
+      }
+    });
     return acc;
   }, {} as Record<string, PhilosophyRule[]>);
 
-  const typeOrder = ["allocation", "position_size", "quality", "decision", "market", "other"];
-  const typeLabels: Record<string, string> = {
-    allocation: "Allocation Rules",
-    position_size: "Position Size Rules",
-    quality: "Quality Rules",
-    decision: "Decision Rules",
-    market: "Market Rules",
-    other: "Other Rules",
+  const authorDetails: Record<string, { title: string; work: string }> = {
+    Graham: { title: "Benjamin Graham", work: "The Intelligent Investor" },
+    Malkiel: { title: "Burton Malkiel", work: "A Random Walk Down Wall Street" },
+    Siegel: { title: "Jeremy Siegel", work: "Stocks for the Long Run" },
+    Greenblatt: { title: "Joel Greenblatt", work: "The Little Book That Beats the Market" },
+    Thorndike: { title: "William Thorndike", work: "The Outsiders" },
+    Duke: { title: "Annie Duke", work: "Thinking in Bets" },
+    Marks: { title: "Howard Marks", work: "The Most Important Thing" },
+    Kindleberger: { title: "Charles Kindleberger", work: "Manias, Panics, and Crashes" },
+    Taleb: { title: "Nassim Taleb", work: "Antifragile" },
+    Lefèvre: { title: "Edwin Lefèvre", work: "Reminiscences of a Stock Operator" },
+    Erkan: { title: "Erkan", work: "Portfolio Strategy" },
+    Other: { title: "Other", work: "Custom rules" },
   };
+
+  const authorOrder = Object.keys(authorDetails);
 
   if (isLoading || isSeeding) {
     return (
@@ -182,16 +193,21 @@ export default function Philosophy() {
         </div>
       )}
 
-      {/* Rules by Type */}
-      {typeOrder
-        .filter((type) => rulesByType[type]?.length > 0)
-        .map((type) => (
-          <div key={type} className="space-y-4">
-            <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
-              {typeLabels[type]}
-            </h2>
+      {/* Rules by Author */}
+      {authorOrder
+        .filter((author) => rulesByAuthor[author]?.length > 0)
+        .map((author) => (
+          <div key={author} className="space-y-4">
+            <div className="border-b border-border pb-2">
+              <h2 className="text-lg font-semibold text-foreground">
+                {authorDetails[author]?.title ?? author}
+              </h2>
+              <p className="text-xs text-muted-foreground italic">
+                {authorDetails[author]?.work}
+              </p>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {rulesByType[type].map((rule) => (
+              {rulesByAuthor[author].map((rule) => (
                 <PhilosophyRuleCard
                   key={rule.id}
                   rule={rule}
