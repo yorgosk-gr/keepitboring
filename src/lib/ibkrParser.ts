@@ -1,6 +1,5 @@
 // ============================================================
-// IBKR Statement Parser — supports both Flex Query CSV and
-// legacy Activity Statement CSV formats.
+// IBKR Parser — supports both Activity Statement and Flex Query CSV formats
 // ============================================================
 
 export type AssetClass = "Equities" | "Bonds" | "Commodities" | "Unknown";
@@ -19,7 +18,6 @@ export interface Position {
   instrumentType: InstrumentType;
   assetClass: AssetClass;
   yahooTicker: string;
-  listingExchange: string;
 }
 
 export interface ParsedPortfolio {
@@ -34,6 +32,17 @@ export interface ParsedPortfolio {
   fxRates: Record<string, number>;
   cashByCurrency: Record<string, number>;
   warnings: string[];
+}
+
+export interface AllocationSummary {
+  totalUSD: number;
+  cashPct: number;
+  equitiesPct: number;
+  bondsPct: number;
+  commoditiesPct: number;
+  stocksWithinEquitiesPct: number;
+  etfsWithinEquitiesPct: number;
+  breaches: string[];
 }
 
 // ── Known classifications ─────────────────────────────────────────────────────
@@ -64,38 +73,18 @@ const KNOWN_CLASSIFICATIONS: Record<string, { instrumentType: InstrumentType; as
   IBZL:  { instrumentType: "ETF", assetClass: "Equities" },
 };
 
-const BOND_KEYWORDS = [
-  "treasury", "treas", "bond", "gilt", "ibond", "iboxx",
-  "fixed income", "iboxx", "ibonds", "0-1yr", "7-10y", "10y",
-];
+const BOND_KEYWORDS = ["treasury", "treas", "bond", "gilt", "ibond", "iboxx", "fixed income", "ibonds", "0-1yr", "7-10y", "10y"];
+const COMMODITY_KEYWORDS = ["gold", "silver", "commodity", "commodit", "copper", "oil", "physical gold", "physical silver", "bitcoin", "crypto"];
+const ETF_KEYWORDS = ["ishares", "vanguard", "invesco", "spdr", "xtrackers", "amundi", "wisdomtree", "lyxor", "ucits etf", "etf", "etc", "etn"];
 
-const COMMODITY_KEYWORDS = [
-  "gold", "silver", "commodity", "commodit", "copper", "oil",
-  "physical gold", "physical silver", "bitcoin", "crypto",
-];
-
-const ETF_KEYWORDS = [
-  "ishares", "vanguard", "invesco", "spdr", "xtrackers", "amundi",
-  "wisdomtree", "lyxor", "ucits etf", "etf", "etc", "etn",
-];
-
-function inferClassification(
-  ticker: string,
-  description: string
-): { instrumentType: InstrumentType; assetClass: AssetClass } {
+function inferClassification(ticker: string, description: string): { instrumentType: InstrumentType; assetClass: AssetClass } {
   if (KNOWN_CLASSIFICATIONS[ticker]) return KNOWN_CLASSIFICATIONS[ticker];
-
   const desc = description.toLowerCase();
-
   let assetClass: AssetClass = "Equities";
-  if (BOND_KEYWORDS.some((kw) => desc.includes(kw))) assetClass = "Bonds";
-  else if (COMMODITY_KEYWORDS.some((kw) => desc.includes(kw))) assetClass = "Commodities";
-
+  if (BOND_KEYWORDS.some(kw => desc.includes(kw))) assetClass = "Bonds";
+  else if (COMMODITY_KEYWORDS.some(kw => desc.includes(kw))) assetClass = "Commodities";
   let instrumentType: InstrumentType = "Stock";
-  if (ETF_KEYWORDS.some((kw) => desc.includes(kw))) {
-    instrumentType = desc.includes("etc") ? "ETC" : "ETF";
-  }
-
+  if (ETF_KEYWORDS.some(kw => desc.includes(kw))) instrumentType = desc.includes("etc") ? "ETC" : "ETF";
   return { instrumentType, assetClass };
 }
 
@@ -110,220 +99,121 @@ function parseCSVLine(line: string): string[] {
   const result: string[] = [];
   let current = "";
   let inQuotes = false;
-
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
-    if (ch === '"') {
-      inQuotes = !inQuotes;
-    } else if (ch === "," && !inQuotes) {
-      result.push(current.trim());
-      current = "";
-    } else {
-      current += ch;
-    }
+    if (ch === '"') { inQuotes = !inQuotes; }
+    else if (ch === "," && !inQuotes) { result.push(current.trim()); current = ""; }
+    else { current += ch; }
   }
   result.push(current.trim());
   return result;
 }
 
-/** Strip surrounding quotes from every field */
-function stripQuotes(cols: string[]): string[] {
-  return cols.map((c) => {
-    const t = c.trim();
-    if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
-      return t.slice(1, -1).trim();
-    }
-    return t;
-  });
-}
-
-// ── Yahoo ticker derivation ──────────────────────────────────────────────────
-
-const TICKER_ALIASES: Record<string, string> = {
-  "BRK B": "BRK-B",
-};
-
-function deriveYahooTickerFromExchange(ticker: string, exchange: string): string {
-  const mapped = TICKER_ALIASES[ticker] ?? ticker;
-  switch (exchange) {
-    case "ASX": return `${mapped}.AX`;
-    case "SBF": return `${mapped}.PA`;
-    case "AEB": return `${mapped}.PA`;
-    case "LSE": return `${mapped}.L`;
-    case "LSEETF": return `${mapped}.L`;
-    case "NASDAQ":
-    case "NYSE":
-    case "NYSE ARCA":
-      return mapped;
-    default: return mapped;
+function deriveYahooTickerFromExchange(ticker: string, listingExchange: string): string {
+  const safe = ticker.replace(/ /g, "-");
+  switch (listingExchange) {
+    case "ASX":    return safe + ".AX";
+    case "SBF":
+    case "AEB":    return safe + ".PA";
+    case "LSE":
+    case "LSEETF": return safe + ".L";
+    default:       return safe;
   }
 }
 
-function deriveYahooTickerLegacy(ticker: string, currency: string, instrumentType: InstrumentType): string {
+function deriveYahooTickerFromCurrency(ticker: string, currency: string, instrumentType: InstrumentType): string {
+  const safe = ticker.replace(/ /g, "-");
   switch (currency) {
-    case "AUD": return `${ticker}.AX`;
-    case "EUR": return `${ticker}.PA`;
-    case "GBP": return `${ticker}.L`;
+    case "AUD": return safe + ".AX";
+    case "EUR": return safe + ".PA";
+    case "GBP": return safe + ".L";
     case "USD":
-      if (instrumentType === "ETF" || instrumentType === "ETC") return `${ticker}.L`;
-      return ticker;
-    default: return ticker;
+      if (instrumentType === "ETF" || instrumentType === "ETC") return safe + ".L";
+      return safe;
+    default: return safe;
   }
 }
 
-// (format detection is inline in parseIBKRStatement)
-
-// ── Flex Query parser ────────────────────────────────────────────────────────
+// ── Flex Query parser ─────────────────────────────────────────────────────────
 
 function parseFlexQuery(lines: string[]): ParsedPortfolio {
   const warnings: string[] = [];
+  let accountId = "", accountName = "", statementDate = "", baseCurrency = "USD";
+  let cashUSD = 0, totalNAV = 0;
   const fxRates: Record<string, number> = { USD: 1.0 };
   const cashByCurrency: Record<string, number> = {};
   const positions: Position[] = [];
-
-  let accountId = "";
-  let accountName = "";
-  let baseCurrency = "USD";
-  let statementDate = "";
-  let cashUSD = 0;
-  let securitiesUSD = 0;
-  let totalNAV = 0;
-
-  // Last EQUT DATA row values
-  let lastEqutCash = 0;
-  let lastEqutStock = 0;
-  let lastEqutNAV = 0;
+  let lastEqutRow: string[] | null = null;
 
   for (const line of lines) {
-    const raw = parseCSVLine(line);
-    const cols = stripQuotes(raw);
-    if (cols.length < 3) continue;
+    const c = parseCSVLine(line);
+    if (c[0] !== "DATA") continue;
+    const section = c[1];
 
-    const rowType = cols[0]; // DATA or HEADER
-    const section = cols[1]; // ACCT, EQUT, POST, MTMP, CRTT, RATE
-
-    if (rowType !== "DATA") continue;
-
-    // STEP 2 — ACCT
     if (section === "ACCT") {
-      accountId = cols[2] || accountId;
-      baseCurrency = cols[3] || baseCurrency;
-      accountName = cols[4] || accountName;
+      accountId = c[2]; baseCurrency = c[3]; accountName = c[4];
     }
-
-    // STEP 3 — EQUT (take last DATA row)
     if (section === "EQUT") {
-      lastEqutCash = parseNumber(cols[2]);
-      lastEqutStock = parseNumber(cols[5]);
-      lastEqutNAV = parseNumber(cols[8]);
+      lastEqutRow = c;
     }
-
-    // STEP 4 — POST (Open Positions)
+    if (section === "RATE") {
+      if (!statementDate) statementDate = c[2];
+      const fromCcy = c[3];
+      const rate = parseNumber(c[5]);
+      if (fromCcy && rate > 0 && !fxRates[fromCcy]) fxRates[fromCcy] = rate;
+    }
+    if (section === "MTMP" && c[2] === "CASH") {
+      const ccy = c[3];
+      const amt = parseNumber(c[5]);
+      const rate = parseNumber(c[6]);
+      if (Math.abs(amt) >= 0.01) cashByCurrency[ccy] = amt;
+      if (rate > 0 && ccy !== "USD") fxRates[ccy] = rate;
+    }
     if (section === "POST") {
-      const currency = cols[2]?.trim();
-      const fxRateToBase = parseNumber(cols[3]);
-      const ticker = cols[5]?.trim();
-      const description = cols[6]?.trim() || "";
-      const listingExchange = cols[7]?.trim() || "";
-      const quantity = parseNumber(cols[8]);
-      const closePrice = parseNumber(cols[9]);
-      const valueLocal = parseNumber(cols[10]);
-      const costPrice = parseNumber(cols[11]);
-      const unrealizedPL = parseNumber(cols[13]);
+      const currency        = c[2];
+      const fxRateToBase    = parseNumber(c[3]) || 1;
+      const ticker          = c[5];
+      const description     = c[6];
+      const listingExchange = c[7];
+      const quantity        = parseNumber(c[8]);
+      const closePrice      = parseNumber(c[9]);
+      const valueLocal      = parseNumber(c[10]);
+      const costPrice       = parseNumber(c[11]);
+      const unrealizedPL    = parseNumber(c[13]);
 
       if (!ticker || quantity === 0) continue;
 
-      const valueUSD = valueLocal * (fxRateToBase || 1);
+      fxRates[currency] = fxRateToBase;
+      const valueUSD = valueLocal * fxRateToBase;
       const { instrumentType, assetClass } = inferClassification(ticker, description);
       const yahooTicker = deriveYahooTickerFromExchange(ticker, listingExchange);
-
-      // Store FX rate from POST rows as well
-      if (currency && fxRateToBase > 0) {
-        fxRates[currency] = fxRateToBase;
-      }
-
-      positions.push({
-        ticker,
-        description,
-        currency,
-        quantity,
-        costPrice,
-        closePrice,
-        valueLocal,
-        valueUSD,
-        unrealizedPL,
-        instrumentType,
-        assetClass,
-        yahooTicker,
-        listingExchange,
-      });
-    }
-
-    // STEP 5 — MTMP CASH rows
-    if (section === "MTMP" && cols[2] === "CASH") {
-      const ccy = cols[3]?.trim();
-      const amount = parseNumber(cols[5]);
-      const fxRate = parseNumber(cols[6]);
-
-      if (ccy && Math.abs(amount) >= 0.01) {
-        cashByCurrency[ccy] = (cashByCurrency[ccy] ?? 0) + amount;
-      }
-      if (ccy && fxRate > 0) {
-        fxRates[ccy] = fxRate;
-      }
-    }
-
-    // STEP 6 — RATE rows
-    if (section === "RATE") {
-      const fromCurrency = cols[2]?.trim();
-      const rate = parseNumber(cols[4]);
-      if (fromCurrency && rate > 0) {
-        fxRates[fromCurrency] = rate;
-      }
+      positions.push({ ticker, description, currency, quantity, costPrice, closePrice, valueLocal, valueUSD, unrealizedPL, instrumentType, assetClass, yahooTicker });
     }
   }
 
-  cashUSD = lastEqutCash;
-  securitiesUSD = lastEqutStock || positions.reduce((s, p) => s + p.valueUSD, 0);
-  totalNAV = lastEqutNAV || (cashUSD + securitiesUSD);
+  if (lastEqutRow) {
+    cashUSD  = parseNumber(lastEqutRow[2]);
+    totalNAV = parseNumber(lastEqutRow[8]);
+  }
+  const securitiesUSD = positions.reduce((sum, p) => sum + p.valueUSD, 0);
 
-  return {
-    accountId,
-    accountName,
-    statementDate,
-    baseCurrency,
-    totalNAV,
-    cashUSD,
-    securitiesUSD,
-    positions,
-    fxRates,
-    cashByCurrency,
-    warnings,
-  };
+  return { accountId, accountName, statementDate, baseCurrency, totalNAV, cashUSD, securitiesUSD, positions, fxRates, cashByCurrency, warnings };
 }
 
-// ── Legacy Activity Statement parser ─────────────────────────────────────────
+// ── Activity Statement parser ─────────────────────────────────────────────────
 
 function parseLegacyStatement(lines: string[]): ParsedPortfolio {
   const warnings: string[] = [];
-  const fxRates: Record<string, number> = { USD: 1.0 };
-  const cashByCurrency: Record<string, number> = {};
+  let accountId = "", accountName = "", statementDate = "", baseCurrency = "USD";
+  let cashUSD = 0, totalNAV = 0;
   const descriptionMap: Record<string, string> = {};
+  const cashByCurrency: Record<string, number> = {};
+  const fxRates: Record<string, number> = { USD: 1.0 };
 
-  let accountId = "";
-  let accountName = "";
-  let statementDate = "";
-  let baseCurrency = "USD";
-  let cashUSD = 0;
-  let totalNAV = 0;
-
-  // Pass 1: metadata
   for (const line of lines) {
     const cols = parseCSVLine(line);
     if (cols.length < 2) continue;
-    const section = cols[0];
-    const rowType = cols[1];
-
+    const section = cols[0], rowType = cols[1];
     if (section === "Statement" && rowType === "Data" && cols[2] === "Period") statementDate = cols[3];
     if (section === "Account Information" && rowType === "Data") {
       if (cols[2] === "Account") accountId = cols[3];
@@ -335,8 +225,7 @@ function parseLegacyStatement(lines: string[]): ParsedPortfolio {
       if (cols[2] === "Total") totalNAV = parseNumber(cols[4]);
     }
     if (section === "Month & Year to Date Performance Summary" && rowType === "Data") {
-      const ticker = cols[3]?.trim();
-      const desc = cols[4]?.trim();
+      const ticker = cols[3]?.trim(), desc = cols[4]?.trim();
       if (ticker && desc) descriptionMap[ticker] = desc;
     }
     if (section === "Cash Report" && rowType === "Data" && cols[2] === "Ending Cash" && cols[3] !== "Base Currency Summary") {
@@ -345,14 +234,12 @@ function parseLegacyStatement(lines: string[]): ParsedPortfolio {
     }
   }
 
-  // Pass 2: FX rates
   for (const line of lines) {
     const cols = parseCSVLine(line);
-    if (cols.length < 6) continue;
+    if (cols.length < 8) continue;
     if (cols[0] === "Mark-to-Market Performance Summary" && cols[1] === "Data" && cols[2] === "Forex") {
-      const ccy = cols[3]?.trim();
-      const currentPrice = parseNumber(cols[7]);
-      if (ccy && currentPrice > 0 && ccy !== "USD") fxRates[ccy] = currentPrice;
+      const ccy = cols[3]?.trim(), rate = parseNumber(cols[7]);
+      if (ccy && rate > 0 && ccy !== "USD") fxRates[ccy] = rate;
     }
   }
 
@@ -360,141 +247,77 @@ function parseLegacyStatement(lines: string[]): ParsedPortfolio {
   for (const [ccy, rate] of Object.entries(fallbacks)) {
     if (!fxRates[ccy]) {
       fxRates[ccy] = rate;
-      warnings.push(`FX rate for ${ccy} not found in statement — using fallback ${rate}. Refresh rates for accuracy.`);
+      warnings.push(`FX rate for ${ccy} not found — using fallback ${rate}`);
     }
   }
 
-  // Pass 3: positions
   const positions: Position[] = [];
   for (const line of lines) {
     const cols = parseCSVLine(line);
     if (cols.length < 10) continue;
     if (cols[0] !== "Open Positions" || cols[1] !== "Data" || cols[2] !== "Summary") continue;
-
-    const currency = cols[4]?.trim();
-    const ticker = cols[5]?.trim();
-    const quantity = parseNumber(cols[6]);
-    const costPrice = parseNumber(cols[8]);
-    const closePrice = parseNumber(cols[10]);
-    const valueLocal = parseNumber(cols[11]);
+    const currency    = cols[4]?.trim();
+    const ticker      = cols[5]?.trim();
+    const quantity    = parseNumber(cols[6]);
+    const costPrice   = parseNumber(cols[8]);
+    const closePrice  = parseNumber(cols[10]);
+    const valueLocal  = parseNumber(cols[11]);
     const unrealizedPL = parseNumber(cols[12]);
-
     if (!ticker || quantity === 0) continue;
-
     const description = descriptionMap[ticker] || "";
     const { instrumentType, assetClass } = inferClassification(ticker, description);
     const fxRate = fxRates[currency] ?? 1;
     const valueUSD = valueLocal * fxRate;
-
-    if (!fxRates[currency]) {
-      warnings.push(`No FX rate found for ${currency} (${ticker}) — value may be inaccurate.`);
-    }
-
-    const yahooTicker = deriveYahooTickerLegacy(ticker, currency, instrumentType);
-
-    positions.push({
-      ticker,
-      description,
-      currency,
-      quantity,
-      costPrice,
-      closePrice,
-      valueLocal,
-      valueUSD,
-      unrealizedPL,
-      instrumentType,
-      assetClass,
-      yahooTicker,
-      listingExchange: "",
-    });
+    const yahooTicker = deriveYahooTickerFromCurrency(ticker, currency, instrumentType);
+    positions.push({ ticker, description, currency, quantity, costPrice, closePrice, valueLocal, valueUSD, unrealizedPL, instrumentType, assetClass, yahooTicker });
   }
 
   const securitiesUSD = positions.reduce((sum, p) => sum + p.valueUSD, 0);
-
-  return {
-    accountId,
-    accountName,
-    statementDate,
-    baseCurrency,
-    totalNAV,
-    cashUSD,
-    securitiesUSD,
-    positions,
-    fxRates,
-    cashByCurrency,
-    warnings,
-  };
+  return { accountId, accountName, statementDate, baseCurrency, totalNAV, cashUSD, securitiesUSD, positions, fxRates, cashByCurrency, warnings };
 }
 
-// ── Main entry point ─────────────────────────────────────────────────────────
+// ── Main entry point ──────────────────────────────────────────────────────────
 
 export function parseIBKRStatement(csvText: string): ParsedPortfolio {
   const lines = csvText
     .replace(/^\uFEFF/, "")
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
-    .split("\n")
-    .filter((l) => l.trim().length > 0);
+    .split("\n");
 
-  // Detect format: check if any line has a Flex Query section code in col[1]
   const isFlexQuery = lines.some(line => {
-    const cols = parseCSVLine(line);
-    return cols[0] === "DATA" && cols[1] === "POST";
+    const c = parseCSVLine(line);
+    return c[0] === "DATA" && c[1] === "POST";
   });
 
   return isFlexQuery ? parseFlexQuery(lines) : parseLegacyStatement(lines);
 }
 
-// ── Allocation summary ───────────────────────────────────────────────────────
-
-export interface AllocationSummary {
-  totalUSD: number;
-  cashPct: number;
-  equitiesPct: number;
-  bondsPct: number;
-  commoditiesPct: number;
-  stocksWithinEquitiesPct: number;
-  etfsWithinEquitiesPct: number;
-  breaches: string[];
-}
+// ── Allocation summary ────────────────────────────────────────────────────────
 
 export function getAllocationSummary(portfolio: ParsedPortfolio): AllocationSummary {
   const total = portfolio.securitiesUSD + portfolio.cashUSD;
   const pct = (v: number) => (v / total) * 100;
-
-  const byClass = (cls: AssetClass) =>
-    portfolio.positions.filter((p) => p.assetClass === cls).reduce((s, p) => s + p.valueUSD, 0);
-
-  const equitiesUSD = byClass("Equities");
-  const bondsUSD = byClass("Bonds");
-  const commoditiesUSD = byClass("Commodities");
-
-  const stocksUSD = portfolio.positions
-    .filter((p) => p.assetClass === "Equities" && p.instrumentType === "Stock")
-    .reduce((s, p) => s + p.valueUSD, 0);
-
-  const etfsUSD = portfolio.positions
-    .filter((p) => p.assetClass === "Equities" && p.instrumentType !== "Stock")
-    .reduce((s, p) => s + p.valueUSD, 0);
+  const equitiesUSD    = portfolio.positions.filter(p => p.assetClass === "Equities").reduce((s, p) => s + p.valueUSD, 0);
+  const bondsUSD       = portfolio.positions.filter(p => p.assetClass === "Bonds").reduce((s, p) => s + p.valueUSD, 0);
+  const commoditiesUSD = portfolio.positions.filter(p => p.assetClass === "Commodities").reduce((s, p) => s + p.valueUSD, 0);
+  const stocksUSD      = portfolio.positions.filter(p => p.assetClass === "Equities" && p.instrumentType === "Stock").reduce((s, p) => s + p.valueUSD, 0);
+  const etfsUSD        = portfolio.positions.filter(p => p.assetClass === "Equities" && p.instrumentType !== "Stock").reduce((s, p) => s + p.valueUSD, 0);
 
   const breaches: string[] = [];
-
-  if (pct(equitiesUSD) > 70) breaches.push(`Equities ${pct(equitiesUSD).toFixed(1)}% exceeds 70% target`);
-  if (pct(bondsUSD) > 20) breaches.push(`Bonds ${pct(bondsUSD).toFixed(1)}% exceeds 20% target`);
+  if (pct(equitiesUSD) > 70)    breaches.push(`Equities ${pct(equitiesUSD).toFixed(1)}% exceeds 70% target`);
+  if (pct(bondsUSD) > 20)       breaches.push(`Bonds ${pct(bondsUSD).toFixed(1)}% exceeds 20% target`);
   if (pct(commoditiesUSD) > 10) breaches.push(`Commodities ${pct(commoditiesUSD).toFixed(1)}% exceeds 10% target`);
 
-  const equityTotal = equitiesUSD || 1;
-  const stocksOfEquities = (stocksUSD / equityTotal) * 100;
+  const stocksOfEquities = (stocksUSD / (equitiesUSD || 1)) * 100;
   if (stocksOfEquities < 15) breaches.push(`Stocks are ${stocksOfEquities.toFixed(1)}% of equities — below 15% floor`);
   if (stocksOfEquities > 25) breaches.push(`Stocks are ${stocksOfEquities.toFixed(1)}% of equities — above 25% ceiling`);
 
   for (const p of portfolio.positions) {
-    if (p.instrumentType === "Stock" && pct(p.valueUSD) > 8) {
+    if (p.instrumentType === "Stock" && pct(p.valueUSD) > 8)
       breaches.push(`${p.ticker} is ${pct(p.valueUSD).toFixed(1)}% — exceeds 8% single stock limit`);
-    }
-    if (p.instrumentType === "ETF" && pct(p.valueUSD) > 15) {
-      breaches.push(`${p.ticker} is ${pct(p.valueUSD).toFixed(1)}% — exceeds 15% themed ETF limit`);
-    }
+    if (p.instrumentType === "ETF" && pct(p.valueUSD) > 15)
+      breaches.push(`${p.ticker} is ${pct(p.valueUSD).toFixed(1)}% — exceeds 15% ETF limit`);
   }
 
   return {
