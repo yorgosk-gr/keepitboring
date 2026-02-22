@@ -1,7 +1,17 @@
 import { useState, useMemo, useEffect } from "react";
-import { Upload, Plus, Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, Trash2 } from "lucide-react";
+import { Upload, Plus, Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, Trash2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { usePositions, type Position, type PositionFormData } from "@/hooks/usePositions";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useTickerVerification } from "@/hooks/useTickerVerification";
@@ -65,6 +75,8 @@ export default function Portfolio() {
   const [loggingDecisionFor, setLoggingDecisionFor] = useState<Position | null>(null);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [showClearPortfolioModal, setShowClearPortfolioModal] = useState(false);
+  const [isClearingPortfolio, setIsClearingPortfolio] = useState(false);
 
   // Load last price refresh timestamp
   useEffect(() => {
@@ -436,6 +448,15 @@ export default function Portfolio() {
           </Button>
           <Button 
             variant="outline" 
+            className="gap-2 text-destructive hover:text-destructive"
+            onClick={() => setShowClearPortfolioModal(true)}
+            disabled={positions.length === 0}
+          >
+            <Trash2 className="w-4 h-4" />
+            Clear Portfolio
+          </Button>
+          <Button 
+            variant="outline" 
             className="gap-2"
             onClick={handleRefreshPrices}
             disabled={positions.length === 0 || isFetchingPrices}
@@ -669,6 +690,50 @@ export default function Portfolio() {
         ticker={`${selectedIds.length} position${selectedIds.length !== 1 ? "s" : ""}`}
         isLoading={isBulkDeleting}
       />
+
+      {/* Clear Portfolio Confirmation */}
+      <AlertDialog open={showClearPortfolioModal} onOpenChange={setShowClearPortfolioModal}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-foreground">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              Clear Entire Portfolio
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              This will permanently delete all {positions.length} position{positions.length !== 1 ? "s" : ""} from your portfolio. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isClearingPortfolio}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isClearingPortfolio}
+              onClick={async (e) => {
+                e.preventDefault();
+                setIsClearingPortfolio(true);
+                try {
+                  const { error } = await supabase
+                    .from("positions")
+                    .delete()
+                    .eq("user_id", user!.id);
+                  if (error) throw error;
+                  queryClient.invalidateQueries({ queryKey: ["positions"] });
+                  queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+                  setSelectedIds([]);
+                  toast.success("Portfolio cleared successfully");
+                  setShowClearPortfolioModal(false);
+                } catch (err) {
+                  toast.error("Failed to clear portfolio");
+                } finally {
+                  setIsClearingPortfolio(false);
+                }
+              }}
+            >
+              {isClearingPortfolio ? "Clearing..." : "Delete All Positions"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
