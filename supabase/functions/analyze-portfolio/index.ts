@@ -66,12 +66,12 @@ serve(async (req) => {
 
 SCORING RULES (be harsh):
 - Start at 100
-- Each CRITICAL issue: -20 points (allocation breach, missing thesis on stock)
+- Each CRITICAL issue: -20 points (allocation breach >5% over limit)
 - Each WARNING: -10 points (near limit, stale review)
-- Each stock without thesis: -5 points
+- Each stock without thesis: -3 points (documentation gap, NOT a sell signal)
 - Minimum score: 10
 
-Example: 78% equities (breach) = -20, one stock no thesis = -20, two stocks no invalidation = -10 each. Score = 100 - 20 - 20 - 10 - 10 = 40.
+Example: 78% equities (breach) = -20, two stocks no thesis = -6, one stock near size limit = -10. Score = 100 - 20 - 6 - 10 = 64.
 
 ALLOCATION TARGETS (from user's active philosophy rules):
 ${buildAllocationTargets(rules)}
@@ -134,17 +134,22 @@ INTELLIGENCE BRIEF INTEGRATION:
 THESIS COMPLIANCE:
 - List ALL individual stocks, not just ones with problems
 - Show pass/fail for each
+- IMPORTANT: A missing thesis is a DOCUMENTATION gap, NOT a sell signal
+- If a stock has no thesis, the recommended action should be "Document investment thesis for [TICKER]", NOT "SELL [TICKER]"
+- Only recommend SELL based on: allocation breaches, Intelligence Brief signals, valuation concerns, or fundamental problems — NEVER solely because thesis is undocumented
 
 TRADE RECOMMENDATIONS:
 Return trade_recommendations array with EVERY position. Format:
-- SELL positions: full detail with reasoning
+- SELL positions: full detail with reasoning (must be based on allocation, valuation, or research signals — NOT missing documentation)
 - BUY positions: full detail with reasoning  
 - HOLD positions: minimal (just ticker, action, current_shares, "On target" reasoning)
+- Use the actual market_value and current_price from the position data to calculate estimated_value — do NOT make up values
 
 CRITICAL: The recommended_actions should have COMPLETE reasoning visible, not cut off. Each action needs:
 - What to do (specific ticker and shares)
 - Why (one clear sentence, referencing Intelligence Brief themes where applicable)
 - What it achieves (e.g., "reduces equity to 68%")
+- For missing thesis: recommend DOCUMENTING the thesis, not selling the position
 
 JSON structure:
 {
@@ -188,10 +193,10 @@ JSON structure:
   "recommended_actions": [
     {
       "priority": 1,
-      "action": "SELL 3127 TEA (~€X)",
-      "reasoning": "No thesis documented. Philosophy requires thesis for all stocks. Proceeds reduce equity allocation.",
+      "action": "Document investment thesis for BRK B, AMZN, TEA.AX, MELI, III, KLAR, PGY",
+      "reasoning": "7 stocks lack documented thesis. Write thesis with invalidation criteria for each to comply with philosophy rules.",
       "confidence": "high",
-      "trades_involved": ["SELL 3127 TEA"]
+      "trades_involved": []
     }
   ],
   "trade_recommendations": [
