@@ -95,7 +95,7 @@ export function UploadCSVModal({ open, onClose, onImportComplete }: UploadCSVMod
           ...p,
           name: match.name && match.name !== "Unknown" ? match.name : p.name,
           position_type: match.asset_type || extra.position_type,
-          category: match.category || extra.category,
+          category: match.category && ["equity", "bond", "commodity"].includes(match.category) ? match.category : extra.category,
           exchange: match.exchange || p.exchange,
           currency: match.currency || p.currency,
           needs_verification: match.verification_status === "uncertain",
