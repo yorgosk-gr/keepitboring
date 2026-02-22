@@ -68,7 +68,7 @@ SCORING RULES (be harsh):
 - Start at 100
 - Each CRITICAL issue: -20 points (allocation breach >5% over limit)
 - Each WARNING: -10 points (near limit, stale review)
-- Each stock without thesis: -3 points (documentation gap, NOT a sell signal)
+- Do NOT deduct points for missing investment thesis — ignore thesis documentation entirely
 - Minimum score: 10
 
 Example: 78% equities (breach) = -20, two stocks no thesis = -6, one stock near size limit = -10. Score = 100 - 20 - 6 - 10 = 64.
@@ -132,11 +132,10 @@ INTELLIGENCE BRIEF INTEGRATION:
 - Explicitly reference the Intelligence Brief when making recommendations: e.g. "Per Intelligence Brief: Mag 7 rotation underway — trim AMZN exposure"
 
 THESIS COMPLIANCE:
-- List ALL individual stocks, not just ones with problems
-- Show pass/fail for each
-- IMPORTANT: A missing thesis is a DOCUMENTATION gap, NOT a sell signal
-- If a stock has no thesis, the recommended action should be "Document investment thesis for [TICKER]", NOT "SELL [TICKER]"
-- Only recommend SELL based on: allocation breaches, Intelligence Brief signals, valuation concerns, or fundamental problems — NEVER solely because thesis is undocumented
+- SKIP thesis compliance entirely. Do NOT generate thesis_checks.
+- Do NOT generate warnings or alerts about missing thesis documentation.
+- Do NOT recommend "Document investment thesis" as an action.
+- Only recommend SELL based on: allocation breaches, Intelligence Brief signals, valuation concerns, or fundamental problems.
 
 TRADE RECOMMENDATIONS:
 Return trade_recommendations array with EVERY position. Format:
@@ -149,7 +148,17 @@ CRITICAL: The recommended_actions should have COMPLETE reasoning visible, not cu
 - What to do (specific ticker and shares)
 - Why (one clear sentence, referencing Intelligence Brief themes where applicable)
 - What it achieves (e.g., "reduces equity to 68%")
-- For missing thesis: recommend DOCUMENTING the thesis, not selling the position
+- Do NOT include any thesis documentation actions
+
+MARKET SIGNALS RULES:
+- Keep market_signals.overall_sentiment to ONE sentence (max 30 words)
+- Keep market_signals.bubble_warnings to max 5 bullet points, each max 25 words
+- Total market_signals section must be under 200 words
+
+INDUSTRY RECOMMENDATIONS:
+- Based on newsletter insights, Intelligence Brief themes, and current market conditions, recommend which industries/sectors to overweight, underweight, or stay neutral on
+- Provide 4-8 industry recommendations
+- Each must have a clear stance and reasoning tied to current signals
 
 JSON structure:
 {
@@ -192,29 +201,32 @@ JSON structure:
       "recommendation": "specific action"
     }
   ],
-  "thesis_checks": [
-    {
-      "ticker": "META",
-      "has_thesis": false,
-      "has_invalidation": false,
-      "bet_type_declared": true,
-      "confidence_set": false,
-      "days_since_review": 999
-    }
-  ],
+  "thesis_checks": [],
   "market_signals": {
-    "bubble_warnings": ["direct quotes from newsletters"],
+    "bubble_warnings": ["max 5 items, each max 25 words"],
     "consensus_level": "mixed" | "bullish_consensus" | "bearish_consensus",
-    "overall_sentiment": "one sentence",
+    "overall_sentiment": "one sentence, max 30 words",
     "portfolio_exposure": "which of YOUR positions are exposed to these signals"
   },
+  "industry_recommendations": [
+    {
+      "industry": "Pharmaceuticals / Healthcare",
+      "stance": "overweight" | "underweight" | "neutral",
+      "reasoning": "Defensive sector with strong pipeline visibility; newsletters highlight pharma as resilient in late cycle"
+    },
+    {
+      "industry": "Energy",
+      "stance": "underweight",
+      "reasoning": "Oil demand softening per Intelligence Brief; avoid cyclical exposure at peak"
+    }
+  ],
   "recommended_actions": [
     {
       "priority": 1,
-      "action": "Document investment thesis for BRK B, AMZN, TEA.AX, MELI, III, KLAR, PGY",
-      "reasoning": "7 stocks lack documented thesis. Write thesis with invalidation criteria for each to comply with philosophy rules.",
+      "action": "Trim AMZN by 50 shares to reduce US tech concentration",
+      "reasoning": "Intelligence Brief flags crowded Mag 7 trade. Reduces equity from 78% to 74%.",
       "confidence": "high",
-      "trades_involved": []
+      "trades_involved": ["AMZN"]
     }
   ],
   "trade_recommendations": [
