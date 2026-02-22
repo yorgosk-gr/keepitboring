@@ -110,26 +110,31 @@ serve(async (req) => {
 
     console.log(`Verifying ${positionsToVerify.length} positions with Claude web search...`);
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
-        tools: [
-          {
-            type: "web_search_20250305",
-            name: "web_search",
-          },
-        ],
-        messages: [
-          {
-            role: "user",
-            content: `Verify these portfolio positions. For each one, confirm or correct the ticker symbol and fill in any missing data.
+    const MAX_RETRIES = 3;
+    const BACKOFF_MS = [5000, 10000, 20000];
+    let response: Response | null = null;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 4096,
+          tools: [
+            {
+              type: "web_search_20250305",
+              name: "web_search",
+            },
+          ],
+          messages: [
+            {
+              role: "user",
+              content: `Verify these portfolio positions. For each one, confirm or correct the ticker symbol and fill in any missing data.
 
 Positions to verify:
 ${JSON.stringify(positionsToVerify, null, 2)}
@@ -161,25 +166,51 @@ Specific things to check:
 - Get the latest price if possible
 
 Return ONLY valid JSON, no markdown or explanation.`,
-          },
-        ],
-      }),
-    });
+            },
+          ],
+        }),
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Anthropic API error:", response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limited. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (response.ok) break;
+
+      if (response.status === 429 && attempt < MAX_RETRIES) {
+        const wait = BACKOFF_MS[attempt];
+        console.warn(`Rate limited (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${wait / 1000}s...`);
+        await new Promise(resolve => setTimeout(resolve, wait));
+        continue;
       }
-      
+
+      // Non-429 error or final retry exhausted
+      break;
+    }
+
+    if (!response || !response.ok) {
+      const errorText = response ? await response.text() : "No response";
+      console.error("Anthropic API error after retries:", response?.status, errorText);
+
+      // Return uncertain fallbacks instead of crashing
+      const fallbacks: VerifiedPosition[] = positionsToVerify.map(p => ({
+        original_ticker: p.ticker,
+        verified_ticker: p.ticker,
+        name: p.name || "Unknown",
+        asset_type: "stock" as const,
+        category: "equity" as const,
+        exchange: "Unknown",
+        currency: "USD",
+        current_price: p.current_price || null,
+        verification_status: "uncertain" as const,
+        notes: "Verification failed after retries",
+      }));
+
+      const allWithCached: VerifiedPosition[] = positions.map(p => {
+        const cached = cachedTickers.get(p.ticker);
+        if (cached) return cached;
+        return fallbacks.find(f => f.original_ticker === p.ticker) || fallbacks[0];
+      });
+
       return new Response(
-        JSON.stringify({ error: "Verification service unavailable", details: errorText }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: true, verified_positions: allWithCached, partial: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
