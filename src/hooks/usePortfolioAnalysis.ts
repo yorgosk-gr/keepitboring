@@ -10,6 +10,15 @@ import { useSettings } from "./useSettings";
 import { selectSmartInsights } from "./useSmartInsightSelection";
 import { toast } from "sonner";
 
+export interface AllocationBreakdownItem {
+  label?: string;
+  region?: string;
+  style?: string;
+  percent: number;
+  positions: string[];
+  recommendation?: string;
+}
+
 export interface AllocationCheck {
   equities_percent: number;
   equities_status: "ok" | "warning" | "critical";
@@ -17,8 +26,11 @@ export interface AllocationCheck {
   bonds_status: "ok" | "warning" | "critical";
   commodities_percent: number;
   commodities_status: "ok" | "warning" | "critical";
+  commodities_breakdown?: AllocationBreakdownItem[];
   cash_percent: number;
   stocks_vs_etf_split: string;
+  equity_by_geography?: AllocationBreakdownItem[];
+  equity_by_style?: AllocationBreakdownItem[];
   issues: string[];
 }
 

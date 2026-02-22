@@ -160,8 +160,26 @@ JSON structure:
     "bonds_status": "ok" | "warning" | "critical", 
     "commodities_percent": number,
     "commodities_status": "ok" | "warning" | "critical",
+    "commodities_breakdown": [
+      { "label": "Gold", "percent": 3.2, "positions": ["IGLN", "SGLN"] },
+      { "label": "Broad Commodities", "percent": 2.1, "positions": ["CMOD"] },
+      { "label": "Copper Miners", "percent": 1.0, "positions": ["COPX"] }
+    ],
     "cash_percent": number,
     "stocks_vs_etf_split": "X% stocks / Y% ETFs",
+    "equity_by_geography": [
+      { "region": "US", "percent": 35.2, "positions": ["IUQA", "AMZN", "META"], "recommendation": "Near target" },
+      { "region": "Europe", "percent": 12.0, "positions": ["IMEU", "III"], "recommendation": "Consider adding" },
+      { "region": "Japan", "percent": 8.5, "positions": ["IJPA"], "recommendation": "Newsletters favor Japan — consider increasing" },
+      { "region": "Emerging Markets", "percent": 5.0, "positions": ["EIMI", "NDIA"], "recommendation": "On target" },
+      { "region": "Global/Diversified", "percent": 20.0, "positions": ["VWRA"], "recommendation": "Core holding" }
+    ],
+    "equity_by_style": [
+      { "style": "Broad Market / Index", "percent": 55.0, "positions": ["VWRA", "IUQA", "IJPA"], "recommendation": "Core allocation on target" },
+      { "style": "Quality / Factor", "percent": 5.0, "positions": ["IUQA"], "recommendation": "Consider adding quality tilt" },
+      { "style": "Thematic / Sector", "percent": 8.0, "positions": ["COPX"], "recommendation": "Within limits" },
+      { "style": "Individual Stocks", "percent": 12.0, "positions": ["AMZN", "META", "MELI"], "recommendation": "Monitor concentration" }
+    ],
     "issues": ["allocation issues ONLY - do not repeat elsewhere"]
   },
   "position_alerts": [

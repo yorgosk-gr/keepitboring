@@ -1,13 +1,55 @@
 import { cn } from "@/lib/utils";
-import { AlertTriangle, CheckCircle2, XCircle, PieChart } from "lucide-react";
-import type { AllocationCheck } from "@/hooks/usePortfolioAnalysis";
+import { AlertTriangle, CheckCircle2, XCircle, PieChart, Globe, Layers, Package } from "lucide-react";
+import type { AllocationCheck, AllocationBreakdownItem } from "@/hooks/usePortfolioAnalysis";
 
 interface AllocationDisplayProps {
   allocation: AllocationCheck;
 }
 
+function BreakdownSection({ title, icon, items, labelKey }: {
+  title: string;
+  icon: React.ReactNode;
+  items: AllocationBreakdownItem[];
+  labelKey: "region" | "style" | "label";
+}) {
+  if (!items || items.length === 0) return null;
+
+  return (
+    <div className="pt-3 border-t border-border space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
+        {icon}
+        {title}
+      </div>
+      {items.map((item, i) => {
+        const label = item[labelKey] ?? "Other";
+        return (
+          <div key={i} className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">{label}</span>
+              <span>{item.percent.toFixed(1)}%</span>
+            </div>
+            <div className="relative h-2 rounded-full bg-secondary overflow-hidden">
+              <div
+                className="h-full bg-primary/70 transition-all"
+                style={{ width: `${Math.min(item.percent * 2, 100)}%` }}
+              />
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {item.positions.map((p) => (
+                <span key={p} className="text-xs bg-secondary px-1.5 py-0.5 rounded text-muted-foreground">{p}</span>
+              ))}
+            </div>
+            {item.recommendation && (
+              <p className="text-xs text-muted-foreground italic">{item.recommendation}</p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
-  // Safe status getter with fallback
   const getStatus = (status: "ok" | "warning" | "critical" | undefined): "ok" | "warning" | "critical" => {
     return status ?? "ok";
   };
@@ -36,7 +78,6 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
     }
   };
 
-  // Safely access allocation values with fallbacks
   const equitiesPercent = allocation?.equities_percent ?? 0;
   const bondsPercent = allocation?.bonds_percent ?? 0;
   const commoditiesPercent = allocation?.commodities_percent ?? 0;
@@ -63,7 +104,6 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
             className={cn("h-full transition-all", getStatusColor(allocation?.equities_status))}
             style={{ width: `${Math.min(equitiesPercent, 100)}%` }}
           />
-          {/* Target zone indicator at 70% */}
           <div className="absolute top-0 bottom-0 left-[70%] w-px bg-foreground/40" />
         </div>
       </div>
@@ -85,12 +125,11 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
             className={cn("h-full transition-all", getStatusColor(allocation?.bonds_status))}
             style={{ width: `${Math.min(bondsPercent * 5, 100)}%` }}
           />
-          {/* Target zone indicator at 20% (scaled to 100% bar) */}
           <div className="absolute top-0 bottom-0 left-full w-px bg-foreground/40" />
         </div>
       </div>
 
-      {/* Commodities + Gold + Crypto */}
+      {/* Commodities */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -109,6 +148,14 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
           />
         </div>
       </div>
+
+      {/* Commodities Breakdown */}
+      <BreakdownSection
+        title="Commodities Breakdown"
+        icon={<Package className="w-4 h-4" />}
+        items={allocation?.commodities_breakdown ?? []}
+        labelKey="label"
+      />
 
       {/* Cash */}
       <div className="space-y-2">
@@ -142,6 +189,22 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
           </p>
         </div>
       )}
+
+      {/* Equity by Geography */}
+      <BreakdownSection
+        title="Equity by Geography"
+        icon={<Globe className="w-4 h-4" />}
+        items={allocation?.equity_by_geography ?? []}
+        labelKey="region"
+      />
+
+      {/* Equity by Style / Sector */}
+      <BreakdownSection
+        title="Equity by Style / Sector"
+        icon={<Layers className="w-4 h-4" />}
+        items={allocation?.equity_by_style ?? []}
+        labelKey="style"
+      />
 
       {/* Issues */}
       {allocation.issues && allocation.issues.length > 0 && (
