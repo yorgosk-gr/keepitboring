@@ -207,7 +207,7 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
 }
 
 export function InsightsSummaryCard() {
-  const { summary, generateSummary, isGenerating } = useInsightsSummary();
+  const { summary, isLoading, generateSummary, isGenerating } = useInsightsSummary();
 
   return (
     <div className="space-y-4">
