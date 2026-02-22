@@ -24,7 +24,7 @@ const navItems = [
   { title: "Newsletters", path: "/newsletters", icon: Newspaper },
   { title: "Philosophy", path: "/philosophy", icon: BookOpen },
   { title: "Analysis", path: "/analysis", icon: BarChart3 },
-  { title: "Reports", path: "/reports", icon: FileText },
+  
   { title: "Settings", path: "/settings", icon: Settings },
 ];
 
