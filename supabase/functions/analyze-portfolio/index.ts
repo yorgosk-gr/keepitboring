@@ -60,7 +60,7 @@ serve(async (req) => {
       );
     }
 
-    const { positions, rules, insights, decisions, cash_balance, total_portfolio_value, intelligence_brief } = await req.json();
+    const { positions, rules, insights, decisions, cash_balance, total_portfolio_value, intelligence_brief, etf_classifications } = await req.json();
 
     const systemPrompt = `You are a strict portfolio compliance officer. Your job is to find problems and give specific fixes.
 
@@ -288,6 +288,9 @@ CASH AS % OF PORTFOLIO: ${total_portfolio_value ? ((cash_balance / total_portfol
 
 ACTIVE RULES:
 ${JSON.stringify(rules, null, 2)}
+
+ETF CLASSIFICATIONS (use these to correctly identify each ETF's asset class when calculating allocation percentages — do not guess based on ticker name):
+${JSON.stringify(etf_classifications, null, 2)}
 
 NEWSLETTER INTELLIGENCE (last 90 days, ${insights?.length ?? 0} insights from processed newsletters):
 
