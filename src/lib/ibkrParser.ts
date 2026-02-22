@@ -213,8 +213,8 @@ export function parseIBKRStatement(csvText: string): ParsedPortfolio {
       cols[3] !== "Base Currency Summary"
     ) {
       const val = parseNumber(cols[4]);
-      if (Math.abs(val) >= 0.01) {
-        cashByCurrency[cols[3]] = val;
+    if (Math.abs(val) >= 0.01) {
+        cashByCurrency[cols[3]] = (cashByCurrency[cols[3]] ?? 0) + val;
       }
     }
   }
