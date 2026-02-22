@@ -203,7 +203,7 @@ export function parseIBKRStatement(csvText: string): ParsedPortfolio {
       cols[2] === "Forex"
     ) {
       const ccy = cols[3]?.trim();
-      const currentPrice = parseNumber(cols[5]);
+      const currentPrice = parseNumber(cols[7]);
       if (ccy && currentPrice > 0 && ccy !== "USD") {
         fxRates[ccy] = currentPrice;
       }
