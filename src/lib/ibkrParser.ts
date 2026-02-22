@@ -211,7 +211,7 @@ export function parseIBKRStatement(csvText: string): ParsedPortfolio {
   }
 
   const fallbacks: Record<string, number> = {
-    EUR: 1.18, GBP: 1.35, AUD: 0.63, CAD: 0.73, CHF: 1.12, JPY: 0.0067,
+    EUR: 1.18, GBP: 1.35, AUD: 0.63, CAD: 0.73,
   };
   for (const [ccy, rate] of Object.entries(fallbacks)) {
     if (!fxRates[ccy]) {
