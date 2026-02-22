@@ -85,6 +85,8 @@ serve(async (req) => {
 
     const systemPrompt = `You are an investment research analyst. Synthesize newsletter insights into an actionable intelligence brief.
 
+RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose, no explanation outside the JSON. Do not wrap in \`\`\`json code blocks. Do not use unescaped double quotes inside string values — use single quotes instead (e.g., use 'crushed' not "crushed").
+
 OUTPUT FORMAT (valid JSON):
 {
   "executive_summary": "2-3 sentence overview of the most important themes and actionable signals from the last 30 days.",
@@ -192,30 +194,72 @@ Synthesize these into an actionable intelligence brief. Focus on what matters fo
       );
     }
 
-    // Parse JSON from response
+    // Parse JSON from response - robust extraction
     let result;
     try {
       let jsonString = content.trim();
-      if (jsonString.startsWith("```json")) jsonString = jsonString.slice(7);
-      else if (jsonString.startsWith("```")) jsonString = jsonString.slice(3);
-      if (jsonString.endsWith("```")) jsonString = jsonString.slice(0, -3);
-      result = JSON.parse(jsonString.trim());
+      // Extract from markdown code blocks
+      const jsonBlockMatch = jsonString.match(/```json\s*([\s\S]*?)```/);
+      if (jsonBlockMatch) {
+        jsonString = jsonBlockMatch[1].trim();
+      } else {
+        // Try to find raw JSON object
+        const firstBrace = jsonString.indexOf('{');
+        const lastBrace = jsonString.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+          jsonString = jsonString.substring(firstBrace, lastBrace + 1);
+        }
+      }
+      result = JSON.parse(jsonString);
     } catch {
-      // Try sanitizing newlines inside strings
+      // Try fixing unescaped quotes inside string values by collapsing to single line
       try {
         let cleaned = content.trim();
-        if (cleaned.startsWith("```json")) cleaned = cleaned.slice(7);
-        else if (cleaned.startsWith("```")) cleaned = cleaned.slice(3);
-        if (cleaned.endsWith("```")) cleaned = cleaned.slice(0, -3);
+        const jsonBlockMatch2 = cleaned.match(/```json\s*([\s\S]*?)```/);
+        if (jsonBlockMatch2) {
+          cleaned = jsonBlockMatch2[1].trim();
+        } else {
+          const firstBrace = cleaned.indexOf('{');
+          const lastBrace = cleaned.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace > firstBrace) {
+            cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+          }
+        }
+        // Replace unescaped internal double quotes: look for patterns like "word" inside JSON strings
+        // by replacing literal newlines and collapsing whitespace
         const singleLine = cleaned.replace(/\r?\n/g, " ").replace(/\s+/g, " ");
-        result = JSON.parse(singleLine);
-      } catch (e2) {
-        console.error("Failed to parse AI summary response:", e2);
-        console.error("Raw content:", content);
-        return new Response(
-          JSON.stringify({ error: "Failed to parse AI summary response." }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        // Fix unescaped quotes by replacing "word" patterns inside strings with \"word\"
+        const fixed = singleLine.replace(/(?<=:\s*"[^"]*)"(?=[^"]*"[^"]*(?:,|\}))/g, '\\"');
+        result = JSON.parse(fixed);
+      } catch (e3) {
+        // Last resort: try replacing smart quotes and common problematic chars
+        try {
+          let raw = content.trim();
+          const m = raw.match(/```json\s*([\s\S]*?)```/);
+          if (m) raw = m[1].trim();
+          else {
+            const f = raw.indexOf('{');
+            const l = raw.lastIndexOf('}');
+            if (f !== -1 && l > f) raw = raw.substring(f, l + 1);
+          }
+          // Replace curly/smart quotes with straight quotes
+          raw = raw.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
+          // Escape internal unescaped double quotes in string values
+          // Strategy: find "text "quoted" text" and escape the inner quotes
+          raw = raw.replace(/"([^"]*)"([^"]*)"([^"]*?)"/g, (match) => {
+            // Only fix if it looks like an inner quote issue
+            return match;
+          });
+          const oneLine = raw.replace(/\r?\n/g, " ").replace(/\s+/g, " ");
+          result = JSON.parse(oneLine);
+        } catch (e4) {
+          console.error("Failed to parse AI summary response:", e4);
+          console.error("Raw content:", content.substring(0, 1000));
+          return new Response(
+            JSON.stringify({ error: "Failed to parse AI summary response." }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
     }
 
