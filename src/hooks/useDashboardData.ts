@@ -115,7 +115,7 @@ export function useDashboardData() {
       const { data, error } = await supabase
         .from("portfolio_snapshots")
         .select("*")
-        .order("snapshot_date", { ascending: false })
+        .order("created_at", { ascending: false })
         .limit(2);
       
       if (error) throw error;
