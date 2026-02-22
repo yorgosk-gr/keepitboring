@@ -291,8 +291,11 @@ export default function Portfolio() {
     }
 
     setShowPriceModal(true);
-    const tickers = positions.map(p => p.ticker);
-    const { prices, notFound } = await fetchPrices(tickers);
+    const tickerInfos = positions.map(p => ({
+      ticker: p.ticker,
+      instrumentType: p.position_type === "stock" ? "Stock" : p.position_type === "etf" ? "ETF" : undefined,
+    }));
+    const { prices, notFound } = await fetchPrices(tickerInfos);
     setFetchedPrices(prices);
     setNotFoundTickers(notFound);
   };
