@@ -335,10 +335,7 @@ function AnalysisTextView({ analysis }: { analysis: AnalysisResult }) {
                 <tr className="text-left text-muted-foreground border-b border-border">
                   <th className="pb-2 font-medium">Ticker</th>
                   <th className="pb-2 font-medium">Thesis</th>
-                  <th className="pb-2 font-medium">Invalidation</th>
                   <th className="pb-2 font-medium">Bet Type</th>
-                  <th className="pb-2 font-medium">Confidence</th>
-                  <th className="pb-2 font-medium text-right">Days Since Review</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -346,10 +343,7 @@ function AnalysisTextView({ analysis }: { analysis: AnalysisResult }) {
                   <tr key={i}>
                     <td className="py-2 font-mono font-bold">{tc.ticker}</td>
                     <td className="py-2">{tc.has_thesis ? <span className="text-emerald-500">✓</span> : <span className="text-destructive">✗</span>}</td>
-                    <td className="py-2">{tc.has_invalidation ? <span className="text-emerald-500">✓</span> : <span className="text-destructive">✗</span>}</td>
                     <td className="py-2">{tc.bet_type_declared ? <span className="text-emerald-500">✓</span> : <span className="text-destructive">✗</span>}</td>
-                    <td className="py-2">{tc.confidence_set ? <span className="text-emerald-500">✓</span> : <span className="text-destructive">✗</span>}</td>
-                    <td className="py-2 text-right text-muted-foreground">{tc.days_since_review ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
