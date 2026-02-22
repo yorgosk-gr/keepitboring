@@ -9,6 +9,8 @@ export interface PositionToVerify {
   shares?: number | null;
   current_price?: number | null;
   market_value?: number | null;
+  currency?: string | null;
+  exchange?: string | null;
 }
 
 export interface VerifiedPosition {
