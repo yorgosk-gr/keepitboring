@@ -54,7 +54,7 @@ export interface ExtractedPosition {
 interface EditablePosition extends ExtractedPosition {
   id: string;
   position_type: "stock" | "etf";
-  category: "equity" | "bond" | "commodity" | "gold" | "country" | "theme";
+  category: "equity" | "bond" | "commodity";
   selected: boolean;
   verified: boolean;
   originalTicker?: string;
@@ -118,7 +118,7 @@ export function ScreenshotPreviewTable({
         id: `temp-${i}`,
         name: detectedName,
         position_type: detectedType as "stock" | "etf",
-        category: detectedCategory as "equity" | "bond" | "commodity" | "gold" | "country" | "theme",
+        category: (["equity", "bond", "commodity"].includes(detectedCategory) ? detectedCategory : "equity") as "equity" | "bond" | "commodity",
         selected: true,
         verified: !p.needs_verification,
         originalTicker: p.needs_verification ? p.ticker : undefined,
@@ -267,7 +267,7 @@ export function ScreenshotPreviewTable({
           ...p,
           name: match.name || p.name,
           position_type: match.asset_type || p.position_type,
-          category: match.category || p.category,
+          category: (["equity", "bond", "commodity"].includes(match.category) ? match.category : p.category) as "equity" | "bond" | "commodity",
           current_price: match.current_price ?? p.current_price,
           verification_status: match.verification_status,
           verification_notes: match.notes,
@@ -504,6 +504,7 @@ export function ScreenshotPreviewTable({
                 <TableHead className="w-20 px-2">Ticker</TableHead>
                 <TableHead className="min-w-[140px] px-2">Name</TableHead>
                 <TableHead className="w-16 px-2">Type</TableHead>
+                <TableHead className="w-24 px-2">Category</TableHead>
                 <TableHead className="w-20 px-2 text-right">Shares</TableHead>
                 <TableHead className="w-24 px-2 text-right">Avg Price</TableHead>
                 <TableHead className="w-24 px-2 text-right">Current</TableHead>
@@ -555,6 +556,16 @@ export function ScreenshotPreviewTable({
                           pos.position_type === "etf" ? "border-primary/30 text-primary" : "border-muted-foreground/30"
                         )}>
                           {pos.position_type.toUpperCase()}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="px-2">
+                        <Badge variant="outline" className={cn(
+                          "text-xs font-normal",
+                          pos.category === "equity" && "border-blue-500/30 text-blue-500",
+                          pos.category === "bond" && "border-amber-500/30 text-amber-500",
+                          pos.category === "commodity" && "border-emerald-500/30 text-emerald-500",
+                        )}>
+                          {pos.category === "equity" ? "Stock" : pos.category === "bond" ? "Bond" : "Commodity"}
                         </Badge>
                       </TableCell>
                       <TableCell className="px-2 text-right text-sm tabular-nums">
