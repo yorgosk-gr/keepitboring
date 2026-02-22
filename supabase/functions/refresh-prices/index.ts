@@ -5,63 +5,32 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Yahoo Finance exchange suffixes for UCITS ETFs and international stocks.
-// Without these suffixes, Yahoo matches the wrong security.
-// .L = London Stock Exchange, .DE = XETRA, .AX = ASX Australia
+// Mapping from raw ticker to the full Yahoo Finance symbol.
+// Without these, Yahoo matches the wrong security.
 const EXCHANGE_SUFFIXES: Record<string, string> = {
-  // Portfolio ETFs on LSE
-  VWRA: ".L", CSPX: ".L", IDTM: ".L", IMID: ".L", NDIA: ".L",
-  CMOD: ".L", IGLN: ".L", EIMI: ".L", IJPA: ".L",
-  IB01: ".L",
-  // Portfolio ETFs on XETRA
-  XDWH: ".DE",
-  // Irish-domiciled iShares on LSE
-  IWDA: ".L", SWDA: ".L", IWDD: ".L", ISAC: ".L", SSAC: ".L",
-  IUSA: ".L", IUIT: ".L", CSUS: ".L", CSUSS: ".L", ISF: ".L",
-  EMIM: ".L", IEEM: ".L", CNYA: ".L", ISJP: ".L", IBZL: ".AS",
-  IUSP: ".L", LQDE: ".L", LQDA: ".L", AGGG: ".L", IEAC: ".L",
-  IEGA: ".L", IBTS: ".L", IBTM: ".L", DTLA: ".L", IHYG: ".L",
-  ITPS: ".L", SGLN: ".L", INRG: ".L", INFR: ".L", IQQI: ".L",
-  RBOT: ".L", DGTL: ".L", HEAL: ".L", ISPY: ".L", AGED: ".L",
-  IWDP: ".L", IPRP: ".L", IUKD: ".L",
-  IUFS: ".L", IUES: ".L", IUMS: ".L", IUHE: ".L", ICUS: ".L", IMEU: ".AS",
-  // iShares on XETRA
-  EUNL: ".DE", SXR8: ".DE", CNDX: ".DE", CSNDX: ".DE",
-  QDVE: ".DE", SMEA: ".DE", MEUD: ".DE", SXRZ: ".DE", IUSQ: ".DE",
-  // Vanguard UCITS on LSE
-  VWRD: ".L", VUAA: ".L", VUSA: ".L", VFEM: ".L", VFEA: ".L",
-  VMID: ".L", VHYL: ".L", VEVE: ".L", VDEV: ".L", VECP: ".L",
-  VGOV: ".L", V3AA: ".L", VDST: ".L",
-  // Vanguard on XETRA
-  VWCE: ".DE", VAGF: ".DE",
-  // Xtrackers on XETRA
-  XDWD: ".DE", XDEM: ".DE", XD9U: ".DE", XDWT: ".DE",
-  XDWL: ".DE", XDWP: ".DE", XDWS: ".DE",
-  // SPDR on LSE
-  SWRD: ".L", ACWD: ".L", SPYY: ".L", SPYD: ".L",
-  SPPE: ".DE",
-  // Other UCITS ETFs
-  EQQQ: ".L", PHAU: ".L", PHAG: ".L", PPFB: ".L", AIGC: ".L",
-  EXSA: ".DE",
-  // International stocks in portfolio
-  III: ".L",     // 3i Group
-  TEA: ".AX",    // Tasmea Ltd (ASX)
-};
-
-// IBKR tickers that need a completely different Yahoo Finance symbol.
-// IBKR uses non-standard tickers for some European ETFs.
-const YAHOO_TICKER_ALIASES: Record<string, string> = {
-  GRE1: "GRE.PA",    // Amundi MSCI Greece ETF — IBKR uses "GRE1", Yahoo uses "GRE.PA" (Euronext Paris)
-  CBUX: "INFR.L",    // iShares Global Infrastructure UCITS ETF — IBKR uses "CBUX", Yahoo uses "INFR.L"
+  // LSE-listed ETFs (trade in USD on London Stock Exchange)
+  'IB01': 'IB01.L',
+  'IDTM': 'IDTM.L',
+  'IGLN': 'IGLN.L',
+  'IMEU': 'IMEU.L',
+  'IJPA': 'IJPA.L',
+  'IUQA': 'IUQA.L',
+  'EIMI': 'EIMI.L',
+  'CBUX': 'CBUX.L',
+  'CMOD': 'CMOD.L',
+  'COPX': 'COPX.L',
+  // Euronext
+  'GRE': 'GRE.PA',
+  // ASX
+  'TEA': 'TEA.AX',
+  // GBP stocks on LSE
+  'III': 'III.L',
+  'KLAR': 'KLAR.L',
 };
 
 function getYahooTicker(ticker: string): string {
   const upper = ticker.toUpperCase();
-  // Check aliases first (for IBKR tickers that don't match Yahoo)
-  if (YAHOO_TICKER_ALIASES[upper]) return YAHOO_TICKER_ALIASES[upper];
-  // Then check exchange suffixes
-  const suffix = EXCHANGE_SUFFIXES[upper];
-  if (suffix) return upper + suffix;
+  if (EXCHANGE_SUFFIXES[upper]) return EXCHANGE_SUFFIXES[upper];
   return upper; // US-listed stocks need no suffix
 }
 
