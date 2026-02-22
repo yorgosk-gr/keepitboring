@@ -43,7 +43,7 @@ serve(async (req) => {
       );
     }
 
-    const { positions, rules, insights, decisions } = await req.json();
+    const { positions, rules, insights, decisions, cash_balance, total_portfolio_value } = await req.json();
 
     const systemPrompt = `You are a strict portfolio compliance officer. Your job is to find problems and give specific fixes.
 
@@ -183,6 +183,10 @@ JSON structure:
     const userPrompt = `CURRENT PORTFOLIO:
 ${JSON.stringify(positions, null, 2)}
 
+CASH BALANCE: $${(cash_balance ?? 0).toFixed(2)}
+TOTAL PORTFOLIO VALUE (including cash): $${(total_portfolio_value ?? 0).toFixed(2)}
+CASH AS % OF PORTFOLIO: ${total_portfolio_value ? ((cash_balance / total_portfolio_value) * 100).toFixed(1) : 0}%
+
 ACTIVE RULES:
 ${JSON.stringify(rules, null, 2)}
 
@@ -191,6 +195,8 @@ ${JSON.stringify(insights, null, 2)}
 
 RECENT DECISION LOG:
 ${JSON.stringify(decisions, null, 2)}
+
+IMPORTANT: The allocation percentages must be calculated relative to TOTAL PORTFOLIO VALUE ($${(total_portfolio_value ?? 0).toFixed(2)}), which includes the cash balance of $${(cash_balance ?? 0).toFixed(2)}. Cash percent should reflect this.
 
 Analyze this portfolio and return the JSON response.`;
 
