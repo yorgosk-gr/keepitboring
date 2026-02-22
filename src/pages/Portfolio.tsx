@@ -717,6 +717,8 @@ export default function Portfolio() {
                     .delete()
                     .eq("user_id", user!.id);
                   if (error) throw error;
+                  // Reset cash balance to 0
+                  await updateCashBalance(0);
                   queryClient.invalidateQueries({ queryKey: ["positions"] });
                   queryClient.invalidateQueries({ queryKey: ["dashboard"] });
                   setSelectedIds([]);
