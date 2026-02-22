@@ -14,7 +14,7 @@ import type { Position } from "@/hooks/usePositions";
 import { ETFInfoTooltip } from "./ETFInfoTooltip";
 import { useETFMetadata } from "@/hooks/useETFMetadata";
 
-type SortField = "ticker" | "market_value" | "weight_percent" | "pnl_percent";
+type SortField = "ticker" | "market_value" | "weight_percent";
 type SortDirection = "asc" | "desc";
 
 interface PositionsTableProps {
@@ -164,10 +164,6 @@ export function PositionsTable({
           aVal = a.weight_percent ?? 0;
           bVal = b.weight_percent ?? 0;
           break;
-        case "pnl_percent":
-          aVal = calculatePnL(a).percent;
-          bVal = calculatePnL(b).percent;
-          break;
         default:
           return 0;
       }
@@ -247,14 +243,11 @@ export function PositionsTable({
                 <span className="text-foreground">Value ($)</span>
               </SortHeader>
               <SortHeader field="weight_percent">Weight</SortHeader>
-              <SortHeader field="pnl_percent">P&L</SortHeader>
-              <th className="text-left pb-3 font-medium w-20">Tier</th>
               <th className="text-right pb-3 font-medium w-24">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {sortedPositions.map((position) => {
-              const pnl = calculatePnL(position);
               const isExpanded = expandedId === position.id;
               const isSelected = selectedIds.includes(position.id);
               // Use stored currency, default to USD
@@ -315,21 +308,6 @@ export function PositionsTable({
                         </span>
                       </div>
                     </td>
-                    <td className="py-3 text-right">
-                      <div className="flex flex-col items-end">
-                        <span className={`font-mono font-medium ${pnl.value === 0 ? "text-muted-foreground" : pnl.value > 0 ? "text-primary" : "text-destructive"}`}>
-                          {pnl.value >= 0 ? "+" : ""}{formatWholeNumber(pnl.value)}
-                        </span>
-                        <span className={`text-xs ${pnl.percent === 0 ? "text-muted-foreground" : pnl.percent > 0 ? "text-primary" : "text-destructive"}`}>
-                          {pnl.percent >= 0 ? "+" : ""}{pnl.percent.toFixed(2)}%
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-3">
-                      {position.bet_type ? getTierBadge(position.bet_type) : (
-                        <span className="text-muted-foreground/40 text-xs">—</span>
-                      )}
-                    </td>
                     <td className="py-3">
                       <div className="flex items-center justify-end gap-1">
                         {onVerify && (
@@ -389,7 +367,7 @@ export function PositionsTable({
                   </tr>
                   {isExpanded && position.thesis_notes && (
                     <tr key={`${position.id}-expanded`} className="bg-secondary/20">
-                      <td colSpan={14} className="py-4 px-6">
+                      <td colSpan={12} className="py-4 px-6">
                         <div className="text-sm">
                           <h4 className="font-medium text-foreground mb-2">Thesis Notes</h4>
                           <p className="text-muted-foreground whitespace-pre-wrap">
