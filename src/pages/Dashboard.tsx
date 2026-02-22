@@ -73,15 +73,16 @@ export default function Dashboard() {
       }
     }
 
-    const total = Object.values(breakdown).reduce((sum, v) => sum + v, 0);
+    const totalWithCash = Object.values(breakdown).reduce((sum, v) => sum + v, 0) + cashBalance;
     
     return [
-      { name: "Equity", value: total > 0 ? (breakdown.equity / total) * 100 : 0, color: "hsl(160, 84%, 39%)" },
-      { name: "Bonds", value: total > 0 ? (breakdown.bond / total) * 100 : 0, color: "hsl(199, 89%, 48%)" },
-      { name: "Commodities", value: total > 0 ? (breakdown.commodity / total) * 100 : 0, color: "hsl(38, 92%, 50%)" },
-      { name: "Gold", value: total > 0 ? (breakdown.gold / total) * 100 : 0, color: "hsl(45, 93%, 47%)" },
+      { name: "Equity", value: totalWithCash > 0 ? (breakdown.equity / totalWithCash) * 100 : 0, color: "hsl(160, 84%, 39%)" },
+      { name: "Bonds", value: totalWithCash > 0 ? (breakdown.bond / totalWithCash) * 100 : 0, color: "hsl(199, 89%, 48%)" },
+      { name: "Commodities", value: totalWithCash > 0 ? (breakdown.commodity / totalWithCash) * 100 : 0, color: "hsl(38, 92%, 50%)" },
+      { name: "Gold", value: totalWithCash > 0 ? (breakdown.gold / totalWithCash) * 100 : 0, color: "hsl(45, 93%, 47%)" },
+      { name: "Cash", value: totalWithCash > 0 ? (cashBalance / totalWithCash) * 100 : 0, color: "hsl(217, 33%, 40%)" },
     ].filter(item => item.value > 0);
-  }, [positions, etfMetadata]);
+  }, [positions, etfMetadata, cashBalance]);
 
   // Calculate geography breakdown using ETF metadata
   const geographyBreakdownData = useMemo(() => {
