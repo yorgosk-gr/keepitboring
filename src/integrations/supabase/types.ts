@@ -252,6 +252,48 @@ export type Database = {
           },
         ]
       }
+      intelligence_briefs: {
+        Row: {
+          action_items: Json | null
+          contrarian_signals: string[] | null
+          created_at: string
+          executive_summary: string | null
+          generated_at: string
+          id: string
+          insights_analyzed: number | null
+          key_points: Json | null
+          market_themes: Json | null
+          newsletters_analyzed: number | null
+          user_id: string
+        }
+        Insert: {
+          action_items?: Json | null
+          contrarian_signals?: string[] | null
+          created_at?: string
+          executive_summary?: string | null
+          generated_at?: string
+          id?: string
+          insights_analyzed?: number | null
+          key_points?: Json | null
+          market_themes?: Json | null
+          newsletters_analyzed?: number | null
+          user_id: string
+        }
+        Update: {
+          action_items?: Json | null
+          contrarian_signals?: string[] | null
+          created_at?: string
+          executive_summary?: string | null
+          generated_at?: string
+          id?: string
+          insights_analyzed?: number | null
+          key_points?: Json | null
+          market_themes?: Json | null
+          newsletters_analyzed?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       newsletters: {
         Row: {
           created_at: string
