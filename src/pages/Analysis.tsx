@@ -196,10 +196,9 @@ export default function Analysis() {
 }
 
 function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResult; positions?: Position[] }) {
-  const positionMap = new Map(positions.map((p) => [p.ticker, p]));
   const alloc = analysis.allocation_check;
-  const criticalAlerts = analysis.position_alerts.filter((a) => a.severity === "critical");
-  const warningAlerts = analysis.position_alerts.filter((a) => a.severity === "warning");
+  const criticalAlerts = analysis.position_alerts.filter((a) => a.severity === "critical" && a.alert_type !== "thesis");
+  const warningAlerts = analysis.position_alerts.filter((a) => a.severity === "warning" && a.alert_type !== "thesis");
 
   return (
     <article className="max-w-3xl space-y-8 text-foreground">
@@ -247,10 +246,10 @@ function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResu
       )}
 
       {/* Position Alerts */}
-      {analysis.position_alerts.length > 0 && (
+      {(criticalAlerts.length > 0 || warningAlerts.length > 0) && (
         <section>
           <h2 className="text-lg font-semibold mb-3 border-b border-border pb-2">
-            Position Alerts ({analysis.position_alerts.length})
+            Position Alerts ({criticalAlerts.length + warningAlerts.length})
           </h2>
           {criticalAlerts.length > 0 && (
             <div className="mb-4">
@@ -287,7 +286,7 @@ function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResu
         </section>
       )}
 
-      {/* Market Signals */}
+      {/* Market Signals (concise) */}
       <section>
         <h2 className="text-lg font-semibold mb-3 border-b border-border pb-2">Market Signals</h2>
         <div className="text-sm space-y-1">
@@ -301,9 +300,9 @@ function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResu
           </p>
           {analysis.market_signals.bubble_warnings.length > 0 && (
             <div className="mt-2">
-              <p className="text-amber-500 font-medium">Bubble warnings:</p>
+              <p className="text-amber-500 font-medium">Key warnings:</p>
               <ul className="ml-4">
-                {analysis.market_signals.bubble_warnings.map((w, i) => (
+                {analysis.market_signals.bubble_warnings.slice(0, 5).map((w, i) => (
                   <li key={i} className="text-muted-foreground">• {w}</li>
                 ))}
               </ul>
@@ -362,35 +361,26 @@ function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResu
         </section>
       )}
 
-      {/* Thesis Compliance */}
-      {analysis.thesis_checks.length > 0 && (
+      {/* Industry Recommendations */}
+      {(analysis as any).industry_recommendations && (analysis as any).industry_recommendations.length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold mb-3 border-b border-border pb-2">Thesis Compliance</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-muted-foreground border-b border-border">
-                  <th className="pb-2 font-medium">Ticker</th>
-                  <th className="pb-2 font-medium">Thesis</th>
-                  <th className="pb-2 font-medium">Bet Type</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {analysis.thesis_checks.map((tc, i) => (
-                  <tr key={i}>
-                    <td className="py-2 font-mono font-bold">{tc.ticker}</td>
-                    <td className="py-2">{tc.has_thesis ? <span className="text-emerald-500">✓</span> : <span className="text-destructive">✗</span>}</td>
-                    <td className="py-2">
-                      {tc.bet_type_declared ? (
-                        <span className="text-foreground capitalize">{positionMap.get(tc.ticker)?.bet_type || "—"}</span>
-                      ) : (
-                        <span className="text-destructive">✗</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <h2 className="text-lg font-semibold mb-3 border-b border-border pb-2">Recommended Industries</h2>
+          <div className="space-y-3">
+            {(analysis as any).industry_recommendations.map((rec: any, i: number) => (
+              <div key={i} className="text-sm">
+                <p className="font-medium">
+                  {rec.stance === "overweight" ? (
+                    <span className="text-emerald-500">▲ Overweight</span>
+                  ) : rec.stance === "underweight" ? (
+                    <span className="text-destructive">▼ Underweight</span>
+                  ) : (
+                    <span className="text-muted-foreground">● Neutral</span>
+                  )}
+                  {" "}{rec.industry}
+                </p>
+                <p className="text-muted-foreground ml-5">{rec.reasoning}</p>
+              </div>
+            ))}
           </div>
         </section>
       )}
