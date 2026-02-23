@@ -18,7 +18,7 @@ import { useTickerVerification } from "@/hooks/useTickerVerification";
 import { usePriceRefresh, type PriceUpdate } from "@/hooks/usePriceRefresh";
 import { useFundamentals } from "@/hooks/useFundamentals";
 import { lookupTicker } from "@/lib/tickerReference";
-import { AllocationSummary } from "@/components/portfolio/AllocationSummary";
+
 import { PositionsTable } from "@/components/portfolio/PositionsTable";
 import { PositionModal } from "@/components/portfolio/PositionModal";
 import { DeleteConfirmModal } from "@/components/portfolio/DeleteConfirmModal";
@@ -48,7 +48,7 @@ export default function Portfolio() {
   } = usePositions();
 
   // Get cash balance and correct allocation percentages from dashboard data
-  const { cashBalance, cashPercent, stocksPercent, etfsPercent, stocksValue, etfsValue, totalValue, categoryBreakdown, updateCashBalance, isUpdatingCash } = useDashboardData();
+  const { cashBalance, totalValue, updateCashBalance, isUpdatingCash } = useDashboardData();
   
   // Ticker verification
   const { verifySinglePosition, verifyPositions, isVerifying, progress: verifyProgress } = useTickerVerification();
@@ -562,17 +562,6 @@ export default function Portfolio() {
         </div>
       </div>
 
-      {/* Allocation Summary */}
-      <div>
-        <AllocationSummary
-          equityValue={categoryBreakdown["equity"] ?? 0}
-          bondsValue={categoryBreakdown["bond"] ?? 0}
-          commoditiesValue={categoryBreakdown["commodity"] ?? 0}
-          cashValue={cashBalance}
-          totalValue={totalValue}
-          isLoading={isLoading}
-        />
-      </div>
 
       {/* Positions Table or Empty State */}
       {!isLoading && positions.length === 0 ? (
