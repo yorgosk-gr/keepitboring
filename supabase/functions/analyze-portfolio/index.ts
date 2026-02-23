@@ -66,6 +66,14 @@ serve(async (req) => {
 
 RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose, no explanation outside the JSON. Do not wrap in \`\`\`json code blocks.
 
+CRITICAL DATA ACCURACY RULE — ABSOLUTE:
+- You are given EXACT position data including weight_percent, market_value, shares, and current_price for every position
+- You MUST use these EXACT values when referencing any position's weight, value, or size — NEVER estimate, round aggressively, or fabricate percentages
+- When generating position_alerts about size limits (e.g. "position is over X%"), use the EXACT weight_percent from the position data
+- If a position's weight_percent is 1.1%, do NOT say it is "over 3%" — that is fabrication and makes the entire response INVALID
+- Double-check every percentage you cite against the actual weight_percent field in the position data before including it
+- The same rule applies to market_value, shares, and all other numerical fields — use the data as provided
+
 BANNED TOPICS — ABSOLUTE RULE:
 The word "thesis" must NOT appear anywhere in your response. Do not mention: "thesis", "undocumented", "missing thesis", "document investment thesis", "no invalidation criteria", "write a thesis". This applies to ALL fields: position_alerts, recommended_actions, trade_recommendations, key_risks, summary. Any mention of thesis documentation makes the response INVALID. thesis_checks must always be an empty array [].
 
