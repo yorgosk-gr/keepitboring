@@ -575,7 +575,7 @@ Analyze this portfolio and return the JSON response.`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        max_tokens: 12000,
+        max_tokens: 16000,
       }),
     });
 
@@ -628,19 +628,23 @@ Analyze this portfolio and return the JSON response.`;
     let analysisResult;
     try {
       let jsonString = content.trim();
-      // If it's a clean JSON object, parse directly
-      if (jsonString.startsWith("{") && jsonString.endsWith("}")) {
-        analysisResult = JSON.parse(jsonString);
+      
+      // Strip markdown code fences (```json ... ```)
+      jsonString = jsonString.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+      
+      // Extract first { to last }
+      const firstBrace = jsonString.indexOf("{");
+      const lastBrace = jsonString.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        jsonString = jsonString.substring(firstBrace, lastBrace + 1);
       } else {
-        // Extract the first { to last } substring
-        const firstBrace = jsonString.indexOf("{");
-        const lastBrace = jsonString.lastIndexOf("}");
-        if (firstBrace !== -1 && lastBrace > firstBrace) {
-          analysisResult = JSON.parse(jsonString.substring(firstBrace, lastBrace + 1));
-        } else {
-          throw new Error("No JSON object found in response");
-        }
+        throw new Error("No JSON object found in response");
       }
+      
+      // Fix common trailing-comma issues
+      jsonString = jsonString.replace(/,\s*([}\]])/g, '$1');
+      
+      analysisResult = JSON.parse(jsonString);
     } catch (parseError) {
       console.error("Failed to parse AI response:", parseError);
       console.error("Raw content (first 500):", content.substring(0, 500));
