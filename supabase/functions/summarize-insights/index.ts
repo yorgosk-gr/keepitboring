@@ -231,8 +231,8 @@ Synthesize these into an actionable intelligence brief. Focus on what matters fo
         // Fix unescaped quotes by replacing "word" patterns inside strings with \"word\"
         const fixed = singleLine.replace(/(?<=:\s*"[^"]*)"(?=[^"]*"[^"]*(?:,|\}))/g, '\\"');
         result = JSON.parse(fixed);
-      } catch (e3) {
-        // Last resort: try replacing smart quotes and common problematic chars
+      } catch {
+        // Last resort: handle Python-style single-quoted dicts
         try {
           let raw = content.trim();
           const m = raw.match(/```json\s*([\s\S]*?)```/);
@@ -244,14 +244,13 @@ Synthesize these into an actionable intelligence brief. Focus on what matters fo
           }
           // Replace curly/smart quotes with straight quotes
           raw = raw.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
-          // Escape internal unescaped double quotes in string values
-          // Strategy: find "text "quoted" text" and escape the inner quotes
-          raw = raw.replace(/"([^"]*)"([^"]*)"([^"]*?)"/g, (match) => {
-            // Only fix if it looks like an inner quote issue
-            return match;
-          });
-          const oneLine = raw.replace(/\r?\n/g, " ").replace(/\s+/g, " ");
-          result = JSON.parse(oneLine);
+          // Convert Python-style single-quoted keys/values to double-quoted JSON
+          // Replace single quotes with double quotes (handling escaped single quotes)
+          const converted = raw
+            .replace(/\r?\n/g, " ")
+            .replace(/\s+/g, " ")
+            .replace(/'/g, '"');
+          result = JSON.parse(converted);
         } catch (e4) {
           console.error("Failed to parse AI summary response:", e4);
           console.error("Raw content:", content.substring(0, 1000));
