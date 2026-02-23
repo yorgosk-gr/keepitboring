@@ -108,25 +108,42 @@ function computeRuleEvaluation(
     antifragile_percent: antifragilePercent,
   };
 
+  // Name-to-metric mapping for rules that use name instead of metric field
+  const nameToMetric: Record<string, string> = {
+    "Stock Allocation": "stocks_percent",
+    "ETF Allocation": "etfs_percent",
+    "Equity Allocation": "equity_percent",
+    "Bond Allocation": "bonds_percent",
+    "Commodity + Gold Allocation": "commodities_gold_percent",
+    "Anti-Fragile Minimum": "antifragile_percent",
+    "Cash Limit": "cash_percent",
+  };
+
   const entries: RuleEvaluationEntry[] = [];
   const issues: string[] = [];
 
   for (const rule of safeRules) {
-    if (rule.scope !== "portfolio" || rule.category !== "allocation") continue;
+    // Match allocation rules by rule_type OR category
+    const isAllocationRule = rule.rule_type === "allocation" || rule.category === "allocation";
+    if (!isAllocationRule) continue;
     if (rule.threshold_min == null && rule.threshold_max == null) continue;
 
-    const current = metricValues[rule.metric] ?? null;
+    // Resolve metric from rule.metric field, falling back to name-based lookup
+    const metric = rule.metric || nameToMetric[rule.name] || null;
+    if (!metric) continue;
+
+    const current = metricValues[metric] ?? null;
     if (current === null) {
       entries.push({
         rule_id: rule.id,
         name: rule.name,
-        category: rule.category,
-        metric: rule.metric,
+        category: rule.category || "allocation",
+        metric: metric,
         current: null,
         min: rule.threshold_min,
         max: rule.threshold_max,
         status: "not_applicable",
-        message: `Metric "${rule.metric}" could not be resolved.`,
+        message: `Metric "${metric}" could not be resolved.`,
       });
       continue;
     }
@@ -149,8 +166,8 @@ function computeRuleEvaluation(
     entries.push({
       rule_id: rule.id,
       name: rule.name,
-      category: rule.category,
-      metric: rule.metric,
+      category: rule.category || "allocation",
+      metric: metric,
       current: parseFloat(current.toFixed(2)),
       min,
       max,
@@ -158,7 +175,8 @@ function computeRuleEvaluation(
       message,
     });
 
-    if (status !== "within_range" && rule.rule_enforcement === "hard") {
+    // Treat all active allocation rules as hard for scoring
+    if (status !== "within_range") {
       issues.push(message);
     }
   }
