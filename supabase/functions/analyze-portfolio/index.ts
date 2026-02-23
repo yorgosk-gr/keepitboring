@@ -138,10 +138,16 @@ Before finalizing portfolio_health_score, verify: did any soft or diagnostic rul
 
 Example: equities at 68% with hard max 60% → 8% beyond → -20. One stock at 6% with hard max 5% → 1% beyond → -10. Soft rule noted but 0 deduction. Score = 100 - 20 - 10 = 70.
 
-ALLOCATION TARGETS — READ THE USER'S RULES CAREFULLY:
+ALLOCATION TARGETS — RULES-ONLY ENFORCEMENT:
 The user has defined these specific rules. Use their EXACT min/max values:
 ${buildAllocationTargets(rules)}
-IMPORTANT: If NO user-defined rule exists for a given asset class, do NOT invent fallback allocation limits. Simply report the current allocation percentage without flagging it as a violation. Portfolio compliance is driven ONLY by user-defined rules — never by implicit defaults.
+
+CRITICAL — NO GENERIC FALLBACKS:
+- Do NOT use any default/fallback allocation limits such as "equities max 70%", "bonds max 20%", "commodities max 10%", or any stocks/ETF split defaults
+- If NO user-defined rule exists for a given asset class, simply REPORT the current allocation percentage WITHOUT flagging it as a violation, warning, or issue
+- Do NOT classify an allocation as "overweight" or "underweight" unless a user-defined rule explicitly sets a limit for that asset class
+- allocation_check status fields (equities_status, bonds_status, commodities_status) must be "ok" if no user rule governs that asset class — never "warning" or "critical" without a matching rule
+- Portfolio compliance is driven EXCLUSIVELY by stored Rule objects — never by implicit defaults or general financial heuristics
 
 EXTENDED PRINCIPLES (Taleb, Kindleberger, Thorndike, Clason):
 
