@@ -176,6 +176,16 @@ BOND ALLOCATION STRATEGY:
 - Assess whether current bond holdings are well-diversified or over-concentrated
 - If the user only holds one type of bond ETF, recommend diversification with specific alternatives
 
+STOCK PICKS — QUALITY GROWTH OPPORTUNITIES:
+- Based on newsletter insights, Intelligence Brief themes, and current market signals, recommend 1-5 quality stocks with high 12-month price growth potential
+- Focus on companies with: strong free cash flow, competitive moats, earnings growth momentum, and favorable newsletter sentiment
+- Each pick must have a clear investment thesis grounded in specific newsletter insights or Intelligence Brief themes
+- Include a target price or expected return range where possible
+- Flag any risks or invalidation triggers for each pick
+- Prefer stocks mentioned positively across multiple newsletter sources (consensus signal)
+- If a stock is already in the user's portfolio, note that and whether to increase position
+- Apply Thorndike capital allocation quality checks: FCF positive, insider buying, capex discipline
+
 JSON structure:
 {
   "allocation_check": {
@@ -382,6 +392,21 @@ JSON structure:
       }
     ]
   },
+  "stock_picks": [
+    {
+      "ticker": "NVDA",
+      "name": "NVIDIA Corporation",
+      "sector": "Technology / Semiconductors",
+      "thesis": "2-4 sentence investment thesis grounded in newsletter insights and fundamentals",
+      "catalysts": ["specific upcoming catalyst 1", "catalyst 2"],
+      "risks": ["key risk 1", "key risk 2"],
+      "expected_return": "15-25% in 12 months",
+      "quality_score": "high",
+      "newsletter_mentions": 3,
+      "already_held": false,
+      "action": "BUY"
+    }
+  ],
   "cash_assessment": {
     "cash_percent": 5.2,
     "status": "ok",
