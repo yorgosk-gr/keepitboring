@@ -5,12 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { HealthScoreGauge } from "./HealthScoreGauge";
 import { AllocationDisplay } from "./AllocationDisplay";
 import { PositionAlertCard } from "./PositionAlertCard";
-import { ThesisComplianceTable } from "./ThesisComplianceTable";
 import { MarketSignalsCard } from "./MarketSignalsCard";
 import { RecommendedActionsCard } from "./RecommendedActionsCard";
 import { TradeRecommendationsCard } from "./TradeRecommendationsCard";
 import { BondRecommendationsCard } from "./BondRecommendationsCard";
-import { StockPicksCard } from "./StockPicksCard";
 import { KeyRisksCard } from "./KeyRisksCard";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import type { AnalysisResult, RecommendedAction } from "@/hooks/usePortfolioAnalysis";
@@ -148,20 +146,12 @@ export function AnalysisResultsView({
         <BondRecommendationsCard bondRecs={analysis.bond_recommendations} />
       )}
 
-      {/* Stock Picks */}
-      {analysis.stock_picks && analysis.stock_picks.length > 0 && (
-        <StockPicksCard picks={analysis.stock_picks} />
-      )}
-
       {analysis.trade_recommendations && analysis.trade_recommendations.length > 0 && (
         <TradeRecommendationsCard
           recommendations={analysis.trade_recommendations}
           summary={analysis.rebalancing_summary}
         />
       )}
-
-      {/* Rationale Compliance */}
-      <ThesisComplianceTable checks={analysis.rationale_checks} />
 
       {/* Recommended Actions */}
       <RecommendedActionsCard

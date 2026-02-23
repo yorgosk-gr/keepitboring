@@ -62,7 +62,7 @@ export default function Analysis() {
         created_at: latest.created_at,
         allocation_check: normalizedAllocation,
         position_alerts: latest.position_alerts ?? [],
-        rationale_checks: latest.thesis_checks ?? [],
+        
         market_signals: latest.market_signals ?? {
           bubble_warnings: [], consensus_level: "mixed", overall_sentiment: "N/A",
         },
