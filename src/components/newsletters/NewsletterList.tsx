@@ -9,7 +9,6 @@ import {
   Check,
   X,
   FileText,
-  Archive,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +40,6 @@ interface NewsletterListProps {
   onProcess: (newsletter: Newsletter) => void;
   onView: (newsletter: Newsletter) => void;
   onDelete: (newsletter: Newsletter) => void;
-  onArchive: (newsletter: Newsletter) => void;
   onUpdateSourceName: (id: string, sourceName: string) => void;
   processingId: string | null;
 }
@@ -52,7 +50,6 @@ export function NewsletterList({
   onProcess,
   onView,
   onDelete,
-  onArchive,
   onUpdateSourceName,
   processingId,
 }: NewsletterListProps) {
@@ -215,15 +212,6 @@ export function NewsletterList({
                         View
                       </Button>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-primary"
-                      onClick={() => onArchive(newsletter)}
-                      title="Archive newsletter"
-                    >
-                      <Archive className="w-4 h-4" />
-                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
