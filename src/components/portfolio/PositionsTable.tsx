@@ -332,13 +332,8 @@ export function PositionsTable({
                     <td className="py-3 text-right font-mono font-semibold text-base text-foreground">
                       {formatWholeNumber(position.market_value)}
                     </td>
-                    <td className="py-3">
-                      <div className="flex items-center gap-2">
-                        <Progress value={position.weight_percent ?? 0} className="w-12 h-1.5" />
-                        <span className="text-right font-mono text-xs">
-                          {(position.weight_percent ?? 0).toFixed(1)}%
-                        </span>
-                      </div>
+                    <td className="py-3 text-right font-mono text-xs">
+                      {(position.weight_percent ?? 0).toFixed(1)}%
                     </td>
                     <td className="py-3">
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
