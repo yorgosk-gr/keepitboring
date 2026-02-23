@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePhilosophyRules } from "./usePhilosophyRules";
 import { usePositions } from "./usePositions";
+import { useDashboardData } from "./useDashboardData";
 import { toast } from "sonner";
 import type { AnalysisResult } from "./usePortfolioAnalysis";
 
@@ -30,6 +31,7 @@ export interface IdealAllocationResult {
 export function useIdealAllocation() {
   const { rules } = usePhilosophyRules();
   const { positions } = usePositions();
+  const { totalValue } = useDashboardData();
   const [result, setResult] = useState<IdealAllocationResult | null>(null);
   const [mode, setMode] = useState<IdealAllocationMode>("clean_slate");
 
@@ -52,6 +54,7 @@ export function useIdealAllocation() {
         rules: activeRules,
         intelligence_brief: intelligenceBrief,
         mode: params.mode === "adjust" ? "adjust" : "clean_slate",
+        portfolio_value: totalValue,
       };
 
       if (params.mode === "adjust") {

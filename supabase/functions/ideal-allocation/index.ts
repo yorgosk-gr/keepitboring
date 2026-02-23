@@ -122,7 +122,9 @@ serve(async (req) => {
       });
     }
 
-    const { rules, intelligence_brief, mode, positions, analysis } = await req.json();
+    const { rules, intelligence_brief, mode, positions, analysis, portfolio_value } = await req.json();
+    const budget = portfolio_value && portfolio_value > 0 ? Math.round(portfolio_value) : 100000;
+    const budgetFormatted = "$" + budget.toLocaleString("en-US");
     const isAdjustMode = mode === "adjust" && positions && positions.length > 0;
 
     const modeContext = isAdjustMode ? [
@@ -153,7 +155,14 @@ serve(async (req) => {
       "- The investor is a UAE tax resident (0% income tax, 0% capital gains tax)",
       "- To avoid US withholding tax on dividends (30% for non-treaty countries), prefer Ireland-domiciled UCITS ETFs",
       "- Ireland has a 15% treaty rate with the US, making Irish-domiciled ETFs the most tax-efficient choice",
-      "- Budget: $100,000 to allocate",
+      "- Budget: " + budgetFormatted + " to allocate",
+      "",
+      "ASSET CLASS CONSTRAINTS:",
+      "- Individual stocks: ~10% of portfolio (the investor manages stock picks separately)",
+      "- Commodities (gold, broad commodities): 5-8% of portfolio",
+      "- Cash reserve: 5-10% of portfolio",
+      "- The remaining ~72-80% should be split between equity ETFs and bond ETFs per philosophy rules",
+      "- Your ETF recommendations should account for these reserves — allocate only the ETF portion (" + budgetFormatted + " minus stock/cash reserves)",
       "",
       "INVESTMENT PHILOSOPHY RULES:",
       formatRules(rules),
@@ -165,7 +174,7 @@ serve(async (req) => {
       "3. Use real, existing ETF tickers (e.g., VWRA, IGLA, AGGU, IGLN, EIMI, etc.)",
       "4. Cover equity (global, regional), bonds, and commodities",
       "5. Each ETF must have a brief explanation (1-2 sentences) covering why it's chosen",
-      "6. Allocations must sum to exactly $100,000",
+      "6. Allocations must sum to the ETF portion of " + budgetFormatted + " (after reserving ~10% stocks, 5-8% commodities, 5-10% cash)",
       "7. Respect the philosophy rules for allocation limits STRICTLY — check every min/max threshold",
       "",
       "OVERLAP & CONCENTRATION RULES (CRITICAL):",
@@ -214,8 +223,8 @@ serve(async (req) => {
     ].join("\n");
 
     const userMessage = isAdjustMode
-      ? "Generate the ideal $100,000 ETF portfolio that complements my current holdings. Account for gaps and overlaps. Return only the JSON object."
-      : "Generate the ideal $100,000 portfolio allocation using Ireland-domiciled UCITS ETFs. Return only the JSON object.";
+      ? "Generate the ideal " + budgetFormatted + " ETF portfolio that complements my current holdings. Account for gaps and overlaps. Reserve ~10% for individual stocks, 5-8% for commodities, and 5-10% for cash. Return only the JSON object."
+      : "Generate the ideal " + budgetFormatted + " portfolio allocation using Ireland-domiciled UCITS ETFs. Reserve ~10% for individual stocks, 5-8% for commodities, and 5-10% for cash. Return only the JSON object.";
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
