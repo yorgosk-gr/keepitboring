@@ -450,7 +450,7 @@ JSON structure:
 }`;
 
     const bubbleInsights = (insights ?? []).filter((i: any) => i.insight_type === 'bubble_signal');
-    const macroInsights = (insights ?? []).filter((i: any) => i.insight_type === 'macro_view');
+    const macroInsights = (insights ?? []).filter((i: any) => i.insight_type === 'macro' || i.insight_type === 'macro_view' || i.insight_type === 'market_view');
     const portfolioInsights = (insights ?? []).filter((i: any) =>
       i.tickers_mentioned?.some((t: string) => (positions ?? []).map((p: any) => p.ticker).includes(t))
     );

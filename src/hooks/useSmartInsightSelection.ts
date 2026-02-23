@@ -96,7 +96,7 @@ export async function selectSmartInsights(
     }
 
     // Rule c: Include macro views from last 30 days
-    if (insight.insight_type === "macro_view" && createdAt >= thirtyDaysAgo) {
+    if ((insight.insight_type === "macro" || insight.insight_type === "macro_view" || insight.insight_type === "market_view") && createdAt >= thirtyDaysAgo) {
       macroViews.push(insight);
       continue;
     }
