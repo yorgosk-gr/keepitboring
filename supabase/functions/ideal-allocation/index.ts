@@ -176,6 +176,7 @@ serve(async (req) => {
       "5. Each ETF must have a brief explanation (1-2 sentences) covering why it's chosen",
       "6. Allocations must sum to the ETF portion of " + budgetFormatted + " (after reserving ~10% stocks, 5-8% commodities, 5-10% cash)",
       "7. Respect the philosophy rules for allocation limits STRICTLY — check every min/max threshold",
+      "8. Every recommended ETF MUST have a TER (Total Expense Ratio) of 0.22% or lower — NO EXCEPTIONS. Do not recommend any ETF with TER above 0.22%.",
       "",
       "OVERLAP & CONCENTRATION RULES (CRITICAL):",
       "- AVOID HIDDEN OVERLAP: If you include a broad global ETF (e.g. VWRA which is ~65% US, ~30% tech), do NOT also add US-only or US tech ETFs on top — this creates hidden concentration",
