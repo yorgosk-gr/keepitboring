@@ -70,11 +70,11 @@ export default function Dashboard() {
     const totalWithCash = Object.values(breakdown).reduce((sum, v) => sum + v, 0) + cashBalance;
     
     return [
-      { name: "Equity", value: totalWithCash > 0 ? (breakdown.equity / totalWithCash) * 100 : 0, color: "hsl(160, 84%, 39%)" },
-      { name: "Bonds", value: totalWithCash > 0 ? (breakdown.bond / totalWithCash) * 100 : 0, color: "hsl(199, 89%, 48%)" },
-      { name: "Commodities", value: totalWithCash > 0 ? (breakdown.commodity / totalWithCash) * 100 : 0, color: "hsl(38, 92%, 50%)" },
+      { name: "Equity", value: totalWithCash > 0 ? (breakdown.equity / totalWithCash) * 100 : 0, color: "hsl(160, 84%, 39%)", target: 65 },
+      { name: "Bonds", value: totalWithCash > 0 ? (breakdown.bond / totalWithCash) * 100 : 0, color: "hsl(199, 89%, 48%)", target: 20 },
+      { name: "Commodities", value: totalWithCash > 0 ? (breakdown.commodity / totalWithCash) * 100 : 0, color: "hsl(38, 92%, 50%)", target: 10 },
       { name: "Gold", value: totalWithCash > 0 ? (breakdown.gold / totalWithCash) * 100 : 0, color: "hsl(45, 93%, 47%)" },
-      { name: "Cash", value: totalWithCash > 0 ? (cashBalance / totalWithCash) * 100 : 0, color: "hsl(217, 33%, 40%)" },
+      { name: "Cash", value: totalWithCash > 0 ? (cashBalance / totalWithCash) * 100 : 0, color: "hsl(217, 33%, 40%)", target: 5 },
     ].filter(item => item.value > 0);
   }, [positions, etfMetadata, cashBalance]);
 
@@ -123,12 +123,12 @@ export default function Dashboard() {
     const total = Object.values(breakdown).reduce((sum, v) => sum + v, 0);
     
     return [
-      { name: "Global", value: total > 0 ? (breakdown.global / total) * 100 : 0, color: "hsl(160, 84%, 39%)" },
-      { name: "US", value: total > 0 ? (breakdown.us / total) * 100 : 0, color: "hsl(217, 91%, 60%)" },
-      { name: "Europe", value: total > 0 ? (breakdown.europe / total) * 100 : 0, color: "hsl(199, 89%, 48%)" },
-      { name: "Japan", value: total > 0 ? (breakdown.japan / total) * 100 : 0, color: "hsl(0, 72%, 51%)" },
-      { name: "India", value: total > 0 ? (breakdown.india / total) * 100 : 0, color: "hsl(38, 92%, 50%)" },
-      { name: "EM", value: total > 0 ? (breakdown.emerging_markets / total) * 100 : 0, color: "hsl(280, 65%, 60%)" },
+      { name: "Global", value: total > 0 ? (breakdown.global / total) * 100 : 0, color: "hsl(160, 84%, 39%)", target: 30 },
+      { name: "US", value: total > 0 ? (breakdown.us / total) * 100 : 0, color: "hsl(217, 91%, 60%)", target: 35 },
+      { name: "Europe", value: total > 0 ? (breakdown.europe / total) * 100 : 0, color: "hsl(199, 89%, 48%)", target: 15 },
+      { name: "Japan", value: total > 0 ? (breakdown.japan / total) * 100 : 0, color: "hsl(0, 72%, 51%)", target: 8 },
+      { name: "India", value: total > 0 ? (breakdown.india / total) * 100 : 0, color: "hsl(38, 92%, 50%)", target: 5 },
+      { name: "EM", value: total > 0 ? (breakdown.emerging_markets / total) * 100 : 0, color: "hsl(280, 65%, 60%)", target: 7 },
     ].filter(item => item.value > 0);
   }, [positions, etfMetadata]);
 
@@ -185,11 +185,13 @@ export default function Dashboard() {
           title="Asset Class" 
           data={assetBreakdownData} 
           isLoading={isLoading}
+          showTargetIndicator
         />
         <DonutChart 
           title="Geography" 
           data={geographyBreakdownData} 
           isLoading={isLoading}
+          showTargetIndicator
         />
       </div>
 
