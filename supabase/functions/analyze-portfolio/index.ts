@@ -110,18 +110,9 @@ TALEB — Apply as a skepticism layer on all analysis:
 - Do NOT flag positions for "no stress test in holding period" or "no drawdown since purchase" — this is not actionable
 - Assess each stock: is the business FRAGILE (dependent on one input) or ROBUST (multiple revenue streams, pricing power, low leverage)?
 
-KINDLEBERGER — Bubble phase per sector:
-- For each sector/asset class in the portfolio, assign one of: DISPLACEMENT | CREDIT EXPANSION | EUPHORIA | DISTRESS | REVULSION
-- Positions in EUPHORIA: flag for deeper review
-- Positions in REVULSION: flag as potential contrarian opportunity
-- Overwhelming newsletter consensus on any theme = CROWDED TRADE warning
-
-THORNDIKE — Capital allocation quality (stocks only, not ETFs):
-- Is management buying or selling their own shares?
-- Is capex growing faster than revenue? Flag as CAPITAL MISALLOCATION if so
-- Is the company FCF positive or negative?
-- Flag any major acquisition in past 12 months
-- Classify CEO as OPERATOR or ALLOCATOR (allocators outperform per Thorndike)
+KINDLEBERGER — Bubble awareness (use in market_signals only):
+- Note if newsletter consensus on any theme is overwhelming = CROWDED TRADE warning
+- Mention bubble phase observations in market_signals.bubble_warnings if relevant
 
 CLASON — Cash discipline:
 - Cash > 10% of portfolio = IDLE CAPITAL WARNING
@@ -199,18 +190,6 @@ BOND ALLOCATION STRATEGY — MANDATORY (must ALWAYS be included):
 - Assess whether current bond holdings are well-diversified or over-concentrated
 - If the user only holds one type of bond ETF, recommend diversification with specific alternatives
 
-STOCK PICKS — NEWSLETTER-DRIVEN QUALITY OPPORTUNITIES:
-- ONLY recommend stocks that have appeared as STRONG RECOMMENDATIONS in the newsletter insights or Intelligence Brief — do NOT pick stocks based on general market knowledge alone
-- A "strong recommendation" means: the stock was explicitly recommended as a buy/add in one or more newsletters, OR it was mentioned positively across multiple newsletter sources with bullish sentiment
-- If no stocks meet this criteria from the newsletters, return an empty stock_picks array [] — do NOT fabricate picks
-- For qualifying stocks, focus on companies with: strong free cash flow, competitive moats, earnings growth momentum
-- Each pick must cite WHICH newsletter(s) or Intelligence Brief theme recommended it (e.g., "Recommended as a BUY in [Newsletter Name]; also mentioned positively in 2 other sources")
-- Include a target price or expected return range where possible
-- Flag any risks or invalidation triggers for each pick
-- The newsletter_mentions field must reflect the ACTUAL count of newsletter sources that mentioned this stock positively
-- If a stock is already in the user's portfolio, note that and whether to increase position
-- Apply Thorndike capital allocation quality checks: FCF positive, insider buying, capex discipline
-
 JSON structure:
 {
   "allocation_check": {
@@ -252,7 +231,7 @@ JSON structure:
       "recommendation": "specific action"
     }
   ],
-  "rationale_checks": [],
+  
   "market_signals": {
     "bubble_warnings": ["max 5 items, each max 25 words"],
     "consensus_level": "mixed" | "bullish_consensus" | "bearish_consensus",
@@ -327,38 +306,6 @@ JSON structure:
     "net_cash_impact": "+€3,200",
     "primary_goal": "Trim overweight bonds and redeploy into underweight equities to fix allocation breaches"
   },
-  "bubble_phase_map": [
-    {
-      "sector": "US Equities",
-      "positions": ["IUQA", "AMZN"],
-      "phase": "EUPHORIA",
-      "reasoning": "one sentence",
-      "action": "Flag for deeper review"
-    }
-  ],
-  "tail_risk_summary": {
-    "correlation_clusters": [
-      {
-        "cluster_name": "Global Equity ETFs",
-        "positions": ["IUQA", "IJPA", "IMEU", "EIMI"],
-        "risk": "All would fall together in risk-off event despite geographic diversity"
-      }
-    ],
-    "untested_positions": [],
-    "fragile_positions": ["tickers with fragile business models"],
-    "narrative_risk_positions": ["tickers whose rationale relies on trend continuation"]
-  },
-  "capital_allocation_flags": [
-    {
-      "ticker": "AMZN",
-      "ceo_type": "ALLOCATOR",
-      "fcf_positive": true,
-      "buyback_activity": "Active buyback program",
-      "capex_vs_revenue": "ok",
-      "acquisition_warning": false,
-      "notes": "one sentence"
-    }
-  ],
   "bond_recommendations": {
     "current_bond_percent": 20.5,
     "target_bond_percent": 20,
@@ -430,21 +377,6 @@ JSON structure:
       }
     ]
   },
-  "stock_picks": [
-    {
-      "ticker": "NVDA",
-      "name": "NVIDIA Corporation",
-      "sector": "Technology / Semiconductors",
-      "rationale": "2-4 sentence investment rationale grounded in newsletter insights and fundamentals",
-      "catalysts": ["specific upcoming catalyst 1", "catalyst 2"],
-      "risks": ["key risk 1", "key risk 2"],
-      "expected_return": "15-25% in 12 months",
-      "quality_score": "high",
-      "newsletter_mentions": 3,
-      "already_held": false,
-      "action": "BUY"
-    }
-  ],
   "cash_assessment": {
     "cash_percent": 5.2,
     "status": "ok",

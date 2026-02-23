@@ -113,7 +113,7 @@ export interface AnalysisResult {
   created_at?: string;
   allocation_check: AllocationCheck;
   position_alerts: PositionAlert[];
-  rationale_checks: RationaleCheck[];
+  rationale_checks?: RationaleCheck[];
   market_signals: MarketSignals;
   recommended_actions: RecommendedAction[];
   trade_recommendations: TradeRecommendation[];
