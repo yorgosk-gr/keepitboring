@@ -5,9 +5,25 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import * as pdfjsLib from "pdfjs-dist";
+import mammoth from "mammoth";
 
 // Configure PDF.js worker (jsDelivr mirrors all npm versions, Cloudflare doesn't have v4.x)
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+
+const ACCEPTED_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+];
+
+const ACCEPTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".csv"];
+
+function isAcceptedFile(file: File): boolean {
+  if (ACCEPTED_TYPES.includes(file.type)) return true;
+  return ACCEPTED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext));
+}
 
 interface UploadingFile {
   file: File;
@@ -42,6 +58,24 @@ export function NewsletterUploadZone({ onUpload }: NewsletterUploadZoneProps) {
     return fullText.trim();
   };
 
+  const extractTextFromDocx = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return result.value.trim();
+  };
+
+  const extractTextFromFile = async (file: File): Promise<string> => {
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".pdf")) {
+      return extractTextFromPdf(file);
+    }
+    if (name.endsWith(".docx")) {
+      return extractTextFromDocx(file);
+    }
+    // TXT, MD, CSV — read as plain text
+    return file.text();
+  };
+
   const processFile = async (file: File) => {
     const uploadingFile: UploadingFile = {
       file,
@@ -59,7 +93,7 @@ export function NewsletterUploadZone({ onUpload }: NewsletterUploadZoneProps) {
         )
       );
 
-      const rawText = await extractTextFromPdf(file);
+      const rawText = await extractTextFromFile(file);
 
       if (!rawText || rawText.length < 50) {
         throw new Error("Could not extract text from PDF. The file may be image-based or corrupted.");
@@ -72,7 +106,7 @@ export function NewsletterUploadZone({ onUpload }: NewsletterUploadZoneProps) {
       );
 
       // Generate source name from filename
-      const sourceName = file.name.replace(/\.pdf$/i, "").replace(/[-_]/g, " ");
+      const sourceName = file.name.replace(/\.(pdf|docx|txt|md|csv)$/i, "").replace(/[-_]/g, " ");
 
       // Upload to backend
       await onUpload(file, rawText, sourceName);
@@ -107,12 +141,10 @@ export function NewsletterUploadZone({ onUpload }: NewsletterUploadZoneProps) {
     e.preventDefault();
     setIsDragging(false);
 
-    const files = Array.from(e.dataTransfer.files).filter(
-      (f) => f.type === "application/pdf"
-    );
+    const files = Array.from(e.dataTransfer.files).filter(isAcceptedFile);
 
     if (files.length === 0) {
-      toast.error("Please upload PDF files only");
+      toast.error("Unsupported file type. Use PDF, DOCX, TXT, MD, or CSV.");
       return;
     }
 
@@ -120,17 +152,15 @@ export function NewsletterUploadZone({ onUpload }: NewsletterUploadZoneProps) {
   }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []).filter(
-      (f) => f.type === "application/pdf"
-    );
+    const files = Array.from(e.target.files || []).filter(isAcceptedFile);
 
     if (files.length === 0) {
-      toast.error("Please upload PDF files only");
+      toast.error("Unsupported file type. Use PDF, DOCX, TXT, MD, or CSV.");
       return;
     }
 
     files.forEach(processFile);
-    e.target.value = ""; // Reset input
+    e.target.value = "";
   };
 
   const removeFile = (file: File) => {
@@ -159,18 +189,18 @@ export function NewsletterUploadZone({ onUpload }: NewsletterUploadZoneProps) {
           </div>
           <div>
             <p className="text-lg font-medium text-foreground">
-              Drop newsletter PDFs here
+              Drop newsletter files here
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              or click to browse • Multiple files supported
+              PDF, DOCX, TXT, MD, CSV • Multiple files supported
             </p>
           </div>
           <Button variant="outline" className="relative">
             <FileText className="w-4 h-4 mr-2" />
-            Select PDFs
+            Select Files
             <input
               type="file"
-              accept="application/pdf"
+              accept=".pdf,.docx,.txt,.md,.csv"
               multiple
               onChange={handleFileSelect}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
