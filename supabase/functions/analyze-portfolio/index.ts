@@ -99,10 +99,7 @@ Example: 78% equities (hard rule breach) = -20, one stock near size limit (hard 
 ALLOCATION TARGETS — READ THE USER'S RULES CAREFULLY:
 The user has defined these specific rules. Use their EXACT min/max values:
 ${buildAllocationTargets(rules)}
-ONLY if NO user rule exists for a given asset class, fall back to:
-- Equities: max 70%, Bonds: max 20%, Commodities: max 10%
-- Within equities: 15-25% stocks, 75-85% ETFs (these are % OF EQUITIES, not total portfolio), Single stock: max 8%
-The user's rules ALWAYS override these defaults. For example, if the user's Bond Allocation rule says max 30%, then 30% is the limit — NOT 20%.
+IMPORTANT: If NO user-defined rule exists for a given asset class, do NOT invent fallback allocation limits. Simply report the current allocation percentage without flagging it as a violation. Portfolio compliance is driven ONLY by user-defined rules — never by implicit defaults.
 
 EXTENDED PRINCIPLES (Taleb, Kindleberger, Thorndike, Clason):
 
