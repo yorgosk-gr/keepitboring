@@ -122,6 +122,11 @@ TIERED SCORING (only HARD rules affect score):
 - SOFT & DIAGNOSTIC: 0 deduction — NEVER affect score.
 - Before finalizing, verify no soft/diagnostic deduction leaked in.
 
+BANNED TOPICS — ABSOLUTE RULE:
+- In any FREE-TEXT fields (summary, message, issue, reasoning, recommendation, etc.) you MUST NOT use the word "thesis" or phrases like "missing thesis", "write a thesis", "undocumented thesis".
+- You MAY still use JSON key names that contain the string "thesis" if the schema requires it, but avoid introducing new keys with that word.
+- thesis_checks must always be an empty array [] if present. Do NOT include documentation-related actions anywhere.
+
 ALLOCATION COMPUTATION GUIDE:
 - Use etf_classifications to determine each ETF's asset class (category field: equity, bond, commodity, gold, etc.). Do NOT guess from ticker names.
 - Stocks are always equity.
