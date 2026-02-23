@@ -24,7 +24,7 @@ export function PositionAlertCard({ alert }: PositionAlertCardProps) {
     const styles: Record<string, string> = {
       size: "bg-blue-500/10 text-blue-500 border-blue-500/20",
       quality: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-      thesis: "bg-orange-500/10 text-orange-500 border-orange-500/20",
+      rationale: "bg-orange-500/10 text-orange-500 border-orange-500/20",
       sentiment: "bg-pink-500/10 text-pink-500 border-pink-500/20",
     };
     return styles[type] || "bg-secondary text-secondary-foreground";

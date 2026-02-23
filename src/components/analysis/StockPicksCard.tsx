@@ -6,7 +6,7 @@ export interface StockPick {
   ticker: string;
   name: string;
   sector: string;
-  thesis: string;
+  rationale: string;
   catalysts: string[];
   risks: string[];
   expected_return: string;
@@ -78,8 +78,8 @@ export function StockPicksCard({ picks }: StockPicksCardProps) {
               <p className="text-xs text-muted-foreground">{pick.sector}</p>
             </div>
 
-            {/* Thesis */}
-            <p className="text-sm text-muted-foreground leading-relaxed">{pick.thesis}</p>
+            {/* Rationale */}
+            <p className="text-sm text-muted-foreground leading-relaxed">{pick.rationale}</p>
 
             {/* Catalysts + Risks side by side */}
             <div className="grid gap-3 md:grid-cols-2">

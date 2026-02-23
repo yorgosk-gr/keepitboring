@@ -8,10 +8,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { ThesisCheck } from "@/hooks/usePortfolioAnalysis";
+import type { RationaleCheck } from "@/hooks/usePortfolioAnalysis";
 
 interface ThesisComplianceTableProps {
-  checks: ThesisCheck[];
+  checks: RationaleCheck[];
 }
 
 export function ThesisComplianceTable({ checks }: ThesisComplianceTableProps) {
@@ -27,9 +27,9 @@ export function ThesisComplianceTable({ checks }: ThesisComplianceTableProps) {
     return "text-destructive";
   };
 
-  const getComplianceScore = (check: ThesisCheck) => {
+  const getComplianceScore = (check: RationaleCheck) => {
     let score = 0;
-    if (check.has_thesis) score++;
+    if (check.has_rationale) score++;
     if (check.has_invalidation) score++;
     if (check.bet_type_declared) score++;
     if (check.confidence_set) score++;
@@ -38,14 +38,14 @@ export function ThesisComplianceTable({ checks }: ThesisComplianceTableProps) {
 
   return (
     <div className="stat-card">
-      <h3 className="text-lg font-semibold text-foreground mb-4">Thesis Compliance</h3>
+      <h3 className="text-lg font-semibold text-foreground mb-4">Rationale Compliance</h3>
       
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Ticker</TableHead>
-              <TableHead className="text-center">Thesis</TableHead>
+              <TableHead className="text-center">Rationale</TableHead>
               <TableHead className="text-center">Invalidation</TableHead>
               <TableHead className="text-center">Bet Type</TableHead>
               <TableHead className="text-center">Confidence</TableHead>
@@ -59,7 +59,7 @@ export function ThesisComplianceTable({ checks }: ThesisComplianceTableProps) {
               return (
                 <TableRow key={check.ticker}>
                   <TableCell className="font-medium">{check.ticker}</TableCell>
-                  <TableCell><CheckIcon value={check.has_thesis} /></TableCell>
+                  <TableCell><CheckIcon value={check.has_rationale} /></TableCell>
                   <TableCell><CheckIcon value={check.has_invalidation} /></TableCell>
                   <TableCell><CheckIcon value={check.bet_type_declared} /></TableCell>
                   <TableCell><CheckIcon value={check.confidence_set} /></TableCell>

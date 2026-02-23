@@ -77,7 +77,7 @@ CRITICAL DATA ACCURACY RULE — ABSOLUTE:
 - The same rule applies to market_value, shares, and all other numerical fields — use the data as provided
 
 BANNED TOPICS — ABSOLUTE RULE:
-The word "thesis" must NOT appear anywhere in your response. Do not mention: "thesis", "undocumented", "missing thesis", "document investment thesis", "no invalidation criteria", "write a thesis". This applies to ALL fields: position_alerts, recommended_actions, trade_recommendations, key_risks, summary. Any mention of thesis documentation makes the response INVALID. thesis_checks must always be an empty array [].
+Do not mention: "undocumented", "missing documentation", "no invalidation criteria", "write a thesis". Do NOT include any documentation-related actions in recommended_actions, position_alerts, or trade_recommendations. rationale_checks must always be an empty array [].
 
 RULE ENFORCEMENT LEVELS — CRITICAL:
 Each rule has an enforcement level: "hard", "soft", or "diagnostic" (shown as [enforcement: X] in the rules list).
@@ -104,7 +104,7 @@ IMPORTANT: If NO user-defined rule exists for a given asset class, do NOT invent
 EXTENDED PRINCIPLES (Taleb, Kindleberger, Thorndike, Clason):
 
 TALEB — Apply as a skepticism layer on all analysis:
-- Flag any thesis based primarily on trend continuation as NARRATIVE RISK: HIGH
+- Flag any rationale based primarily on trend continuation as NARRATIVE RISK: HIGH
 - Identify HIDDEN CONCENTRATION: 3+ positions that would fall together in a risk-off event (e.g. multiple equity ETFs, correlated growth stocks)
 - Health scores above 75 must include this note in summary: "Score reflects current data quality, not future certainty — tail risks are by definition not visible in present signals"
 - Do NOT flag positions for "no stress test in holding period" or "no drawdown since purchase" — this is not actionable
@@ -112,7 +112,7 @@ TALEB — Apply as a skepticism layer on all analysis:
 
 KINDLEBERGER — Bubble phase per sector:
 - For each sector/asset class in the portfolio, assign one of: DISPLACEMENT | CREDIT EXPANSION | EUPHORIA | DISTRESS | REVULSION
-- Positions in EUPHORIA: flag for thesis review
+- Positions in EUPHORIA: flag for deeper review
 - Positions in REVULSION: flag as potential contrarian opportunity
 - Overwhelming newsletter consensus on any theme = CROWDED TRADE warning
 
@@ -173,7 +173,7 @@ CRITICAL: The recommended_actions should have COMPLETE reasoning visible, not cu
 - What to do (specific ticker and shares)
 - Why (one clear sentence, referencing Intelligence Brief themes where applicable)
 - What it achieves (e.g., "reduces equity to 68%")
-- Do NOT include any thesis documentation actions
+- Do NOT include any documentation-related actions
 
 MARKET SIGNALS RULES:
 - Keep market_signals.overall_sentiment to ONE sentence (max 30 words)
@@ -245,14 +245,14 @@ JSON structure:
   "position_alerts": [
     {
       "ticker": "XXX",
-      "alert_type": "size" | "thesis" | "sentiment",
+      "alert_type": "size" | "rationale" | "sentiment",
       "severity": "warning" | "critical",
       "issue": "specific problem",
       "recent_sentiment": "from newsletters if mentioned",
       "recommendation": "specific action"
     }
   ],
-  "thesis_checks": [],
+  "rationale_checks": [],
   "market_signals": {
     "bubble_warnings": ["max 5 items, each max 25 words"],
     "consensus_level": "mixed" | "bullish_consensus" | "bearish_consensus",
@@ -292,7 +292,7 @@ JSON structure:
       "target_weight": 6.0,
       "reasoning": "Bonds overweight at 37% vs max 30%. Trim (not full exit) to bring bonds closer to target.",
       "urgency": "high",
-      "thesis_aligned": true
+      "rationale_aligned": true
     },
     {
       "ticker": "EIMI",
@@ -305,7 +305,7 @@ JSON structure:
       "target_weight": 4.5,
       "reasoning": "EM equities underweight. Deploy cash from bond trims to increase diversification.",
       "urgency": "medium",
-      "thesis_aligned": true
+      "rationale_aligned": true
     },
     {
       "ticker": "VWRA",
@@ -318,7 +318,7 @@ JSON structure:
       "target_weight": 31.5,
       "reasoning": "Core holding, on target",
       "urgency": "low",
-      "thesis_aligned": true
+      "rationale_aligned": true
     }
   ],
   "rebalancing_summary": {
@@ -333,7 +333,7 @@ JSON structure:
       "positions": ["IUQA", "AMZN"],
       "phase": "EUPHORIA",
       "reasoning": "one sentence",
-      "action": "Flag for thesis review"
+      "action": "Flag for deeper review"
     }
   ],
   "tail_risk_summary": {
@@ -346,7 +346,7 @@ JSON structure:
     ],
     "untested_positions": [],
     "fragile_positions": ["tickers with fragile business models"],
-    "narrative_risk_positions": ["tickers whose thesis relies on trend continuation"]
+    "narrative_risk_positions": ["tickers whose rationale relies on trend continuation"]
   },
   "capital_allocation_flags": [
     {
@@ -435,7 +435,7 @@ JSON structure:
       "ticker": "NVDA",
       "name": "NVIDIA Corporation",
       "sector": "Technology / Semiconductors",
-      "thesis": "2-4 sentence investment thesis grounded in newsletter insights and fundamentals",
+      "rationale": "2-4 sentence investment rationale grounded in newsletter insights and fundamentals",
       "catalysts": ["specific upcoming catalyst 1", "catalyst 2"],
       "risks": ["key risk 1", "key risk 2"],
       "expected_return": "15-25% in 12 months",
