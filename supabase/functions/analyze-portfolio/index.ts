@@ -78,6 +78,7 @@ DECISION PRIORITY HIERARCHY — FOLLOW THIS ORDER:
 4. DIAGNOSTIC signals (informational observations only)
 
 If the Intelligence Brief contradicts generic allocation heuristics, follow user hard rules and Intelligence Brief. Do not enforce generic fallback constraints. The Intelligence Brief reflects current macro research and should drive rebalancing logic, while hard rules act as guardrails.
+If the Intelligence Brief conflicts with SOFT rules, follow the Intelligence Brief — soft rules are guidelines, not constraints. Only HARD rules are binding and cannot be overridden by the Intelligence Brief.
 
 PHILOSOPHY MODE — ACTIVE MODE: "${portfolio_mode || 'balanced'}"
 This modifies how you INTERPRET allocation rules (but never overrides explicit hard limits):
