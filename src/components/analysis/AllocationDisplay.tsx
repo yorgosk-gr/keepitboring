@@ -1,9 +1,28 @@
 import { cn } from "@/lib/utils";
 import { AlertTriangle, CheckCircle2, XCircle, PieChart, Globe, Layers, Package } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { AllocationCheck, AllocationBreakdownItem } from "@/hooks/usePortfolioAnalysis";
 
 interface AllocationDisplayProps {
   allocation: AllocationCheck;
+}
+
+function StatusIcon({ status }: { status: "ok" | "warning" | "critical" | undefined }) {
+  switch (status ?? "ok") {
+    case "ok":
+      return <CheckCircle2 className="w-4 h-4 text-primary" />;
+    case "warning":
+      return <AlertTriangle className="w-4 h-4 text-yellow-500" />;
+    case "critical":
+      return <XCircle className="w-4 h-4 text-destructive" />;
+  }
 }
 
 function BreakdownSection({ title, icon, items, labelKey }: {
@@ -49,105 +68,89 @@ function BreakdownSection({ title, icon, items, labelKey }: {
   );
 }
 
+interface AllocationRow {
+  label: string;
+  current: number;
+  idealRange: string;
+  status: "ok" | "warning" | "critical" | undefined;
+}
+
 export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
-  const getStatus = (status: "ok" | "warning" | "critical" | undefined): "ok" | "warning" | "critical" => {
-    return status ?? "ok";
-  };
-
-  const getStatusIcon = (status: "ok" | "warning" | "critical" | undefined) => {
-    const safeStatus = getStatus(status);
-    switch (safeStatus) {
-      case "ok":
-        return <CheckCircle2 className="w-5 h-5 text-primary" />;
-      case "warning":
-        return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
-      case "critical":
-        return <XCircle className="w-5 h-5 text-destructive" />;
-    }
-  };
-
-  const getStatusColor = (status: "ok" | "warning" | "critical" | undefined) => {
-    const safeStatus = getStatus(status);
-    switch (safeStatus) {
-      case "ok":
-        return "bg-primary";
-      case "warning":
-        return "bg-yellow-500";
-      case "critical":
-        return "bg-destructive";
-    }
-  };
-
-  const equitiesPercent = allocation?.equities_percent ?? 0;
-  const bondsPercent = allocation?.bonds_percent ?? 0;
-  const commoditiesPercent = allocation?.commodities_percent ?? 0;
-  const cashPercent = allocation?.cash_percent ?? 0;
+  const rows: AllocationRow[] = [
+    {
+      label: "Equities",
+      current: allocation?.equities_percent ?? 0,
+      idealRange: "40–70%",
+      status: allocation?.equities_status,
+    },
+    {
+      label: "Bonds",
+      current: allocation?.bonds_percent ?? 0,
+      idealRange: "10–30%",
+      status: allocation?.bonds_status,
+    },
+    {
+      label: "Commodities",
+      current: allocation?.commodities_percent ?? 0,
+      idealRange: "5–10%",
+      status: allocation?.commodities_status,
+    },
+    {
+      label: "Cash",
+      current: allocation?.cash_percent ?? 0,
+      idealRange: "≤10%",
+      status: (allocation?.cash_percent ?? 0) > 10 ? "critical" : "ok",
+    },
+  ];
 
   return (
-    <div className="stat-card space-y-5">
+    <div className="stat-card space-y-4">
       <h3 className="text-lg font-semibold text-foreground">Allocation Check</h3>
 
-      {/* Equities */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {getStatusIcon(allocation?.equities_status)}
-            <span className="font-medium">Equities</span>
-          </div>
-          <span className="text-sm">
-            {equitiesPercent.toFixed(1)}% 
-            <span className="text-muted-foreground"> / Target: ≤70%</span>
-          </span>
-        </div>
-        <div className="relative h-3 rounded-full bg-secondary overflow-hidden">
-          <div 
-            className={cn("h-full transition-all", getStatusColor(allocation?.equities_status))}
-            style={{ width: `${Math.min(equitiesPercent, 100)}%` }}
-          />
-          <div className="absolute top-0 bottom-0 left-[70%] w-px bg-foreground/40" />
-        </div>
+      {/* Main allocation table */}
+      <div className="rounded-lg border border-border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-secondary/50 hover:bg-secondary/50">
+              <TableHead className="w-8"></TableHead>
+              <TableHead>Asset Class</TableHead>
+              <TableHead className="text-right">Current</TableHead>
+              <TableHead className="text-right">Ideal Range</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.label} className="border-border">
+                <TableCell className="pr-0">
+                  <StatusIcon status={row.status} />
+                </TableCell>
+                <TableCell className="font-medium text-foreground">{row.label}</TableCell>
+                <TableCell className={cn(
+                  "text-right font-mono font-semibold",
+                  row.status === "critical" ? "text-destructive" :
+                  row.status === "warning" ? "text-yellow-500" :
+                  "text-foreground"
+                )}>
+                  {row.current.toFixed(1)}%
+                </TableCell>
+                <TableCell className="text-right text-muted-foreground">
+                  {row.idealRange}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
 
-      {/* Bonds */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {getStatusIcon(allocation?.bonds_status)}
-            <span className="font-medium">Bonds</span>
-          </div>
-          <span className="text-sm">
-            {bondsPercent.toFixed(1)}% 
-            <span className="text-muted-foreground"> / Target: ≤20%</span>
-          </span>
+      {/* Stock/ETF Split */}
+      {allocation?.stocks_vs_etf_split && (
+        <div className="flex items-center gap-2 text-sm px-1">
+          <PieChart className="w-4 h-4 text-muted-foreground" />
+          <span className="text-muted-foreground">Within equities:</span>
+          <span className="font-medium text-foreground">{allocation.stocks_vs_etf_split}</span>
+          <span className="text-xs text-muted-foreground">(target: 15-25% stocks / 75-85% ETFs)</span>
         </div>
-        <div className="relative h-3 rounded-full bg-secondary overflow-hidden">
-          <div 
-            className={cn("h-full transition-all", getStatusColor(allocation?.bonds_status))}
-            style={{ width: `${Math.min(bondsPercent * 5, 100)}%` }}
-          />
-          <div className="absolute top-0 bottom-0 left-full w-px bg-foreground/40" />
-        </div>
-      </div>
-
-      {/* Commodities */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {getStatusIcon(allocation?.commodities_status)}
-            <span className="font-medium">Commodities / Gold / Crypto</span>
-          </div>
-          <span className="text-sm">
-            {commoditiesPercent.toFixed(1)}% 
-            <span className="text-muted-foreground"> / Target: ≤10%</span>
-          </span>
-        </div>
-        <div className="relative h-3 rounded-full bg-secondary overflow-hidden">
-          <div 
-            className={cn("h-full transition-all", getStatusColor(allocation?.commodities_status))}
-            style={{ width: `${Math.min(commoditiesPercent * 10, 100)}%` }}
-          />
-        </div>
-      </div>
+      )}
 
       {/* Commodities Breakdown */}
       <BreakdownSection
@@ -156,39 +159,6 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
         items={allocation?.commodities_breakdown ?? []}
         labelKey="label"
       />
-
-      {/* Cash */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-muted-foreground" />
-            <span className="font-medium">Cash</span>
-          </div>
-          <span className="text-sm">
-            {cashPercent.toFixed(1)}%
-          </span>
-        </div>
-        <div className="relative h-3 rounded-full bg-secondary overflow-hidden">
-          <div 
-            className="h-full transition-all bg-muted-foreground/50"
-            style={{ width: `${Math.min(cashPercent, 100)}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Stock/ETF Split */}
-      {allocation.stocks_vs_etf_split && (
-        <div className="pt-3 border-t border-border">
-          <div className="flex items-center gap-2 text-sm">
-            <PieChart className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Within equities:</span>
-            <span className="font-medium">{allocation.stocks_vs_etf_split}</span>
-          </div>
-          <p className="text-xs text-muted-foreground mt-1 ml-6">
-            Target: 15-25% stocks / 75-85% ETFs
-          </p>
-        </div>
-      )}
 
       {/* Equity by Geography */}
       <BreakdownSection
@@ -206,14 +176,14 @@ export function AllocationDisplay({ allocation }: AllocationDisplayProps) {
         labelKey="style"
       />
 
-      {/* Issues */}
-      {allocation.issues && allocation.issues.length > 0 && (
+      {/* Issues - condensed */}
+      {allocation?.issues && allocation.issues.length > 0 && (
         <div className="pt-3 border-t border-border">
-          <p className="text-sm font-medium text-muted-foreground mb-2">Issues:</p>
+          <p className="text-sm font-medium text-muted-foreground mb-2">Key Issues:</p>
           <ul className="space-y-1">
             {allocation.issues.map((issue, i) => (
               <li key={i} className="text-sm text-foreground flex items-start gap-2">
-                <span className="mt-1">•</span>
+                <span className="mt-1 text-muted-foreground">•</span>
                 {issue}
               </li>
             ))}
