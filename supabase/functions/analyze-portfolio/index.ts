@@ -512,6 +512,23 @@ CRITICAL: stocks_vs_etf_split must show the split WITHIN equities only (stocks a
 
 Analyze this portfolio and return the JSON response.`;
 
+    console.log("PROMPT AUDIT:", JSON.stringify({
+      has_intelligence_brief: !!intelligence_brief,
+      brief_keys: intelligence_brief ? Object.keys(intelligence_brief) : [],
+      brief_key_points_count: intelligence_brief?.key_points?.length ?? 0,
+      brief_action_items_count: intelligence_brief?.action_items?.length ?? 0,
+      brief_market_themes_count: intelligence_brief?.market_themes?.length ?? 0,
+      insights_count: insights?.length ?? 0,
+      bubble_insights: bubbleInsights?.length ?? 0,
+      macro_insights: macroInsights?.length ?? 0,
+      portfolio_insights: portfolioInsights?.length ?? 0,
+      etf_classifications_count: etf_classifications?.length ?? 0,
+      stock_fundamentals_count: stock_fundamentals?.length ?? 0,
+      rules_count: rules?.length ?? 0,
+      positions_count: positions?.length ?? 0,
+      total_portfolio_value,
+      cash_balance,
+    }));
     console.log("Calling Lovable AI gateway for portfolio analysis...");
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
