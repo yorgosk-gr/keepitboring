@@ -167,6 +167,15 @@ INDUSTRY RECOMMENDATIONS:
 - Provide 4-8 industry recommendations
 - Each must have a clear stance and reasoning tied to current signals
 
+BOND ALLOCATION STRATEGY:
+- Analyze the user's current bond holdings by duration (short 0-3yr, medium 3-7yr, long 7+yr), geography (US, Europe, Japan, Global), and type (Government/Treasury, Corporate, Inflation-Linked)
+- Recommend a target allocation across these dimensions based on: current rate environment, philosophy rules, Intelligence Brief themes, and newsletter insights
+- ALWAYS recommend Ireland-domiciled UCITS ETFs (for UAE tax efficiency) — never US-listed bond ETFs
+- Consider Malkiel's principles on bond duration and diversification, Taleb's anti-fragility (short duration = more robust), and current macro signals
+- Be specific: recommend 2-4 bond ETFs maximum to keep the portfolio simple
+- Assess whether current bond holdings are well-diversified or over-concentrated
+- If the user only holds one type of bond ETF, recommend diversification with specific alternatives
+
 JSON structure:
 {
   "allocation_check": {
@@ -302,6 +311,77 @@ JSON structure:
       "notes": "one sentence"
     }
   ],
+  "bond_recommendations": {
+    "current_bond_percent": 20.5,
+    "target_bond_percent": 20,
+    "strategy_summary": "1-2 sentence bond strategy based on current macro environment, philosophy rules, and Intelligence Brief themes",
+    "duration_allocation": [
+      {
+        "duration": "Short-term (0-3 years)",
+        "current_percent_of_bonds": 70,
+        "target_percent_of_bonds": 40,
+        "reasoning": "Why this duration weight — reference rate expectations, Taleb anti-fragility, or brief themes"
+      },
+      {
+        "duration": "Medium-term (3-7 years)",
+        "current_percent_of_bonds": 0,
+        "target_percent_of_bonds": 30,
+        "reasoning": "Why add or reduce this bucket"
+      },
+      {
+        "duration": "Long-term (7+ years)",
+        "current_percent_of_bonds": 30,
+        "target_percent_of_bonds": 30,
+        "reasoning": "Why this weight"
+      }
+    ],
+    "geography_allocation": [
+      {
+        "region": "US Treasuries",
+        "target_percent_of_bonds": 30,
+        "reasoning": "Why this region"
+      },
+      {
+        "region": "Europe / EUR",
+        "target_percent_of_bonds": 40,
+        "reasoning": "Why"
+      },
+      {
+        "region": "Global / Diversified",
+        "target_percent_of_bonds": 30,
+        "reasoning": "Why"
+      }
+    ],
+    "type_split": {
+      "government_percent": 70,
+      "corporate_percent": 20,
+      "inflation_linked_percent": 10,
+      "reasoning": "Why this split between govt, corporate, and inflation-linked"
+    },
+    "recommended_etfs": [
+      {
+        "ticker": "AGGU",
+        "name": "iShares Core Global Aggregate Bond UCITS ETF",
+        "duration": "Medium-term",
+        "region": "Global",
+        "type": "Government + Corporate blend",
+        "action": "HOLD" | "BUY" | "INCREASE" | "REDUCE" | "SELL",
+        "target_percent_of_bonds": 50,
+        "reasoning": "Why this specific ETF — reference duration, geography, and cost"
+      }
+    ],
+    "current_holdings_assessment": [
+      {
+        "ticker": "IB01",
+        "name": "Current bond ETF name",
+        "duration": "Short-term",
+        "region": "US",
+        "type": "Treasury",
+        "current_percent_of_bonds": 70,
+        "assessment": "Over-concentrated in short duration US treasuries. Consider diversifying into medium-term European or global aggregate."
+      }
+    ]
+  },
   "cash_assessment": {
     "cash_percent": 5.2,
     "status": "ok",
