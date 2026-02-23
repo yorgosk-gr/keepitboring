@@ -60,7 +60,7 @@ serve(async (req) => {
       );
     }
 
-    const { positions, rules, insights, decisions, cash_balance, total_portfolio_value, intelligence_brief, etf_classifications } = await req.json();
+    const { positions, rules, insights, decisions, cash_balance, total_portfolio_value, intelligence_brief, etf_classifications, stock_fundamentals } = await req.json();
 
     const systemPrompt = `You are a strict portfolio compliance officer. Your job is to find problems and give specific fixes.
 
@@ -488,6 +488,14 @@ Contrarian Signals:
 ${(intelligence_brief.contrarian_signals || []).map((cs: string) => `- ${cs}`).join("\n")}
 
 USE THIS INTELLIGENCE BRIEF to drive your trade recommendations and reallocation suggestions. Each recommended action should reference specific brief themes where applicable.` : "No Intelligence Brief available — rely on raw insights above."}
+
+${stock_fundamentals && stock_fundamentals.length > 0 ? `STOCK FUNDAMENTALS (AI-estimated metrics for individual stocks — use these for quality assessment, Thorndike checks, and position alerts):
+${stock_fundamentals.map((f: any) => `${f.ticker}: ROIC=${f.roic ?? 'N/A'}%, Earnings Yield=${f.earnings_yield ?? 'N/A'}%, P/E=${f.pe_ratio ?? 'N/A'}, D/E=${f.debt_to_equity ?? 'N/A'}, Revenue Growth YoY=${f.revenue_growth_yoy ?? 'N/A'}%, FCF Yield=${f.free_cash_flow_yield ?? 'N/A'}%, Gross Margin=${f.gross_margin ?? 'N/A'}%${f.notes ? ` (${f.notes})` : ''}`).join('\n')}
+Use these metrics to:
+- Flag stocks with ROIC < 10% or negative FCF yield as potential quality concerns
+- Identify high-quality compounders (ROIC > 15%, positive FCF, growing revenue)
+- Apply Thorndike capital allocation quality checks using actual data instead of estimates
+- Factor earnings yield into valuation assessments for position sizing` : "No stock fundamentals available — recommend the user fetch fundamentals data for better quality assessment."}
 
 IMPORTANT: The allocation percentages (equities_percent, bonds_percent, commodities_percent, cash_percent) must be calculated relative to TOTAL PORTFOLIO VALUE ($${(total_portfolio_value ?? 0).toFixed(2)}), which includes the cash balance of $${(cash_balance ?? 0).toFixed(2)}. Cash percent should reflect this.
 CRITICAL: stocks_vs_etf_split must show the split WITHIN equities only (stocks as % of equities, ETFs as % of equities). These two numbers must sum to approximately 100%. Do NOT use total portfolio as the denominator for this field.

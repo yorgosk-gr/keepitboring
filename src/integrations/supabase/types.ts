@@ -415,7 +415,9 @@ export type Database = {
           currency: string | null
           current_price: number | null
           exchange: string | null
+          fundamentals: Json | null
           id: string
+          last_fundamentals_refresh: string | null
           last_review_date: string | null
           manually_classified: boolean | null
           market_value: number | null
@@ -437,7 +439,9 @@ export type Database = {
           currency?: string | null
           current_price?: number | null
           exchange?: string | null
+          fundamentals?: Json | null
           id?: string
+          last_fundamentals_refresh?: string | null
           last_review_date?: string | null
           manually_classified?: boolean | null
           market_value?: number | null
@@ -459,7 +463,9 @@ export type Database = {
           currency?: string | null
           current_price?: number | null
           exchange?: string | null
+          fundamentals?: Json | null
           id?: string
+          last_fundamentals_refresh?: string | null
           last_review_date?: string | null
           manually_classified?: boolean | null
           market_value?: number | null

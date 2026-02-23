@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Upload, Plus, Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, Trash2, AlertTriangle } from "lucide-react";
+import { Upload, Plus, Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, Trash2, AlertTriangle, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,6 +16,7 @@ import { usePositions, type Position, type PositionFormData } from "@/hooks/useP
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useTickerVerification } from "@/hooks/useTickerVerification";
 import { usePriceRefresh, type PriceUpdate } from "@/hooks/usePriceRefresh";
+import { useFundamentals } from "@/hooks/useFundamentals";
 import { lookupTicker } from "@/lib/tickerReference";
 import { AllocationSummary } from "@/components/portfolio/AllocationSummary";
 import { PositionsTable } from "@/components/portfolio/PositionsTable";
@@ -55,6 +56,7 @@ export default function Portfolio() {
   
   // Price refresh
   const { fetchPrices, isFetching: isFetchingPrices, progress: priceProgress } = usePriceRefresh();
+  const { fetchFundamentals, isFetching: isFetchingFundamentals } = useFundamentals();
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [fetchedPrices, setFetchedPrices] = useState<PriceUpdate[]>([]);
   const [notFoundTickers, setNotFoundTickers] = useState<string[]>([]);
@@ -467,6 +469,15 @@ export default function Portfolio() {
           >
             <DollarSign className="w-4 h-4" />
             Refresh Prices
+          </Button>
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => fetchFundamentals(positions)}
+            disabled={positions.length === 0 || isFetchingFundamentals}
+          >
+            <TrendingUp className="w-4 h-4" />
+            {isFetchingFundamentals ? "Fetching..." : "Fetch Fundamentals"}
           </Button>
           <Button 
             variant="outline" 

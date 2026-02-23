@@ -225,6 +225,14 @@ export function usePortfolioAnalysis() {
         console.warn("Could not fetch intelligence brief for analysis:", e);
       }
 
+      // Prepare fundamentals data for stocks that have it
+      const stockFundamentals = positions
+        .filter(p => p.position_type === "stock" && (p as any).fundamentals)
+        .map(p => ({
+          ticker: p.ticker,
+          ...(p as any).fundamentals,
+        }));
+
       const { data, error } = await supabase.functions.invoke("analyze-portfolio", {
         body: {
           positions,
@@ -244,6 +252,7 @@ export function usePortfolioAnalysis() {
           cash_balance: cashBalance,
           total_portfolio_value: totalPortfolioValue,
           intelligence_brief: intelligenceBrief,
+          stock_fundamentals: stockFundamentals,
         },
       });
 
