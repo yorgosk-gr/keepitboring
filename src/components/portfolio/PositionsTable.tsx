@@ -14,7 +14,7 @@ import type { Position } from "@/hooks/usePositions";
 import { ETFInfoTooltip } from "./ETFInfoTooltip";
 import { useETFMetadata } from "@/hooks/useETFMetadata";
 
-type SortField = "ticker" | "name" | "position_type" | "category" | "exchange" | "currency" | "shares" | "avg_cost" | "current_price" | "market_value" | "weight_percent";
+type SortField = "ticker" | "name" | "position_type" | "category" | "exchange" | "currency" | "shares" | "avg_cost" | "current_price" | "market_value" | "gain_loss" | "weight_percent";
 type SortDirection = "asc" | "desc";
 
 interface PositionsTableProps {
@@ -56,6 +56,23 @@ function mapCategory(category: string | null): string {
   if (lower === "crypto" || lower === "cryptocurrency") return "Crypto";
   // equity, stock, country, theme, gold -> Equities
   return "Equities";
+}
+
+// Shorten exchange names to standard codes
+function shortenExchange(exchange: string | null): string {
+  if (!exchange) return "—";
+  const map: Record<string, string> = {
+    "London Stock Exchange": "LSE",
+    "New York Stock Exchange": "NYSE",
+    "Euronext Amsterdam": "AMS",
+    "Euronext Paris": "EPA",
+    "Australian Securities Exchange": "ASX",
+    "Tokyo Stock Exchange": "TSE",
+    "XETRA": "XETRA",
+    "Hong Kong Stock Exchange": "HKEX",
+    "Toronto Stock Exchange": "TSX",
+  };
+  return map[exchange] || exchange;
 }
 
 function getTypeBadge(type: string | null) {
@@ -192,6 +209,10 @@ export function PositionsTable({
           aVal = a.market_value ?? 0;
           bVal = b.market_value ?? 0;
           break;
+        case "gain_loss":
+          aVal = calculatePnL(a).value;
+          bVal = calculatePnL(b).value;
+          break;
         case "weight_percent":
           aVal = a.weight_percent ?? 0;
           bVal = b.weight_percent ?? 0;
@@ -274,6 +295,7 @@ export function PositionsTable({
               <SortHeader field="market_value">
                 <span className="text-foreground">Value ($)</span>
               </SortHeader>
+              <SortHeader field="gain_loss">Gain/Loss ($)</SortHeader>
               <SortHeader field="weight_percent">Weight</SortHeader>
               <th className="text-right pb-3 font-medium w-24"></th>
             </tr>
@@ -315,7 +337,7 @@ export function PositionsTable({
                     <td className="py-3">{getTypeBadge(position.position_type)}</td>
                     <td className="py-3 text-muted-foreground text-xs">{mapCategory(position.category)}</td>
                     <td className="py-3 text-muted-foreground text-xs font-mono">
-                      {position.exchange || "—"}
+                      {shortenExchange(position.exchange)}
                     </td>
                     <td className="py-3 text-center text-muted-foreground text-xs font-mono">
                       {currency}
@@ -331,6 +353,19 @@ export function PositionsTable({
                     </td>
                     <td className="py-3 text-right font-mono font-semibold text-base text-foreground">
                       {formatWholeNumber(position.market_value)}
+                    </td>
+                    <td className="py-3 text-right font-mono text-xs">
+                      {(() => {
+                        const pnl = calculatePnL(position);
+                        if (pnl.value === 0) return "—";
+                        const color = pnl.value > 0 ? "text-emerald-500" : "text-destructive";
+                        const sign = pnl.value > 0 ? "+" : "";
+                        return (
+                          <span className={color}>
+                            {sign}{formatWholeNumber(pnl.value)}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="py-3 text-right font-mono text-xs">
                       {(position.weight_percent ?? 0).toFixed(1)}%
@@ -373,7 +408,7 @@ export function PositionsTable({
                   </tr>
                   {isExpanded && position.thesis_notes && (
                     <tr key={`${position.id}-expanded`} className="bg-secondary/20">
-                      <td colSpan={12} className="py-4 px-6">
+                      <td colSpan={14} className="py-4 px-6">
                         <div className="text-sm">
                           <h4 className="font-medium text-foreground mb-2">Thesis Notes</h4>
                           <p className="text-muted-foreground whitespace-pre-wrap">
