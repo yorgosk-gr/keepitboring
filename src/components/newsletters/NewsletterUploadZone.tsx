@@ -76,6 +76,14 @@ export function NewsletterUploadZone({ onUpload }: NewsletterUploadZoneProps) {
     return file.text();
   };
 
+  /** Check if extracted text is mostly garbage (arrows, symbols, whitespace) */
+  const isLowQualityText = (text: string): boolean => {
+    const alphanumeric = text.replace(/[^a-zA-Z0-9]/g, "").length;
+    const ratio = alphanumeric / Math.max(text.length, 1);
+    // If less than 20% of the text is actual letters/numbers, it's likely garbage
+    return ratio < 0.2;
+  };
+
   const processFile = async (file: File) => {
     const uploadingFile: UploadingFile = {
       file,
@@ -86,7 +94,7 @@ export function NewsletterUploadZone({ onUpload }: NewsletterUploadZoneProps) {
     setUploadingFiles((prev) => [...prev, uploadingFile]);
 
     try {
-      // Extract text from PDF
+      // Extract text from file
       setUploadingFiles((prev) =>
         prev.map((f) =>
           f.file === file ? { ...f, progress: 30, status: "extracting" } : f
@@ -96,7 +104,13 @@ export function NewsletterUploadZone({ onUpload }: NewsletterUploadZoneProps) {
       const rawText = await extractTextFromFile(file);
 
       if (!rawText || rawText.length < 50) {
-        throw new Error("Could not extract text from PDF. The file may be image-based or corrupted.");
+        throw new Error("Could not extract text from this file. It may be image-based or corrupted.");
+      }
+
+      if (isLowQualityText(rawText)) {
+        throw new Error(
+          "This document uses complex formatting (shapes, text boxes, charts) that couldn't be read. Please use 'Paste Newsletter Text' to add the content manually."
+        );
       }
 
       setUploadingFiles((prev) =>
