@@ -3,16 +3,20 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+export type PortfolioMode = "capital_preservation" | "balanced" | "aggressive";
+
 export interface UserSettings {
   alertSeverityThreshold: "all" | "warning" | "critical";
   emailAlerts: boolean;
   onboardingCompleted: boolean;
+  portfolioMode: PortfolioMode;
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
   alertSeverityThreshold: "all",
   emailAlerts: false,
   onboardingCompleted: false,
+  portfolioMode: "balanced",
 };
 
 const SETTINGS_KEY = "yk-invest-settings";
@@ -22,23 +26,49 @@ export function useSettings() {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load settings from localStorage
+  // Load settings from localStorage + DB
   useEffect(() => {
-    const stored = localStorage.getItem(`${SETTINGS_KEY}-${user?.id}`);
-    if (stored) {
-      try {
-        setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(stored) });
-      } catch {
-        setSettings(DEFAULT_SETTINGS);
+    const loadSettings = async () => {
+      const stored = localStorage.getItem(`${SETTINGS_KEY}-${user?.id}`);
+      let merged = DEFAULT_SETTINGS;
+      if (stored) {
+        try {
+          merged = { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+        } catch {
+          // ignore
+        }
       }
-    }
-    setIsLoading(false);
+
+      // Load portfolio_mode from DB
+      if (user) {
+        const { data } = await supabase
+          .from("user_settings")
+          .select("portfolio_mode")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (data?.portfolio_mode) {
+          merged = { ...merged, portfolioMode: data.portfolio_mode as PortfolioMode };
+        }
+      }
+
+      setSettings(merged);
+      setIsLoading(false);
+    };
+    loadSettings();
   }, [user?.id]);
 
-  const updateSettings = (updates: Partial<UserSettings>) => {
+  const updateSettings = async (updates: Partial<UserSettings>) => {
     const newSettings = { ...settings, ...updates };
     setSettings(newSettings);
     localStorage.setItem(`${SETTINGS_KEY}-${user?.id}`, JSON.stringify(newSettings));
+
+    // Persist portfolio_mode to DB
+    if (updates.portfolioMode && user) {
+      await supabase
+        .from("user_settings")
+        .upsert({ user_id: user.id, portfolio_mode: updates.portfolioMode }, { onConflict: "user_id" });
+    }
+
     toast.success("Settings saved");
   };
 

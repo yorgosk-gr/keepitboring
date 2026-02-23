@@ -1,0 +1,1 @@
+ALTER TABLE public.user_settings ADD COLUMN portfolio_mode text NOT NULL DEFAULT 'balanced';

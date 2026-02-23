@@ -1,7 +1,7 @@
 import { Settings as SettingsIcon } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
 import { ApiConfigSection } from "@/components/settings/ApiConfigSection";
-
+import { PhilosophyModeSection } from "@/components/settings/PhilosophyModeSection";
 import { NotificationSection } from "@/components/settings/NotificationSection";
 import { DataManagementSection } from "@/components/settings/DataManagementSection";
 import { StorageDashboardSection } from "@/components/settings/StorageDashboardSection";
@@ -57,6 +57,11 @@ export default function Settings() {
 
       <div className="space-y-6">
         <ApiConfigSection />
+
+        <PhilosophyModeSection
+          currentMode={settings.portfolioMode}
+          onModeChange={(mode) => updateSettings({ portfolioMode: mode })}
+        />
         
         <StorageDashboardSection />
         
