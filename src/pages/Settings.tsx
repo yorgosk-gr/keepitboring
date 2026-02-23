@@ -1,7 +1,7 @@
 import { Settings as SettingsIcon } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
 import { ApiConfigSection } from "@/components/settings/ApiConfigSection";
-import { PortfolioSettingsSection } from "@/components/settings/PortfolioSettingsSection";
+
 import { NotificationSection } from "@/components/settings/NotificationSection";
 import { DataManagementSection } from "@/components/settings/DataManagementSection";
 import { StorageDashboardSection } from "@/components/settings/StorageDashboardSection";
@@ -65,10 +65,6 @@ export default function Settings() {
         
         <StorageDashboardSection insightsWindow={settings.insightsWindow} />
         
-        <PortfolioSettingsSection 
-          settings={settings} 
-          onUpdate={updateSettings} 
-        />
         
         <NotificationSection 
           settings={settings} 

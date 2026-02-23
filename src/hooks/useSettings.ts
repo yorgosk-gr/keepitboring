@@ -6,9 +6,6 @@ import { toast } from "sonner";
 export type InsightsWindow = "7" | "30" | "90" | "all";
 
 export interface UserSettings {
-  currency: string;
-  fiscalYearStart: number;
-  rebalancingFrequency: "monthly" | "quarterly" | "annually";
   alertSeverityThreshold: "all" | "warning" | "critical";
   emailAlerts: boolean;
   onboardingCompleted: boolean;
@@ -16,9 +13,6 @@ export interface UserSettings {
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
-  currency: "$",
-  fiscalYearStart: 1,
-  rebalancingFrequency: "quarterly",
   alertSeverityThreshold: "all",
   emailAlerts: false,
   onboardingCompleted: false,
