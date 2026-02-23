@@ -144,12 +144,15 @@ SELL CRITERIA — ONLY these reasons are valid for recommending SELL:
 STRESS TEST RULE:
 - Do NOT generate alerts or warnings about "no stress test in holding period", "no drawdown since purchase", or "tail risk unknown due to no drawdown". These are not actionable.
 
-TRADE RECOMMENDATIONS:
-Return trade_recommendations array with EVERY position. Format:
-- SELL positions: full detail with reasoning (must be based on allocation, valuation, or research signals — NOT missing documentation)
-- BUY positions: full detail with reasoning  
+TRADE RECOMMENDATIONS — REBALANCING RULE:
+Return trade_recommendations array with EVERY position PLUS any new BUY recommendations. Format:
+- TRIM positions: reduce to a TARGET WEIGHT, do NOT sell to 0% unless the position is fundamentally broken. Calculate shares_to_trade based on bringing the position to target weight.
+- SELL positions (full exit): ONLY when a position is fundamentally flawed (e.g. FCF negative confirmed, business deteriorating). Never sell just because allocation is breached — TRIM instead.
+- BUY positions: for every € freed up by trims/sells, you MUST recommend where to deploy that cash. Recommend BUY for existing underweight positions or new ETFs that fill allocation gaps. The total_buys in rebalancing_summary should roughly equal total_sells.
 - HOLD positions: minimal (just ticker, action, current_shares, "On target" reasoning)
 - Use the actual market_value and current_price from the position data to calculate estimated_value — do NOT make up values
+
+CRITICAL CASH RULE: If cash is already above 10%, you must NOT recommend actions that increase cash further without corresponding BUY recommendations. Every rebalancing plan must be CASH NEUTRAL or CASH REDUCING — the goal is to move money from overweight areas to underweight areas, not to pile up more cash.
 
 CRITICAL: The recommended_actions should have COMPLETE reasoning visible, not cut off. Each action needs:
 - What to do (specific ticker and shares)
@@ -261,17 +264,30 @@ JSON structure:
   ],
   "trade_recommendations": [
     {
-      "ticker": "TEA",
+      "ticker": "IB01",
       "action": "SELL",
-      "current_shares": 3127,
-      "recommended_shares": 0,
-      "shares_to_trade": -3127,
-      "estimated_value": 5000,
-      "current_weight": 1.0,
-      "target_weight": 0,
-      "reasoning": "No thesis. Must exit per philosophy rules.",
+      "current_shares": 1364,
+      "recommended_shares": 600,
+      "shares_to_trade": -764,
+      "estimated_value": 38200,
+      "current_weight": 14.0,
+      "target_weight": 6.0,
+      "reasoning": "Bonds overweight at 37% vs max 30%. Trim (not full exit) to bring bonds closer to target.",
       "urgency": "high",
-      "thesis_aligned": false
+      "thesis_aligned": true
+    },
+    {
+      "ticker": "EIMI",
+      "action": "BUY",
+      "current_shares": 100,
+      "recommended_shares": 250,
+      "shares_to_trade": 150,
+      "estimated_value": 7500,
+      "current_weight": 1.8,
+      "target_weight": 4.5,
+      "reasoning": "EM equities underweight. Deploy cash from bond trims to increase diversification.",
+      "urgency": "medium",
+      "thesis_aligned": true
     },
     {
       "ticker": "VWRA",
@@ -288,10 +304,10 @@ JSON structure:
     }
   ],
   "rebalancing_summary": {
-    "total_sells": "€X across N positions",
-    "total_buys": "€0",
-    "net_cash_impact": "+€X",
-    "primary_goal": "Reduce equity from 78% to 70% and exit positions without thesis"
+    "total_sells": "€38,200 across 1 position",
+    "total_buys": "€35,000 across 3 positions",
+    "net_cash_impact": "+€3,200",
+    "primary_goal": "Trim overweight bonds and redeploy into underweight equities to fix allocation breaches"
   },
   "bubble_phase_map": [
     {
