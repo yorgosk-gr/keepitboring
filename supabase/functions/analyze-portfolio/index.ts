@@ -354,7 +354,13 @@ If cash_percent ≤ 0.1:
 If cash_percent > 0.1:
 - You may describe buys as funded partly by cash, but numeric totals MUST match.
 
-SCORING (HARD RULES ONLY)
+ALLOCATION CONSISTENCY RULE
+If equities_percent is below its minimum threshold:
+- target_equities_percent MUST be ≥ threshold_min.
+- target_bonds_percent MUST decrease accordingly if cash_percent ≤ 0.1.
+- You MUST NOT increase bonds and equities simultaneously when cash_percent ≤ 0.1.
+- Total allocation across equities + bonds + commodities + cash MUST remain 100%.
+
 - Start portfolio_health_score at 100.
 - For each HARD rule breach (rule_enforcement === "hard") that is allocation-related:
   - If breach magnitude > 5 percentage points beyond the limit: −20 points.
