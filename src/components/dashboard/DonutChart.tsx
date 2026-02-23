@@ -91,8 +91,8 @@ export function DonutChart({ title, data, isLoading, showTargetIndicator }: Donu
                     {item.value.toFixed(1)}%
                   </span>
                   {showTargetIndicator && item.target !== undefined && (
-                    <span className={`text-xs ${isWithinTarget ? "text-primary" : "text-warning"}`}>
-                      ({item.target}%)
+                    <span className={`text-xs ${isWithinTarget ? "text-primary" : "text-destructive"}`}>
+                      → {item.target}%
                     </span>
                   )}
                 </div>
