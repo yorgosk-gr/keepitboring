@@ -56,6 +56,7 @@ export default function Analysis() {
         };
       }
 
+      const rawResponse = latest.raw_response;
       setCurrentAnalysis({
         id: latest.id,
         created_at: latest.created_at,
@@ -66,14 +67,17 @@ export default function Analysis() {
           bubble_warnings: [], consensus_level: "mixed", overall_sentiment: "N/A",
         },
         recommended_actions: latest.recommended_actions ?? [],
-        trade_recommendations: (raw).trade_recommendations ?? [],
-        rebalancing_summary: (raw).rebalancing_summary ?? {
+        trade_recommendations: rawResponse?.trade_recommendations ?? [],
+        rebalancing_summary: rawResponse?.rebalancing_summary ?? {
           total_sells: "$0", total_buys: "$0", net_cash_impact: "$0", primary_goal: "N/A",
         },
+        bond_recommendations: rawResponse?.bond_recommendations,
+        stock_picks: rawResponse?.stock_picks,
+        industry_recommendations: rawResponse?.industry_recommendations,
         portfolio_health_score: latest.health_score ?? 0,
         key_risks: latest.key_risks ?? [],
         summary: latest.summary ?? "",
-      });
+      } as any);
     }
   }, [history, isLoadingHistory]);
 
@@ -406,6 +410,161 @@ function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResu
                 ))}
               </tbody>
             </table>
+          </div>
+        </section>
+      )}
+
+      {/* Bond Allocation Strategy */}
+      {(analysis as any).bond_recommendations && (
+        <section>
+          <h2 className="text-lg font-semibold mb-3 border-b border-border pb-2">Bond Allocation Strategy</h2>
+          {(() => {
+            const bond = (analysis as any).bond_recommendations;
+            return (
+              <div className="space-y-4 text-sm">
+                <div className="flex items-center gap-4 text-muted-foreground">
+                  <span>Current: {bond.current_bond_percent}%</span>
+                  <span>→</span>
+                  <span className="font-medium text-foreground">Target: {bond.target_bond_percent}%</span>
+                </div>
+                <p className="text-muted-foreground bg-secondary/50 rounded-lg p-3 border border-border">{bond.strategy_summary}</p>
+
+                {/* Duration */}
+                {bond.duration_allocation?.length > 0 && (
+                  <div>
+                    <h3 className="font-medium mb-2">Duration Allocation</h3>
+                    <div className="space-y-2">
+                      {bond.duration_allocation.map((d: any, i: number) => (
+                        <div key={i}>
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">{d.duration}</span>
+                            <span className="text-muted-foreground">
+                              {d.current_percent_of_bonds}% → <span className="text-foreground">{d.target_percent_of_bonds}%</span>
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground ml-2">{d.reasoning}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Geography + Type side by side */}
+                <div className="grid gap-4 md:grid-cols-2">
+                  {bond.geography_allocation?.length > 0 && (
+                    <div>
+                      <h3 className="font-medium mb-2">Geography</h3>
+                      {bond.geography_allocation.map((g: any, i: number) => (
+                        <div key={i} className="mb-2">
+                          <div className="flex items-center justify-between">
+                            <span>{g.region}</span>
+                            <span className="text-primary font-medium">{g.target_percent_of_bonds}%</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{g.reasoning}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {bond.type_split && (
+                    <div>
+                      <h3 className="font-medium mb-2">Bond Type</h3>
+                      {bond.type_split.government_percent > 0 && (
+                        <div className="flex justify-between mb-1"><span>Government</span><span className="text-primary font-medium">{bond.type_split.government_percent}%</span></div>
+                      )}
+                      {bond.type_split.corporate_percent > 0 && (
+                        <div className="flex justify-between mb-1"><span>Corporate</span><span className="text-primary font-medium">{bond.type_split.corporate_percent}%</span></div>
+                      )}
+                      {bond.type_split.inflation_linked_percent > 0 && (
+                        <div className="flex justify-between mb-1"><span>Inflation-Linked</span><span className="text-primary font-medium">{bond.type_split.inflation_linked_percent}%</span></div>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">{bond.type_split.reasoning}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Current Holdings Assessment */}
+                {bond.current_holdings_assessment?.length > 0 && (
+                  <div>
+                    <h3 className="font-medium mb-2">Current Bond Holdings</h3>
+                    {bond.current_holdings_assessment.map((h: any, i: number) => (
+                      <div key={i} className="mb-2">
+                        <p>
+                          <span className="font-mono font-bold">{h.ticker}</span>
+                          <span className="text-muted-foreground"> · {h.duration} · {h.region} · {h.type} · {h.current_percent_of_bonds}% of bonds</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground ml-4">{h.assessment}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Recommended Bond ETFs */}
+                {bond.recommended_etfs?.length > 0 && (
+                  <div>
+                    <h3 className="font-medium mb-2">Recommended Bond ETFs</h3>
+                    {bond.recommended_etfs.map((etf: any, i: number) => (
+                      <div key={i} className="mb-3">
+                        <p>
+                          <span className="font-mono font-bold">{etf.ticker}</span>
+                          {" "}
+                          <span className={
+                            etf.action === "BUY" || etf.action === "INCREASE" ? "text-emerald-500 font-medium" :
+                            etf.action === "SELL" || etf.action === "REDUCE" ? "text-destructive font-medium" :
+                            "text-muted-foreground"
+                          }>{etf.action}</span>
+                          <span className="text-muted-foreground"> · {etf.target_percent_of_bonds}% of bonds</span>
+                        </p>
+                        <p className="text-xs text-foreground">{etf.name}</p>
+                        <p className="text-xs text-muted-foreground">{etf.duration} · {etf.region} · {etf.type}</p>
+                        <p className="text-xs text-muted-foreground">{etf.reasoning}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </section>
+      )}
+
+      {/* Stock Picks */}
+      {(analysis as any).stock_picks && (analysis as any).stock_picks.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold mb-3 border-b border-border pb-2">Quality Stock Picks</h2>
+          <div className="space-y-4">
+            {(analysis as any).stock_picks.map((pick: any, i: number) => (
+              <div key={i} className="text-sm space-y-1">
+                <p className="font-medium">
+                  <span className="font-mono font-bold">{pick.ticker}</span>
+                  {" "}
+                  <span className={
+                    pick.action === "BUY" ? "text-emerald-500" :
+                    pick.action === "ADD" ? "text-primary" :
+                    "text-amber-500"
+                  }>{pick.action}</span>
+                  {pick.already_held && <span className="text-xs text-primary ml-2">(In Portfolio)</span>}
+                  {pick.expected_return && <span className="text-emerald-500 ml-2">↑ {pick.expected_return}</span>}
+                </p>
+                <p className="text-foreground">{pick.name} · {pick.sector}</p>
+                <p className="text-muted-foreground">{pick.thesis}</p>
+                {pick.catalysts?.length > 0 && (
+                  <div className="ml-4">
+                    <p className="text-xs font-medium text-emerald-500">Catalysts:</p>
+                    {pick.catalysts.map((c: string, j: number) => (
+                      <p key={j} className="text-xs text-muted-foreground">• {c}</p>
+                    ))}
+                  </div>
+                )}
+                {pick.risks?.length > 0 && (
+                  <div className="ml-4">
+                    <p className="text-xs font-medium text-amber-500">Risks:</p>
+                    {pick.risks.map((r: string, j: number) => (
+                      <p key={j} className="text-xs text-muted-foreground">• {r}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </section>
       )}
