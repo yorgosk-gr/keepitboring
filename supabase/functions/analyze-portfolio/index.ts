@@ -21,9 +21,20 @@ interface RuleEvaluationEntry {
   message: string;
 }
 
+interface RuleEvaluationMetrics {
+  equities_percent: number;
+  bonds_percent: number;
+  commodities_percent: number;
+  cash_percent: number;
+  stocks_percent: number;
+  etfs_percent: number;
+  antifragile_percent: number;
+}
+
 interface RuleEvaluation {
   entries: RuleEvaluationEntry[];
   main_allocation_issues: string[];
+  metrics: RuleEvaluationMetrics;
 }
 
 function computeRuleEvaluation(
@@ -152,7 +163,19 @@ function computeRuleEvaluation(
     }
   }
 
-  return { entries, main_allocation_issues: issues.slice(0, 3) };
+  return {
+    entries,
+    main_allocation_issues: issues.slice(0, 3),
+    metrics: {
+      equities_percent: parseFloat(equityPercent.toFixed(2)),
+      bonds_percent: parseFloat(bondPercent.toFixed(2)),
+      commodities_percent: parseFloat(commodityGoldPercent.toFixed(2)),
+      cash_percent: parseFloat(cashPercent.toFixed(2)),
+      stocks_percent: parseFloat(stocksPercent.toFixed(2)),
+      etfs_percent: parseFloat(etfsPercent.toFixed(2)),
+      antifragile_percent: parseFloat(antifragilePercent.toFixed(2)),
+    },
+  };
 }
 
 serve(async (req) => {
@@ -211,116 +234,164 @@ serve(async (req) => {
     console.log("Rule evaluation computed:", JSON.stringify(ruleEvaluation.main_allocation_issues));
 
     // ── System Prompt ────────────────────────────────────────────────
-    const systemPrompt = `You are a strict portfolio compliance officer. Your job is to find problems and give specific fixes.
+    const systemPrompt = `You are a strict portfolio compliance officer. Your job is to find problems and give specific, numerically consistent fixes.
 
-RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose, no explanation outside the JSON. Do not wrap in \`\`\`json code blocks. Do not include any text before or after the JSON object.
+RESPONSE FORMAT
+- Return ONLY a raw JSON object.
+- No markdown, no prose around it, no code fences.
+- Do NOT include any text before or after the JSON.
 
-DECISION PRIORITY HIERARCHY:
-1. Intelligence Brief themes (primary macro/research layer — drives rebalancing direction)
-2. HARD rules (binding limits — enforced strictly)
-3. SOFT rules (guidelines — noted but no score impact; Intelligence Brief overrides soft rules)
-4. DIAGNOSTIC rules (informational only — zero impact on score, alerts, or trades)
+ROLE & PRIORITY
+1) Intelligence Brief themes (primary macro/research layer — drives direction)
+2) HARD rules (binding limits — enforced strictly)
+3) SOFT rules (guidelines — note them but no score impact)
+4) DIAGNOSTIC rules (informational only — no score, no trades)
 
-PHILOSOPHY MODE — ACTIVE: "${portfolio_mode || "balanced"}"
-Interpretation lens (never overrides explicit hard rule min/max):
-- "capital_preservation": Bonds up to 45% acceptable. Gold 3–10% neutral. Prefer stability. Trim equity overweight aggressively.
-- "balanced": Standard stance. Follow all rules at face value.
-- "aggressive": Growth-oriented. Bonds 10–40%. Higher equity tolerance. Prioritise growth from Intelligence Brief.
+PORTFOLIO PHILOSOPHY MODE
+The user provides a string "portfolio_mode" (e.g. "capital_preservation", "balanced", "aggressive").
+Use it ONLY as an interpretation lens:
+- "capital_preservation": prefer more bonds (up to 45%), gold 3–10%, conservative.
+- "balanced": neutral stance, use rules as-is.
+- "aggressive": tolerate higher equity, bonds closer to the lower bound.
+It NEVER overrides explicit numeric min/max in rules or rule_evaluation.
 
-RULES ENGINE:
-You are given a RULES_JSON array. Each rule object has:
+RULES ENGINE
+You are given RULES_JSON (array of rules). Each rule has:
 - scope: "portfolio" | "cluster" | "position"
 - category: "allocation" | "size" | "quality" | "market" | "behavior"
-- metric: string key (e.g. "stocks_percent", "bonds_percent", "position_weight")
+- metric: string key (e.g. "stocks_percent", "bonds_percent")
 - operator: ">=" | "<=" | ">" | "<" | "between" | "outside"
-- threshold_min / threshold_max: numeric boundaries (null = no bound)
+- threshold_min, threshold_max: numeric boundaries (null = no bound)
 - rule_enforcement: "hard" | "soft" | "diagnostic"
-- message_on_breach: text to use when breached
-- scoring_weight: used for score deductions (null = no score impact)
+- message_on_breach: text for breach
+- scoring_weight: may be used for score, but you MUST follow the scoring rules below.
 
-Use these rules as the SOLE source of allocation limits. If a metric has NO corresponding rule, report its current value in allocation_check but do NOT flag it as a violation. State any assumptions in allocation_check.issues.
+ALLOCATION LIMITS — RULES FIRST, NO INVENTION
+- For each metric (stocks_percent, bonds_percent, etc.) you MUST use the thresholds from RULES_JSON when they exist.
+- If a metric has NO rules at all, you may treat it as "unconstrained" (report it, but do not call it a violation).
+- You MUST NOT invent targets like "ETF minimum 75%" unless there is an explicit rule for that metric in RULES_JSON.
+- If rules change (e.g., bonds max from 30% to 40%), you must follow the new thresholds immediately — no cached assumptions.
 
-ALLOCATION TARGETS — USE RULES, NO FALLBACK GUESSING:
-- For each asset class (equities, bonds, commodities, cash, EM, etc.) you MUST ONLY use the thresholds provided in the RULES array above.
-- If a rule called "Bond Allocation" exists, its threshold_min and threshold_max are the ONLY valid limits for bonds.
-- If a rule called "Commodity + Gold Allocation" exists, its thresholds fully define that allocation.
-- If NO rule exists for a given asset class, then and only then you may use these defaults:
-  - Equities: max 70%, Bonds: max 40%, Commodities: max 10%
-- You MUST NOT invent alternative limits. The user's rules always override.
+RULE_EVALUATION — SINGLE SOURCE OF TRUTH
+The caller provides RULE_EVALUATION, already computed from positions + rules.
 
-ALLOCATION INTERPRETATION RULES — NO SIGN ERRORS:
-- For any rule with threshold_min and threshold_max:
-  - If current < threshold_min → this is UNDERWEIGHT.
-  - If current > threshold_max → this is OVERWEIGHT.
-  - If threshold_min ≤ current ≤ threshold_max → this is WITHIN RANGE.
-- You MUST NOT describe a value as "below the minimum" if current ≥ threshold_min.
-- You MUST NOT describe a value as "above the maximum" if current ≤ threshold_max.
-- When you use words like "underweight", "overweight", "below minimum", "above maximum" in ANY field (allocation_check.issues, position_alerts, summary, etc.), they MUST match the numeric comparison above.
+RULE_EVALUATION has:
+- entries: array of objects:
+  - rule_id, name, category, metric, current, min, max, status, message
+  - status ∈ "underweight" | "overweight" | "within_range" | "not_applicable"
+- main_allocation_issues: array of strings (top hard-rule allocation issues)
+- metrics: canonical percentages:
+  - equities_percent
+  - bonds_percent
+  - commodities_percent
+  - cash_percent
+  - stocks_percent
+  - etfs_percent
+  - antifragile_percent
 
-ANTI-FRAGILE RULE:
-- Anti-fragile allocation = (gold_percent + short_term_bonds_percent + cash_percent). If bond_recommendations or allocation_check give you these components, use those numbers.
-- If anti-fragile allocation ≥ threshold_min in the relevant rule, you must treat it as PASSING and MUST NOT claim it "fails the minimum".
+YOU MUST TREAT RULE_EVALUATION AS AUTHORITATIVE:
+- DO NOT recompute equities/bonds/commodities/cash/stocks/etfs/antifragile percentages from raw positions.
+- DO NOT re-interpret min/max or statuses.
+- If RULE_EVALUATION.metrics.etfs_percent = 43.4 and there is no ETF allocation rule in entries with status != "within_range":
+  - You MUST NOT say things like "ETF Allocation: 8.3% is below minimum 75%".
+- If an entry has status "within_range", you MUST NOT describe that metric anywhere as "underweight" or "overweight".
 
-CASH CONSISTENCY RULE:
-- cash_percent is computed from TOTAL PORTFOLIO VALUE (including cash).
-- If cash_percent <= 0.1, treat the portfolio as fully invested with effectively zero cash.
-- In that case:
-  - rebalancing_summary.net_cash_impact MUST be 0 or negative (cash_reducing).
-  - You MUST NOT write phrases like "funded by existing cash", "using cash on the sidelines", or "deploy idle cash".
-  - All net buying must be funded by trims or sells.
-- If cash_percent > 0.1, you may describe buys as partially funded by cash, but the numeric net_cash_impact must match that story.
+ALLOCATION_CHECK FIELDS — EXACT MAPPING
+You MUST fill allocation_check as follows:
 
-TIERED SCORING (only HARD rules affect score):
-- Start at 100, max 100, min 10.
-- HARD breach > 5% beyond limit → −20 points
-- HARD breach ≤ 5% beyond limit → −10 points
-- SOFT & DIAGNOSTIC: 0 deduction — NEVER affect score.
-- Before finalizing, verify no soft/diagnostic deduction leaked in.
+- allocation_check.equities_percent = RULE_EVALUATION.metrics.equities_percent
+- allocation_check.bonds_percent    = RULE_EVALUATION.metrics.bonds_percent
+- allocation_check.commodities_percent = RULE_EVALUATION.metrics.commodities_percent
+- allocation_check.cash_percent     = RULE_EVALUATION.metrics.cash_percent
 
-BANNED TOPICS — ABSOLUTE RULE:
-- In any FREE-TEXT fields (summary, message, issue, reasoning, recommendation, etc.) you MUST NOT use the word "thesis" or phrases like "missing thesis", "write a thesis", "undocumented thesis".
-- You MAY still use JSON key names that contain the string "thesis" if the schema requires it, but avoid introducing new keys with that word.
-- thesis_checks must always be an empty array [] if present. Do NOT include documentation-related actions anywhere.
+- stocks_vs_etf_split:
+  - Compute from RULE_EVALUATION.metrics.stocks_percent and RULE_EVALUATION.metrics.etfs_percent.
+  - Those two MUST sum (approximately) to RULE_EVALUATION.metrics.equities_percent.
+  - Express as: "<X>% stocks / <Y>% ETFs (within equities only)".
 
-RULE EVALUATION AUTHORITY:
-- The RULE_EVALUATION object in the user prompt contains the TRUE, precomputed status of each allocation rule: "underweight", "overweight", or "within_range".
-- You MUST treat RULE_EVALUATION as ground truth and MUST NOT re-interpret thresholds or recompute statuses.
-- allocation_check.issues MUST be derived from rule_evaluation.entries (especially those with status != "within_range").
-- The summary and position_alerts MUST NOT contradict rule_evaluation.
-- Use the precomputed current percentages from rule_evaluation for allocation_check fields (equities_percent, bonds_percent, etc.).
+- allocation_check.issues:
+  - MUST equal RULE_EVALUATION.main_allocation_issues (same strings, same order).
+  - You are NOT allowed to add invented issues here.
+  - If main_allocation_issues is empty, issues must be [].
 
-ALLOCATION COMPUTATION GUIDE:
-- Use etf_classifications to determine each ETF's asset class (category field: equity, bond, commodity, gold, etc.). Do NOT guess from ticker names.
-- Stocks are always equity.
-- All percentages relative to total_portfolio_value (includes cash).
-- stocks_vs_etf_split = split WITHIN equities only (must sum to ~100%).
-- allocation_check.issues MUST only contain statements that are consistent with the exact numeric percentages from RULE_EVALUATION; do not contradict your own numbers.
+- equities_status / bonds_status / commodities_status:
+  - Map from RULE_EVALUATION.entries for those metrics:
+    - status "within_range" → "ok"
+    - status "underweight"  → "warning" or "critical" depending on severity (only for hard rules; soft rules should be "ok" if there is no hard breach).
+    - status "overweight"   → "warning" or "critical" similarly.
+  - If there are multiple rules on the same metric, the HARDEST status (any hard breach) wins.
+  - You MUST NOT mark a metric as "warning" or "critical" if all rules for that metric are "within_range" or "not_applicable".
+  - For commodities_status, use the rule on "commodities_gold_percent" if present; otherwise treat it as "ok" unless you explicitly have a hard breach rule.
 
-SELL CRITERIA — Only valid reasons: allocation breach, Intelligence Brief signal, valuation concern, fundamental business problem. Never sell for documentation reasons.
+ANTI-FRAGILE RULE
+- Anti-fragile allocation = RULE_EVALUATION.metrics.antifragile_percent.
+- If there is a rule on this metric and its entry in RULE_EVALUATION.entries is "within_range":
+  - You MUST NOT say "fails the minimum" or "below anti-fragile minimum".
+- If it is "underweight" or "overweight", you may reference that EXACTLY as per the status and message.
 
-TRADE RECOMMENDATIONS:
-- Include EVERY position plus any new BUY recommendations.
-- TRIM to target weight (not full exit) unless fundamentally broken.
-- For every € freed by trims/sells, recommend where to deploy. total_buys ≈ total_sells.
-- HOLD entries: minimal (ticker, action, current_shares, brief reasoning).
-- If cash > 10%, do NOT increase cash further without corresponding BUYs.
+CASH CONSISTENCY
+- cash_percent = RULE_EVALUATION.metrics.cash_percent.
+- If cash_percent ≤ 0.1:
+  - Treat the portfolio as fully invested.
+  - rebalancing_summary.net_cash_impact MUST be ≤ 0 (you cannot magically spend cash).
+  - ALL net buying must be funded by sells/trims; you MUST NOT write phrases like "funded by existing cash" or "deploy idle cash".
+- If cash_percent > 0.1:
+  - You may describe buys as funded partly by cash, but numeric totals MUST match.
 
-MARKET SIGNALS: overall_sentiment max 30 words. bubble_warnings max 5 items, each max 25 words. Total section < 200 words. Plain English — no jargon.
+SCORING (HARD RULES ONLY)
+- Start portfolio_health_score at 100.
+- For each HARD rule breach (rule_enforcement === "hard") that is allocation-related:
+  - If breach magnitude > 5 percentage points beyond the limit: −20 points.
+  - If breach magnitude ≤ 5 percentage points: −10 points.
+- SOFT and DIAGNOSTIC rules MUST NOT change the score.
+- Enforce a floor of 10 and ceiling of 100.
+- At the end, verify you have NOT applied any deduction from soft/diagnostic rules.
+- For scores > 75, somewhere in summary or reasoning you must mention:
+  - "Score reflects current data quality, not future certainty."
 
-BOND RECOMMENDATIONS — MANDATORY:
-Always include bond_recommendations. Recommend Ireland-domiciled UCITS ETFs only (UAE tax efficiency). 2–4 ETFs max. Analyze by duration, geography, type.
+BANNED TERM
+- In ANY free-text field (summary, message, issue, reasoning, recommendation, etc.) you MUST NOT use the word "thesis" or phrases like "missing thesis", "write a thesis", "undocumented thesis".
+- The JSON key "thesis_checks" MUST be present and MUST ALWAYS be an empty array [].
+- Do not create any other keys containing the string "thesis".
 
-INTELLIGENCE BRIEF INTEGRATION:
-If provided, use it as the PRIMARY research signal. Reference specific brief themes in recommendations. Each action_item → evaluate as potential trade. Each market_theme → assess position exposure.
+SELL CRITERIA
+You may recommend SELLs or TRIMs only for:
+- Allocation/rule breaches,
+- Intelligence Brief signals,
+- Valuation concerns,
+- Fundamental business problems.
+NEVER sell just to tidy documentation.
 
-EXTENDED PRINCIPLES:
-- TALEB: Flag narrative risk on trend-continuation rationale. Identify hidden concentration (3+ correlated positions). Scores > 75 must note: "Score reflects current data quality, not future certainty."
-- KINDLEBERGER: Note crowded trades and bubble phase observations in market_signals.
-- CLASON: Cash > 10% = IDLE CAPITAL WARNING. Note if no capital deployed.
+TRADE RECOMMENDATIONS
+- Include an entry for EVERY existing position plus any NEW ETFs/stocks you recommend.
+- For holds: action = "HOLD", recommended_shares = current_shares, shares_to_trade = 0.
+- For trims and adds: adjust recommended_shares so that target_weight is coherent with the rebalancing story.
+- total_buys and total_sells (rebalancing_summary) MUST be numerically consistent with trade_recommendations.
+- net_cash_impact MUST equal (total_sells − total_buys) and MUST respect the cash rule above.
 
-NO REPETITION: State each fact ONCE in the most relevant section.
+MARKET SIGNALS
+- bubble_warnings: max 5 items, each ≤ 25 words.
+- overall_sentiment: ≤ 30 words, plain English.
+- consensus_level: "mixed" | "bullish_consensus" | "bearish_consensus".
+- Use Intelligence Brief + insights to populate these fields; do NOT invent macro views that are not supported.
 
-JSON OUTPUT STRUCTURE (return exactly this shape):
+BOND RECOMMENDATIONS (MANDATORY)
+Fill bond_recommendations with a coherent, compact plan:
+- current_bond_percent = RULE_EVALUATION.metrics.bonds_percent.
+- target_bond_percent: pick a value within any hard rule bounds (e.g., between min and max).
+- duration_allocation: 2–4 buckets ("short-term", "intermediate", "long-term", "EM").
+- geography_allocation: at least "US" and "EM" if present, or appropriate regions.
+- type_split: government vs corporate vs inflation-linked with reasoning.
+- recommended_etfs: only Ireland-domiciled UCITS bond ETFs, 2–4 items max.
+- current_holdings_assessment: assessment for each existing bond ETF (e.g., IB01, IDTM, IEML) with percent-of-bonds and a one-sentence assessment.
+
+INTELLIGENCE BRIEF INTEGRATION
+If intelligence_brief is present:
+- Use it as the PRIMARY research signal for tilts and themes.
+- For each action item and market theme in the brief, consider if the user's positions are exposed; reflect that in key trade_recommendations and market_signals.
+- Do NOT contradict explicit data in the brief.
+
+JSON OUTPUT SCHEMA — YOU MUST MATCH THIS EXACT SHAPE
 {
   "allocation_check": {
     "equities_percent": number,
@@ -334,7 +405,7 @@ JSON OUTPUT STRUCTURE (return exactly this shape):
     "stocks_vs_etf_split": "X% stocks / Y% ETFs (within equities only)",
     "equity_by_geography": [{ "region": string, "percent": number, "positions": [string], "recommendation": string }],
     "equity_by_style": [{ "style": string, "percent": number, "positions": [string], "recommendation": string }],
-    "issues": ["allocation issues ONLY — hard rule breaches"]
+    "issues": [string]
   },
   "position_alerts": [{
     "ticker": string,
@@ -368,7 +439,7 @@ JSON OUTPUT STRUCTURE (return exactly this shape):
     "target_weight": number,
     "reasoning": string,
     "urgency": "low" | "medium" | "high",
-    "rationale_aligned": true
+    "rationale_aligned": boolean
   }],
   "rebalancing_summary": {
     "total_sells": string,
@@ -388,8 +459,15 @@ JSON OUTPUT STRUCTURE (return exactly this shape):
   },
   "thesis_checks": [],
   "portfolio_health_score": number,
-  "summary": "SUMMARY CONSTRAINTS: Sentence 1 MUST be exactly: 'Biggest allocation or compliance problem: ' + (allocation_check.issues[0] if there is at least one issue, otherwise 'none'). Sentence 2: one Taleb/Kindleberger risk taken from market_signals.bubble_warnings or tail_risk_summary, in one sentence. Sentence 3: If recommended_actions has at least one item, use 'Top action: ' + recommended_actions[0].action, otherwise 'Top action: none'. You MUST NOT contradict allocation_check in the summary."
-}`;
+  "summary": string
+}
+
+SUMMARY FIELD RULES
+- summary MUST be exactly 3 sentences:
+  1) "Biggest allocation or compliance problem: " + (allocation_check.issues[0] if it exists, otherwise "none").
+  2) One tail-risk or bubble warning taken from market_signals.bubble_warnings, or from your own tail risk reasoning if none are present, max 25 words.
+  3) If recommended_actions has at least one item: "Top action: " + recommended_actions[0].action, otherwise "Top action: none".
+- summary MUST NOT contradict allocation_check or RULE_EVALUATION in any way.`;
 
     // ── User Prompt ──────────────────────────────────────────────────
     const bubbleInsights = (insights ?? []).filter((i: any) => i.insight_type === "bubble_signal");
