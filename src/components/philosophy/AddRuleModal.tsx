@@ -27,13 +27,17 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Loader2 } from "lucide-react";
-import { type RuleFormData, type RuleEnforcement } from "@/hooks/usePhilosophyRules";
+import { type RuleFormData, type RuleEnforcement, type RuleScope, type RuleCategory } from "@/hooks/usePhilosophyRules";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   description: z.string().min(1, "Description is required").max(500),
   rule_type: z.enum(["allocation", "position_size", "quality", "decision", "market"]),
   rule_enforcement: z.enum(["hard", "soft", "diagnostic"]),
+  scope: z.enum(["portfolio", "cluster", "position"]),
+  category: z.enum(["allocation", "size", "quality", "market", "behavior"]),
+  metric: z.string().optional(),
+  message_on_breach: z.string().optional(),
   threshold_min: z.number().min(0, "Threshold cannot be negative").max(100, "Threshold cannot exceed 100%").nullable().optional(),
   threshold_max: z.number().min(0, "Threshold cannot be negative").max(100, "Threshold cannot exceed 100%").nullable().optional(),
   source_books: z.string().optional(),
@@ -65,6 +69,10 @@ export function AddRuleModal({ open, onClose, onSubmit, isLoading }: AddRuleModa
       description: "",
       rule_type: "allocation",
       rule_enforcement: "hard",
+      scope: "portfolio",
+      category: "allocation",
+      metric: "",
+      message_on_breach: "",
       threshold_min: null,
       threshold_max: null,
       source_books: "",
@@ -77,6 +85,10 @@ export function AddRuleModal({ open, onClose, onSubmit, isLoading }: AddRuleModa
       description: values.description,
       rule_type: values.rule_type,
       rule_enforcement: values.rule_enforcement as RuleEnforcement,
+      scope: values.scope as RuleScope,
+      category: values.category as RuleCategory,
+      metric: values.metric || "",
+      message_on_breach: values.message_on_breach || "",
       threshold_min: values.threshold_min,
       threshold_max: values.threshold_max,
       source_books: values.source_books
@@ -135,6 +147,55 @@ export function AddRuleModal({ open, onClose, onSubmit, isLoading }: AddRuleModa
               )}
             />
 
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="scope"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Scope</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="portfolio">Portfolio</SelectItem>
+                        <SelectItem value="cluster">Cluster</SelectItem>
+                        <SelectItem value="position">Position</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="allocation">Allocation</SelectItem>
+                        <SelectItem value="size">Size</SelectItem>
+                        <SelectItem value="quality">Quality</SelectItem>
+                        <SelectItem value="market">Market</SelectItem>
+                        <SelectItem value="behavior">Behavior</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
               name="rule_enforcement"
@@ -174,6 +235,35 @@ export function AddRuleModal({ open, onClose, onSubmit, isLoading }: AddRuleModa
                 </FormItem>
               )}
             />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="metric"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Metric</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., bonds_percent" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="message_on_breach"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Breach Message</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Message shown on violation" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <FormField

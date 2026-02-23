@@ -10,6 +10,9 @@ function buildAllocationTargets(rules: any[]): string {
   if (!rules || rules.length === 0) return "(No custom rules defined — use defaults below)";
   return rules.map((r: any) => {
     const enforcement = r.rule_enforcement || "hard";
+    const scope = r.scope || "portfolio";
+    const category = r.category || "allocation";
+    const metric = r.metric || "";
     let line = `- ${r.name}`;
     if (r.description) line += `: ${r.description}`;
     if (r.threshold_min != null && r.threshold_max != null) {
@@ -19,8 +22,10 @@ function buildAllocationTargets(rules: any[]): string {
     } else if (r.threshold_min != null) {
       line += ` (min: ${r.threshold_min}%)`;
     }
-    if (r.rule_type) line += ` [type: ${r.rule_type}]`;
+    line += ` [scope: ${scope}] [category: ${category}]`;
+    if (metric) line += ` [metric: ${metric}]`;
     line += ` [enforcement: ${enforcement}]`;
+    if (r.message_on_breach) line += ` [breach: ${r.message_on_breach}]`;
     return line;
   }).join("\n");
 }

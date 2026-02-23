@@ -24,7 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { type PhilosophyRule, type RuleCheckResult, type RuleEnforcement } from "@/hooks/usePhilosophyRules";
+import { type PhilosophyRule, type RuleCheckResult, type RuleEnforcement, type RuleScope, type RuleCategory } from "@/hooks/usePhilosophyRules";
 
 const enforcementStyles: Record<RuleEnforcement, string> = {
   hard: "bg-red-500/10 text-red-500 border-red-500/20",
@@ -36,6 +36,20 @@ const enforcementLabels: Record<RuleEnforcement, string> = {
   hard: "Hard",
   soft: "Soft",
   diagnostic: "Diagnostic",
+};
+
+const scopeStyles: Record<RuleScope, string> = {
+  portfolio: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
+  cluster: "bg-orange-500/10 text-orange-500 border-orange-500/20",
+  position: "bg-violet-500/10 text-violet-500 border-violet-500/20",
+};
+
+const categoryStyles: Record<RuleCategory, string> = {
+  allocation: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+  size: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+  quality: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+  market: "bg-red-500/10 text-red-500 border-red-500/20",
+  behavior: "bg-amber-500/10 text-amber-500 border-amber-500/20",
 };
 
 const ruleTypeColors: Record<string, string> = {
@@ -112,9 +126,15 @@ export function PhilosophyRuleCard({
           <div className="flex items-center gap-1.5 flex-wrap">
             <Badge
               variant="outline"
-              className={cn("w-fit text-xs", ruleTypeColors[rule.rule_type || ""])}
+              className={cn("w-fit text-xs", scopeStyles[rule.scope])}
             >
-              {rule.rule_type?.replace("_", " ")}
+              {rule.scope}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={cn("w-fit text-xs", categoryStyles[rule.category])}
+            >
+              {rule.category}
             </Badge>
             <Badge
               variant="outline"
