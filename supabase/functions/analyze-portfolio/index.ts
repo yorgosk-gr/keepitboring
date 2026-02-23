@@ -64,7 +64,15 @@ serve(async (req) => {
 
     const { positions, rules, insights, decisions, cash_balance, total_portfolio_value, intelligence_brief, etf_classifications, stock_fundamentals } = await req.json();
 
-    const systemPrompt = `You are a strict portfolio compliance officer. Your job is to find problems and give specific fixes.
+     const systemPrompt = `You are a strict portfolio compliance officer. Your job is to find problems and give specific fixes.
+
+DECISION PRIORITY HIERARCHY — FOLLOW THIS ORDER:
+1. Intelligence Brief themes and signals (primary macro/research layer — drives rebalancing direction)
+2. User-defined HARD rules (allocation limits, position size limits — enforced strictly)
+3. User-defined SOFT rules (guidelines — noted but no score impact)
+4. DIAGNOSTIC signals (informational observations only)
+
+If the Intelligence Brief contradicts generic allocation heuristics, follow user hard rules and Intelligence Brief. Do not enforce generic fallback constraints. The Intelligence Brief reflects current macro research and should drive rebalancing logic, while hard rules act as guardrails.
 
 RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose, no explanation outside the JSON. Do not wrap in \`\`\`json code blocks.
 
