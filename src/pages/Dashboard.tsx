@@ -2,9 +2,7 @@ import { Link } from "react-router-dom";
 import { AlertCircle, DollarSign } from "lucide-react";
 import { PortfolioValue } from "@/components/dashboard/PortfolioValue";
 import { DonutChart } from "@/components/dashboard/DonutChart";
-import { ActiveAlerts } from "@/components/dashboard/ActiveAlerts";
 import { QuickStats } from "@/components/dashboard/QuickStats";
-import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { TopHoldings } from "@/components/dashboard/TopHoldings";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useAllETFMetadata } from "@/hooks/useAllETFMetadata";
@@ -15,8 +13,6 @@ import { useMemo } from "react";
 export default function Dashboard() {
   const {
     positions,
-    alerts,
-    decisionLogs,
     totalValue,
     cashBalance,
     dailyChange,
@@ -28,8 +24,6 @@ export default function Dashboard() {
     daysSincePriceRefresh,
     topPositions,
     isLoading,
-    dismissAlert,
-    isDismissing,
   } = useDashboardData();
 
   const { data: etfMetadata = {} } = useAllETFMetadata();
@@ -176,7 +170,6 @@ export default function Dashboard() {
         positionsCount={positions.length}
         cashBalance={cashBalance}
         daysSinceUpdate={daysSinceUpdate}
-        unresolvedAlertsCount={alerts.length}
         isLoading={isLoading}
       />
 
@@ -200,27 +193,14 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* X-Ray and Alerts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <PortfolioXRay 
-          positions={positions}
-          etfMetadata={etfMetadata}
-          totalValue={totalValue}
-          cashBalance={cashBalance}
-          isLoading={isLoading}
-        />
-        <ActiveAlerts 
-          alerts={alerts}
-          isLoading={isLoading}
-          onDismiss={dismissAlert}
-          isDismissing={isDismissing}
-        />
-        <RecentActivity 
-          decisionLogs={decisionLogs}
-          positions={positions}
-          isLoading={isLoading}
-        />
-      </div>
+      {/* X-Ray */}
+      <PortfolioXRay 
+        positions={positions}
+        etfMetadata={etfMetadata}
+        totalValue={totalValue}
+        cashBalance={cashBalance}
+        isLoading={isLoading}
+      />
 
       {/* Top Holdings */}
       <TopHoldings 

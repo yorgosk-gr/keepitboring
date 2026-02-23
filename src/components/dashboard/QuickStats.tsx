@@ -1,18 +1,16 @@
-import { Layers, Wallet, Clock, AlertTriangle } from "lucide-react";
+import { Layers, Wallet, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link } from "react-router-dom";
 
 interface StatItemProps {
   icon: React.ElementType;
   label: string;
   value: string | number;
   isLoading?: boolean;
-  linkTo?: string;
 }
 
-function StatItem({ icon: Icon, label, value, isLoading, linkTo }: StatItemProps) {
-  const content = (
-    <div className={`stat-card flex items-center gap-4 ${linkTo ? "cursor-pointer hover:border-primary/50" : ""}`}>
+function StatItem({ icon: Icon, label, value, isLoading }: StatItemProps) {
+  return (
+    <div className="stat-card flex items-center gap-4">
       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
         <Icon className="w-5 h-5 text-primary" />
       </div>
@@ -26,19 +24,12 @@ function StatItem({ icon: Icon, label, value, isLoading, linkTo }: StatItemProps
       </div>
     </div>
   );
-
-  if (linkTo) {
-    return <Link to={linkTo}>{content}</Link>;
-  }
-
-  return content;
 }
 
 interface QuickStatsProps {
   positionsCount: number;
   cashBalance: number;
   daysSinceUpdate: number | null;
-  unresolvedAlertsCount: number;
   isLoading?: boolean;
 }
 
@@ -46,11 +37,10 @@ export function QuickStats({
   positionsCount, 
   cashBalance, 
   daysSinceUpdate, 
-  unresolvedAlertsCount,
   isLoading 
 }: QuickStatsProps) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-3 gap-4">
       <StatItem 
         icon={Layers} 
         label="Total Positions" 
@@ -68,13 +58,6 @@ export function QuickStats({
         label="Days Since Update" 
         value={daysSinceUpdate ?? "—"}
         isLoading={isLoading}
-      />
-      <StatItem 
-        icon={AlertTriangle} 
-        label="Unresolved Alerts" 
-        value={unresolvedAlertsCount}
-        isLoading={isLoading}
-        linkTo="/analysis"
       />
     </div>
   );
