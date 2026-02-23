@@ -3,7 +3,7 @@ import { AlertCircle, DollarSign } from "lucide-react";
 import { PortfolioValue } from "@/components/dashboard/PortfolioValue";
 import { DonutChart } from "@/components/dashboard/DonutChart";
 import { QuickStats } from "@/components/dashboard/QuickStats";
-import { TopHoldings } from "@/components/dashboard/TopHoldings";
+
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useAllETFMetadata } from "@/hooks/useAllETFMetadata";
 import { PortfolioXRay } from "@/components/dashboard/PortfolioXRay";
@@ -22,7 +22,7 @@ export default function Dashboard() {
     cashPercent,
     daysSinceUpdate,
     daysSincePriceRefresh,
-    topPositions,
+    
     isLoading,
   } = useDashboardData();
 
@@ -203,11 +203,6 @@ export default function Dashboard() {
         isLoading={isLoading}
       />
 
-      {/* Top Holdings */}
-      <TopHoldings 
-        positions={topPositions}
-        isLoading={isLoading}
-      />
     </div>
   );
 }
