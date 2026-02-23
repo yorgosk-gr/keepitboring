@@ -329,14 +329,30 @@ ANTI-FRAGILE RULE
   - You MUST NOT say "fails the minimum" or "below anti-fragile minimum".
 - If it is "underweight" or "overweight", you may reference that EXACTLY as per the status and message.
 
-CASH CONSISTENCY
-- cash_percent = RULE_EVALUATION.metrics.cash_percent.
-- If cash_percent ≤ 0.1:
-  - Treat the portfolio as fully invested.
-  - rebalancing_summary.net_cash_impact MUST be ≤ 0 (you cannot magically spend cash).
-  - ALL net buying must be funded by sells/trims; you MUST NOT write phrases like "funded by existing cash" or "deploy idle cash".
-- If cash_percent > 0.1:
-  - You may describe buys as funded partly by cash, but numeric totals MUST match.
+HARD CASH CONSTRAINT — NON-NEGOTIABLE
+
+Use RULE_EVALUATION.metrics.cash_percent as authoritative.
+
+If cash_percent ≤ 0.1:
+- Treat the portfolio as fully invested.
+- You MUST enforce:
+  total_buys_value ≤ total_sells_value
+- net_cash_impact MUST be ≥ 0 (zero or positive).
+  (Positive = raising cash. Zero = perfectly funded by sells.)
+- You are STRICTLY FORBIDDEN from:
+  • Proposing net buys greater than sells.
+  • Writing phrases like "funded by cash", "deploy cash", or "using cash".
+  • Increasing total portfolio exposure without trimming something.
+- If equity is underweight and cash = 0:
+  You MUST fund ALL equity buys by trimming bonds, commodities, or stocks.
+- Before finalizing JSON:
+  - Compute total_sells and total_buys.
+  - If total_buys > total_sells:
+    You MUST adjust trades until total_buys ≈ total_sells.
+  - If not possible, reduce buy sizes.
+
+If cash_percent > 0.1:
+- You may describe buys as funded partly by cash, but numeric totals MUST match.
 
 SCORING (HARD RULES ONLY)
 - Start portfolio_health_score at 100.
