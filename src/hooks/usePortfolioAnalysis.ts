@@ -133,6 +133,7 @@ export interface AnalysisHistory {
   recommended_actions: RecommendedAction[] | null;
   key_risks: string[] | null;
   summary: string | null;
+  raw_response: any | null;
 }
 
 export function usePortfolioAnalysis() {
@@ -168,6 +169,7 @@ export function usePortfolioAnalysis() {
         recommended_actions: item.recommended_actions as RecommendedAction[] | null,
         key_risks: item.key_risks,
         summary: item.summary,
+        raw_response: item.raw_response,
       })) as AnalysisHistory[];
     },
     enabled: !!user,
