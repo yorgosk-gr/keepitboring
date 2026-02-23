@@ -225,7 +225,7 @@ PHILOSOPHY MODE — ACTIVE: "${portfolio_mode || "balanced"}"
 Interpretation lens (never overrides explicit hard rule min/max):
 - "capital_preservation": Bonds up to 45% acceptable. Gold 3–10% neutral. Prefer stability. Trim equity overweight aggressively.
 - "balanced": Standard stance. Follow all rules at face value.
-- "aggressive": Growth-oriented. Bonds 10–25%. Higher equity tolerance. Prioritise growth from Intelligence Brief.
+- "aggressive": Growth-oriented. Bonds 10–40%. Higher equity tolerance. Prioritise growth from Intelligence Brief.
 
 RULES ENGINE:
 You are given a RULES_JSON array. Each rule object has:
@@ -245,7 +245,7 @@ ALLOCATION TARGETS — USE RULES, NO FALLBACK GUESSING:
 - If a rule called "Bond Allocation" exists, its threshold_min and threshold_max are the ONLY valid limits for bonds.
 - If a rule called "Commodity + Gold Allocation" exists, its thresholds fully define that allocation.
 - If NO rule exists for a given asset class, then and only then you may use these defaults:
-  - Equities: max 70%, Bonds: max 20%, Commodities: max 10%
+  - Equities: max 70%, Bonds: max 40%, Commodities: max 10%
 - You MUST NOT invent alternative limits. The user's rules always override.
 
 ALLOCATION INTERPRETATION RULES — NO SIGN ERRORS:
