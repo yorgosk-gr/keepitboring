@@ -6,30 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function buildAllocationTargets(rules: any[]): string {
-  if (!rules || rules.length === 0) return "(No custom rules defined — use defaults below)";
-  return rules.map((r: any) => {
-    const enforcement = r.rule_enforcement || "hard";
-    const scope = r.scope || "portfolio";
-    const category = r.category || "allocation";
-    const metric = r.metric || "";
-    let line = `- ${r.name}`;
-    if (r.description) line += `: ${r.description}`;
-    if (r.threshold_min != null && r.threshold_max != null) {
-      line += ` (min: ${r.threshold_min}%, max: ${r.threshold_max}%)`;
-    } else if (r.threshold_max != null) {
-      line += ` (max: ${r.threshold_max}%)`;
-    } else if (r.threshold_min != null) {
-      line += ` (min: ${r.threshold_min}%)`;
-    }
-    line += ` [scope: ${scope}] [category: ${category}]`;
-    if (metric) line += ` [metric: ${metric}]`;
-    line += ` [enforcement: ${enforcement}]`;
-    if (r.message_on_breach) line += ` [breach: ${r.message_on_breach}]`;
-    return line;
-  }).join("\n");
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -39,7 +15,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-    
+
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -50,7 +26,7 @@ serve(async (req) => {
 
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
+
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -58,7 +34,6 @@ serve(async (req) => {
       });
     }
 
-    // Use Lovable AI gateway instead of user API key
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       return new Response(
@@ -67,379 +42,172 @@ serve(async (req) => {
       );
     }
 
-    const { positions, rules, insights, decisions, cash_balance, total_portfolio_value, intelligence_brief, etf_classifications, stock_fundamentals, portfolio_mode } = await req.json();
+    const {
+      positions,
+      rules,
+      insights,
+      decisions,
+      cash_balance,
+      total_portfolio_value,
+      intelligence_brief,
+      etf_classifications,
+      stock_fundamentals,
+      portfolio_mode,
+    } = await req.json();
 
-     const systemPrompt = `You are a strict portfolio compliance officer. Your job is to find problems and give specific fixes.
+    // ── System Prompt ────────────────────────────────────────────────
+    const systemPrompt = `You are a strict portfolio compliance officer. Your job is to find problems and give specific fixes.
 
-DECISION PRIORITY HIERARCHY — FOLLOW THIS ORDER:
-1. Intelligence Brief themes and signals (primary macro/research layer — drives rebalancing direction)
-2. User-defined HARD rules (allocation limits, position size limits — enforced strictly)
-3. User-defined SOFT rules (guidelines — noted but no score impact)
-4. DIAGNOSTIC signals (informational observations only)
+RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose, no explanation outside the JSON. Do not wrap in \`\`\`json code blocks. Do not include any text before or after the JSON object.
 
-If the Intelligence Brief contradicts generic allocation heuristics, follow user hard rules and Intelligence Brief. Do not enforce generic fallback constraints. The Intelligence Brief reflects current macro research and should drive rebalancing logic, while hard rules act as guardrails.
-If the Intelligence Brief conflicts with SOFT rules, follow the Intelligence Brief — soft rules are guidelines, not constraints. Only HARD rules are binding and cannot be overridden by the Intelligence Brief.
+DECISION PRIORITY HIERARCHY:
+1. Intelligence Brief themes (primary macro/research layer — drives rebalancing direction)
+2. HARD rules (binding limits — enforced strictly)
+3. SOFT rules (guidelines — noted but no score impact; Intelligence Brief overrides soft rules)
+4. DIAGNOSTIC rules (informational only — zero impact on score, alerts, or trades)
 
-PHILOSOPHY MODE — ACTIVE MODE: "${portfolio_mode || 'balanced'}"
-This modifies how you INTERPRET allocation rules (but never overrides explicit hard limits):
-- "capital_preservation": Conservative stance. Bonds up to 45% is acceptable. Gold 3–10% is neutral (not flagged). Prefer stability and lower drawdown risk. Trim equity overweight more aggressively.
-- "balanced": Standard stance. Bonds 20–35% target range. Follow all rules at face value.
-- "aggressive": Growth-oriented stance. Bonds 10–25% target range. Higher equity tolerance. Prioritise growth opportunities from Intelligence Brief.
-Apply the active mode as a LENS on allocation assessment — it shifts what counts as "on target" vs "overweight/underweight" for bonds, equities, and commodities. It must NOT override explicit user-defined hard rule min/max values.
+PHILOSOPHY MODE — ACTIVE: "${portfolio_mode || "balanced"}"
+Interpretation lens (never overrides explicit hard rule min/max):
+- "capital_preservation": Bonds up to 45% acceptable. Gold 3–10% neutral. Prefer stability. Trim equity overweight aggressively.
+- "balanced": Standard stance. Follow all rules at face value.
+- "aggressive": Growth-oriented. Bonds 10–25%. Higher equity tolerance. Prioritise growth from Intelligence Brief.
 
-RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose, no explanation outside the JSON. Do not wrap in \`\`\`json code blocks.
+RULES ENGINE:
+You are given a RULES_JSON array. Each rule object has:
+- scope: "portfolio" | "cluster" | "position"
+- category: "allocation" | "size" | "quality" | "market" | "behavior"
+- metric: string key (e.g. "stocks_percent", "bonds_percent", "position_weight")
+- operator: ">=" | "<=" | ">" | "<" | "between" | "outside"
+- threshold_min / threshold_max: numeric boundaries (null = no bound)
+- rule_enforcement: "hard" | "soft" | "diagnostic"
+- message_on_breach: text to use when breached
+- scoring_weight: used for score deductions (null = no score impact)
 
-CRITICAL DATA ACCURACY RULE — ABSOLUTE:
-- You are given EXACT position data including weight_percent, market_value, shares, and current_price for every position
-- You MUST use these EXACT values when referencing any position's weight, value, or size — NEVER estimate, round aggressively, or fabricate percentages
-- When generating position_alerts about size limits (e.g. "position is over X%"), use the EXACT weight_percent from the position data
-- If a position's weight_percent is 1.1%, do NOT say it is "over 3%" — that is fabrication and makes the entire response INVALID
-- Double-check every percentage you cite against the actual weight_percent field in the position data before including it
-- The same rule applies to market_value, shares, and all other numerical fields — use the data as provided
+Use these rules as the SOLE source of allocation limits. If a metric has NO corresponding rule, report its current value in allocation_check but do NOT flag it as a violation. State any assumptions in allocation_check.issues.
 
-BANNED TOPICS — ABSOLUTE RULE:
-Do not mention: "undocumented", "missing documentation", "no invalidation criteria", "write a thesis". Do NOT include any documentation-related actions in recommended_actions, position_alerts, or trade_recommendations. rationale_checks must always be an empty array [].
+TIERED SCORING (only HARD rules affect score):
+- Start at 100, max 100, min 10.
+- HARD breach > 5% beyond limit → −20 points
+- HARD breach ≤ 5% beyond limit → −10 points
+- SOFT & DIAGNOSTIC: 0 deduction — NEVER affect score.
+- Before finalizing, verify no soft/diagnostic deduction leaked in.
 
-TIERED RULE EVALUATION ENGINE — CRITICAL:
-Each rule has an enforcement level: "hard", "soft", or "diagnostic" (shown as [enforcement: X] in the rules list). If missing, default to "hard".
+BANNED TOPICS — ABSOLUTE:
+Do not mention "undocumented", "missing documentation", "no invalidation criteria", "write a thesis". thesis_checks must always be []. Do NOT include documentation-related actions anywhere.
 
-TIER 1 — HARD rules (enforcement: "hard"):
-- Can trigger "critical" or "warning" severity alerts
-- DEDUCT points from portfolio_health_score (see scoring below)
-- Appear in allocation_check.issues when breached
-- Can drive rebalancing via trade_recommendations
-- These are the ONLY rules that affect the health score
+CRITICAL DATA ACCURACY:
+Use EXACT weight_percent, market_value, shares, current_price from position data. NEVER estimate, fabricate, or round aggressively. Double-check every percentage you cite.
 
-TIER 2 — SOFT rules (enforcement: "soft"):
-- Can appear in position_alerts with severity "warning" only (never "critical")
-- Must NOT deduct ANY points from portfolio_health_score — score is UNCHANGED by soft rule violations
-- Must NOT appear in allocation_check.issues
-- Must NOT drive forced rebalancing (may suggest optional actions in recommended_actions with confidence "low")
-- Useful for guidelines the user wants to track but not enforce strictly
+ALLOCATION COMPUTATION GUIDE:
+- Use etf_classifications to determine each ETF's asset class (category field: equity, bond, commodity, gold, etc.). Do NOT guess from ticker names.
+- Stocks are always equity.
+- All percentages relative to total_portfolio_value (includes cash).
+- stocks_vs_etf_split = split WITHIN equities only (must sum to ~100%).
 
-TIER 3 — DIAGNOSTIC rules (enforcement: "diagnostic"):
-- Informational observations ONLY
-- Must NOT affect portfolio_health_score at all — zero impact on scoring
-- Must NOT trigger any rebalancing or trade_recommendations
-- Must NOT appear in allocation_check.issues
-- Must NOT appear in position_alerts
-- May appear ONLY in recommended_actions as low-priority informational notes with confidence "low"
-- These are purely observational signals for the user's awareness
+SELL CRITERIA — Only valid reasons: allocation breach, Intelligence Brief signal, valuation concern, fundamental business problem. Never sell for documentation reasons.
 
-SCORING RULES (ONLY Tier 1 / hard rules affect the score):
-- Start at 100, maximum score is 100
-- HARD rule breach MORE THAN 5% beyond limit → -20 points (e.g. rule says max 60%, actual is 66% = 6% beyond = -20)
-- HARD rule breach 5% OR LESS beyond limit → -10 points (e.g. rule says max 60%, actual is 64% = 4% beyond = -10)
-- SOFT rule violations: 0 points deducted — NO IMPACT on score whatsoever
-- DIAGNOSTIC rule observations: 0 points deducted — NO IMPACT on score whatsoever
-- Documentation-related issues: 0 points — NEVER deduct for missing documentation
-- Minimum score: 10 (never go below this)
+TRADE RECOMMENDATIONS:
+- Include EVERY position plus any new BUY recommendations.
+- TRIM to target weight (not full exit) unless fundamentally broken.
+- For every € freed by trims/sells, recommend where to deploy. total_buys ≈ total_sells.
+- HOLD entries: minimal (ticker, action, current_shares, brief reasoning).
+- If cash > 10%, do NOT increase cash further without corresponding BUYs.
 
-Before finalizing portfolio_health_score, verify: did any soft or diagnostic rule cause a deduction? If yes, remove that deduction. Only hard rule breaches count.
+MARKET SIGNALS: overall_sentiment max 30 words. bubble_warnings max 5 items, each max 25 words. Total section < 200 words. Plain English — no jargon.
 
-Example: equities at 68% with hard max 60% → 8% beyond → -20. One stock at 6% with hard max 5% → 1% beyond → -10. Soft rule noted but 0 deduction. Score = 100 - 20 - 10 = 70.
-
-ALLOCATION TARGETS — RULES-ONLY ENFORCEMENT:
-The user has defined these specific rules. Use their EXACT min/max values:
-${buildAllocationTargets(rules)}
-
-CRITICAL — NO GENERIC FALLBACKS:
-- Do NOT use any default/fallback allocation limits such as "equities max 70%", "bonds max 20%", "commodities max 10%", or any stocks/ETF split defaults
-- If NO user-defined rule exists for a given asset class, simply REPORT the current allocation percentage WITHOUT flagging it as a violation, warning, or issue
-- Do NOT classify an allocation as "overweight" or "underweight" unless a user-defined rule explicitly sets a limit for that asset class
-- allocation_check status fields (equities_status, bonds_status, commodities_status) must be "ok" if no user rule governs that asset class — never "warning" or "critical" without a matching rule
-- Portfolio compliance is driven EXCLUSIVELY by stored Rule objects — never by implicit defaults or general financial heuristics
-
-EXTENDED PRINCIPLES (Taleb, Kindleberger, Thorndike, Clason):
-
-TALEB — Apply as a skepticism layer on all analysis:
-- Flag any rationale based primarily on trend continuation as NARRATIVE RISK: HIGH
-- Identify HIDDEN CONCENTRATION: 3+ positions that would fall together in a risk-off event (e.g. multiple equity ETFs, correlated growth stocks)
-- Health scores above 75 must include this note in summary: "Score reflects current data quality, not future certainty — tail risks are by definition not visible in present signals"
-- Do NOT flag positions for "no stress test in holding period" or "no drawdown since purchase" — this is not actionable
-- Assess each stock: is the business FRAGILE (dependent on one input) or ROBUST (multiple revenue streams, pricing power, low leverage)?
-
-KINDLEBERGER — Bubble awareness (use in market_signals only):
-- Note if newsletter consensus on any theme is overwhelming = CROWDED TRADE warning
-- Mention bubble phase observations in market_signals.bubble_warnings if relevant
-
-CLASON — Cash discipline:
-- Cash > 10% of portfolio = IDLE CAPITAL WARNING
-- If cash has been above 10% for more than one period = DRIFTED CASH (flag more strongly)
-- Note if no capital was deployed in the current period
-
-NO REPETITION RULE:
-- State each fact ONCE in the most relevant section
-- allocation_check.issues: allocation problems only
-- DO NOT use a separate key_risks array — merge all risks into position_alerts instead
-- position_alerts: individual position problems AND portfolio-level risks
-- DO NOT repeat "78% equities" in multiple sections
-
-INSIGHT RULE — Connect the dots:
-- If newsletters warn about AI bubble AND portfolio holds AI stocks (META, CRWD, NVDA, etc), flag it explicitly: "META and CRWD are exposed to AI bubble warnings from newsletters"
-- If newsletters mention sector rotation AND portfolio is heavy in that sector, connect them
-- Don't just list bubble warnings — link them to specific holdings
+BOND RECOMMENDATIONS — MANDATORY:
+Always include bond_recommendations. Recommend Ireland-domiciled UCITS ETFs only (UAE tax efficiency). 2–4 ETFs max. Analyze by duration, geography, type.
 
 INTELLIGENCE BRIEF INTEGRATION:
-- If an Intelligence Brief is provided, treat it as the PRIMARY research signal layer
-- Use the brief's key_points, action_items, market_themes, and contrarian_signals to DRIVE reallocation recommendations
-- For each action_item in the brief, evaluate whether it should become a trade recommendation (BUY/SELL/TRIM/ADD)
-- For each market_theme, assess which positions benefit or are at risk, and recommend reallocation accordingly
-- Contrarian signals should inform position sizing: if consensus is crowded, reduce; if contrarian opportunity, consider adding
-- The brief's executive_summary should inform the overall portfolio strategy direction
-- Explicitly reference the Intelligence Brief when making recommendations: e.g. "Per Intelligence Brief: Mag 7 rotation underway — trim AMZN exposure"
+If provided, use it as the PRIMARY research signal. Reference specific brief themes in recommendations. Each action_item → evaluate as potential trade. Each market_theme → assess position exposure.
 
-SELL CRITERIA — ONLY these reasons are valid for recommending SELL:
-- Allocation breach (position or asset class exceeds limits)
-- Intelligence Brief signals (specific research-driven concern)
-- Valuation concern (overvalued based on fundamentals)
-- Fundamental business problem (declining revenue, cash burn, etc.)
-- Do NOT recommend SELL for any documentation-related reason.
+EXTENDED PRINCIPLES:
+- TALEB: Flag narrative risk on trend-continuation rationale. Identify hidden concentration (3+ correlated positions). Scores > 75 must note: "Score reflects current data quality, not future certainty."
+- KINDLEBERGER: Note crowded trades and bubble phase observations in market_signals.
+- CLASON: Cash > 10% = IDLE CAPITAL WARNING. Note if no capital deployed.
 
-STRESS TEST RULE:
-- Do NOT generate alerts or warnings about "no stress test in holding period", "no drawdown since purchase", or "tail risk unknown due to no drawdown". These are not actionable.
+NO REPETITION: State each fact ONCE in the most relevant section.
 
-TRADE RECOMMENDATIONS — REBALANCING RULE:
-Return trade_recommendations array with EVERY position PLUS any new BUY recommendations. Format:
-- TRIM positions: reduce to a TARGET WEIGHT, do NOT sell to 0% unless the position is fundamentally broken. Calculate shares_to_trade based on bringing the position to target weight.
-- SELL positions (full exit): ONLY when a position is fundamentally flawed (e.g. FCF negative confirmed, business deteriorating). Never sell just because allocation is breached — TRIM instead.
-- BUY positions: for every € freed up by trims/sells, you MUST recommend where to deploy that cash. Recommend BUY for existing underweight positions or new ETFs that fill allocation gaps. The total_buys in rebalancing_summary should roughly equal total_sells.
-- HOLD positions: minimal (just ticker, action, current_shares, "On target" reasoning)
-- Use the actual market_value and current_price from the position data to calculate estimated_value — do NOT make up values
-
-CRITICAL CASH RULE: If cash is already above 10%, you must NOT recommend actions that increase cash further without corresponding BUY recommendations. Every rebalancing plan must be CASH NEUTRAL or CASH REDUCING — the goal is to move money from overweight areas to underweight areas, not to pile up more cash.
-
-CRITICAL: The recommended_actions should have COMPLETE reasoning visible, not cut off. Each action needs:
-- What to do (specific ticker and shares)
-- Why (one clear sentence, referencing Intelligence Brief themes where applicable)
-- What it achieves (e.g., "reduces equity to 68%")
-- Do NOT include any documentation-related actions
-
-MARKET SIGNALS RULES:
-- Keep market_signals.overall_sentiment to ONE sentence (max 30 words)
-- Keep market_signals.bubble_warnings to max 5 bullet points, each max 25 words
-- Total market_signals section must be under 200 words
-- Use PLAIN, SIMPLE ENGLISH throughout — write as if explaining to a smart friend who is not a finance professional
-- Avoid jargon like "multiples stretched past fundamentals", "parabolic highs", "private credit", "pricing hope not disaster"
-- Instead say things like: "Some tech stocks are priced too high compared to their actual earnings", "Gold and copper prices rose too fast and are now falling back", "Too much risky lending happening", "Markets are betting everything will go well, ignoring what could go wrong"
-- Every bullet point must be immediately understandable without financial expertise
-
-INDUSTRY RECOMMENDATIONS:
-- Based on newsletter insights, Intelligence Brief themes, and current market conditions, recommend which industries/sectors to overweight, underweight, or stay neutral on
-- Provide 4-8 industry recommendations
-- Each must have a clear stance and reasoning tied to current signals
-
-BOND ALLOCATION STRATEGY — MANDATORY (must ALWAYS be included):
-- This section is REQUIRED in every analysis response. Never omit bond_recommendations.
-- Analyze the user's current bond holdings by duration (short 0-3yr, medium 3-7yr, long 7+yr), geography (US, Europe, Japan, Global), and type (Government/Treasury, Corporate, Inflation-Linked)
-- Recommend a target allocation across these dimensions based on: current rate environment, philosophy rules, Intelligence Brief themes, and newsletter insights
-- ALWAYS recommend Ireland-domiciled UCITS ETFs (for UAE tax efficiency) — never US-listed bond ETFs
-- Consider Malkiel's principles on bond duration and diversification, Taleb's anti-fragility (short duration = more robust), and current macro signals
-- Be specific: recommend 2-4 bond ETFs maximum to keep the portfolio simple
-- Assess whether current bond holdings are well-diversified or over-concentrated
-- If the user only holds one type of bond ETF, recommend diversification with specific alternatives
-
-JSON structure:
+JSON OUTPUT STRUCTURE (return exactly this shape):
 {
   "allocation_check": {
     "equities_percent": number,
     "equities_status": "ok" | "warning" | "critical",
     "bonds_percent": number,
-    "bonds_status": "ok" | "warning" | "critical", 
+    "bonds_status": "ok" | "warning" | "critical",
     "commodities_percent": number,
     "commodities_status": "ok" | "warning" | "critical",
-    "commodities_breakdown": [
-      { "label": "Gold", "percent": 3.2, "positions": ["IGLN", "SGLN"] },
-      { "label": "Broad Commodities", "percent": 2.1, "positions": ["CMOD"] },
-      { "label": "Copper Miners", "percent": 1.0, "positions": ["COPX"] }
-    ],
+    "commodities_breakdown": [{ "label": string, "percent": number, "positions": [string] }],
     "cash_percent": number,
-    "stocks_vs_etf_split": "X% stocks / Y% ETFs (WITHIN equities only, must sum to ~100%)",
-    "equity_by_geography": [
-      { "region": "US", "percent": 35.2, "positions": ["IUQA", "AMZN", "META"], "recommendation": "Near target" },
-      { "region": "Europe", "percent": 12.0, "positions": ["IMEU", "III"], "recommendation": "Consider adding" },
-      { "region": "Japan", "percent": 8.5, "positions": ["IJPA"], "recommendation": "Newsletters favor Japan — consider increasing" },
-      { "region": "Emerging Markets", "percent": 5.0, "positions": ["EIMI", "NDIA"], "recommendation": "On target" },
-      { "region": "Global/Diversified", "percent": 20.0, "positions": ["VWRA"], "recommendation": "Core holding" }
-    ],
-    "equity_by_style": [
-      { "style": "Broad Market / Index", "percent": 55.0, "positions": ["VWRA", "IUQA", "IJPA"], "recommendation": "Core allocation on target" },
-      { "style": "Quality / Factor", "percent": 5.0, "positions": ["IUQA"], "recommendation": "Consider adding quality tilt" },
-      { "style": "Thematic / Sector", "percent": 8.0, "positions": ["COPX"], "recommendation": "Within limits" },
-      { "style": "Individual Stocks", "percent": 12.0, "positions": ["AMZN", "META", "MELI"], "recommendation": "Monitor concentration" }
-    ],
-    "issues": ["allocation issues ONLY - do not repeat elsewhere"]
+    "stocks_vs_etf_split": "X% stocks / Y% ETFs (within equities only)",
+    "equity_by_geography": [{ "region": string, "percent": number, "positions": [string], "recommendation": string }],
+    "equity_by_style": [{ "style": string, "percent": number, "positions": [string], "recommendation": string }],
+    "issues": ["allocation issues ONLY — hard rule breaches"]
   },
-  "position_alerts": [
-    {
-      "ticker": "XXX",
-      "alert_type": "size" | "rationale" | "sentiment",
-      "severity": "warning" | "critical",
-      "issue": "specific problem",
-      "recent_sentiment": "from newsletters if mentioned",
-      "recommendation": "specific action"
-    }
-  ],
-  
+  "position_alerts": [{
+    "ticker": string,
+    "alert_type": "size" | "quality" | "rationale" | "sentiment",
+    "severity": "warning" | "critical",
+    "issue": string,
+    "recent_sentiment": string,
+    "recommendation": string
+  }],
   "market_signals": {
-    "bubble_warnings": ["max 5 items, each max 25 words"],
+    "bubble_warnings": [string],
     "consensus_level": "mixed" | "bullish_consensus" | "bearish_consensus",
-    "overall_sentiment": "one sentence, max 30 words",
-    "portfolio_exposure": "which of YOUR positions are exposed to these signals"
+    "overall_sentiment": string,
+    "portfolio_exposure": string
   },
-  "industry_recommendations": [
-    {
-      "industry": "Pharmaceuticals / Healthcare",
-      "stance": "overweight" | "underweight" | "neutral",
-      "reasoning": "Defensive sector with strong pipeline visibility; newsletters highlight pharma as resilient in late cycle"
-    },
-    {
-      "industry": "Energy",
-      "stance": "underweight",
-      "reasoning": "Oil demand softening per Intelligence Brief; avoid cyclical exposure at peak"
-    }
-  ],
-  "recommended_actions": [
-    {
-      "priority": 1,
-      "action": "Trim AMZN by 50 shares to reduce US tech concentration",
-      "reasoning": "Intelligence Brief flags crowded Mag 7 trade. Reduces equity from 78% to 74%.",
-      "confidence": "high",
-      "trades_involved": ["AMZN"]
-    }
-  ],
-  "trade_recommendations": [
-    {
-      "ticker": "IB01",
-      "action": "SELL",
-      "current_shares": 1364,
-      "recommended_shares": 600,
-      "shares_to_trade": -764,
-      "estimated_value": 38200,
-      "current_weight": 14.0,
-      "target_weight": 6.0,
-      "reasoning": "Bonds overweight at 37% vs max 30%. Trim (not full exit) to bring bonds closer to target.",
-      "urgency": "high",
-      "rationale_aligned": true
-    },
-    {
-      "ticker": "EIMI",
-      "action": "BUY",
-      "current_shares": 100,
-      "recommended_shares": 250,
-      "shares_to_trade": 150,
-      "estimated_value": 7500,
-      "current_weight": 1.8,
-      "target_weight": 4.5,
-      "reasoning": "EM equities underweight. Deploy cash from bond trims to increase diversification.",
-      "urgency": "medium",
-      "rationale_aligned": true
-    },
-    {
-      "ticker": "VWRA",
-      "action": "HOLD",
-      "current_shares": 920,
-      "recommended_shares": 920,
-      "shares_to_trade": 0,
-      "estimated_value": 157771,
-      "current_weight": 31.5,
-      "target_weight": 31.5,
-      "reasoning": "Core holding, on target",
-      "urgency": "low",
-      "rationale_aligned": true
-    }
-  ],
+  "recommended_actions": [{
+    "priority": number,
+    "action": string,
+    "reasoning": string,
+    "confidence": "high" | "medium" | "low",
+    "trades_involved": [string]
+  }],
+  "trade_recommendations": [{
+    "ticker": string,
+    "action": "SELL" | "HOLD" | "BUY",
+    "current_shares": number,
+    "recommended_shares": number,
+    "shares_to_trade": number,
+    "estimated_value": number,
+    "current_weight": number,
+    "target_weight": number,
+    "reasoning": string,
+    "urgency": "low" | "medium" | "high",
+    "rationale_aligned": boolean | null
+  }],
   "rebalancing_summary": {
-    "total_sells": "€38,200 across 1 position",
-    "total_buys": "€35,000 across 3 positions",
-    "net_cash_impact": "+€3,200",
-    "primary_goal": "Trim overweight bonds and redeploy into underweight equities to fix allocation breaches"
+    "total_sells": string,
+    "total_buys": string,
+    "net_cash_impact": string,
+    "primary_goal": string
   },
   "bond_recommendations": {
-    "current_bond_percent": 20.5,
-    "target_bond_percent": 20,
-    "strategy_summary": "1-2 sentence bond strategy based on current macro environment, philosophy rules, and Intelligence Brief themes",
-    "duration_allocation": [
-      {
-        "duration": "Short-term (0-3 years)",
-        "current_percent_of_bonds": 70,
-        "target_percent_of_bonds": 40,
-        "reasoning": "Why this duration weight — reference rate expectations, Taleb anti-fragility, or brief themes"
-      },
-      {
-        "duration": "Medium-term (3-7 years)",
-        "current_percent_of_bonds": 0,
-        "target_percent_of_bonds": 30,
-        "reasoning": "Why add or reduce this bucket"
-      },
-      {
-        "duration": "Long-term (7+ years)",
-        "current_percent_of_bonds": 30,
-        "target_percent_of_bonds": 30,
-        "reasoning": "Why this weight"
-      }
-    ],
-    "geography_allocation": [
-      {
-        "region": "US Treasuries",
-        "target_percent_of_bonds": 30,
-        "reasoning": "Why this region"
-      },
-      {
-        "region": "Europe / EUR",
-        "target_percent_of_bonds": 40,
-        "reasoning": "Why"
-      },
-      {
-        "region": "Global / Diversified",
-        "target_percent_of_bonds": 30,
-        "reasoning": "Why"
-      }
-    ],
-    "type_split": {
-      "government_percent": 70,
-      "corporate_percent": 20,
-      "inflation_linked_percent": 10,
-      "reasoning": "Why this split between govt, corporate, and inflation-linked"
-    },
-    "recommended_etfs": [
-      {
-        "ticker": "AGGU",
-        "name": "iShares Core Global Aggregate Bond UCITS ETF",
-        "duration": "Medium-term",
-        "region": "Global",
-        "type": "Government + Corporate blend",
-        "action": "HOLD" | "BUY" | "INCREASE" | "REDUCE" | "SELL",
-        "target_percent_of_bonds": 50,
-        "reasoning": "Why this specific ETF — reference duration, geography, and cost"
-      }
-    ],
-    "current_holdings_assessment": [
-      {
-        "ticker": "IB01",
-        "name": "Current bond ETF name",
-        "duration": "Short-term",
-        "region": "US",
-        "type": "Treasury",
-        "current_percent_of_bonds": 70,
-        "assessment": "Over-concentrated in short duration US treasuries. Consider diversifying into medium-term European or global aggregate."
-      }
-    ]
+    "current_bond_percent": number,
+    "target_bond_percent": number,
+    "strategy_summary": string,
+    "duration_allocation": [{ "duration": string, "current_percent_of_bonds": number, "target_percent_of_bonds": number, "reasoning": string }],
+    "geography_allocation": [{ "region": string, "target_percent_of_bonds": number, "reasoning": string }],
+    "type_split": { "government_percent": number, "corporate_percent": number, "inflation_linked_percent": number, "reasoning": string },
+    "recommended_etfs": [{ "ticker": string, "name": string, "duration": string, "region": string, "type": string, "action": string, "target_percent_of_bonds": number, "reasoning": string }],
+    "current_holdings_assessment": [{ "ticker": string, "name": string, "duration": string, "region": string, "type": string, "current_percent_of_bonds": number, "assessment": string }]
   },
-  "cash_assessment": {
-    "cash_percent": 5.2,
-    "status": "ok",
-    "message": "specific Clason-rule assessment",
-    "deployment_plan": "noted"
-  },
+  "thesis_checks": [],
   "portfolio_health_score": number,
-  "summary": "3 sentences. First: biggest allocation or compliance problem. Second: most important Taleb/Kindleberger risk. Third: top action."
+  "summary": "3 sentences. First: biggest compliance problem. Second: most important risk. Third: top action."
 }`;
 
-    const bubbleInsights = (insights ?? []).filter((i: any) => i.insight_type === 'bubble_signal');
-    const macroInsights = (insights ?? []).filter((i: any) => i.insight_type === 'macro' || i.insight_type === 'macro_view' || i.insight_type === 'market_view');
+    // ── User Prompt ──────────────────────────────────────────────────
+    const bubbleInsights = (insights ?? []).filter((i: any) => i.insight_type === "bubble_signal");
+    const macroInsights = (insights ?? []).filter((i: any) =>
+      ["macro", "macro_view", "market_view"].includes(i.insight_type)
+    );
     const portfolioInsights = (insights ?? []).filter((i: any) =>
-      i.tickers_mentioned?.some((t: string) => (positions ?? []).map((p: any) => p.ticker).includes(t))
+      i.tickers_mentioned?.some((t: string) =>
+        (positions ?? []).map((p: any) => p.ticker).includes(t)
+      )
     );
 
     const userPrompt = `CURRENT PORTFOLIO:
@@ -449,33 +217,33 @@ CASH BALANCE: $${(cash_balance ?? 0).toFixed(2)}
 TOTAL PORTFOLIO VALUE (including cash): $${(total_portfolio_value ?? 0).toFixed(2)}
 CASH AS % OF PORTFOLIO: ${total_portfolio_value ? ((cash_balance / total_portfolio_value) * 100).toFixed(1) : 0}%
 
-ACTIVE RULES:
+RULES_JSON:
 ${JSON.stringify(rules, null, 2)}
 
-ETF CLASSIFICATIONS (use these to correctly identify each ETF's asset class when calculating allocation percentages — do not guess based on ticker name):
+ETF CLASSIFICATIONS (use category field to determine asset class — do not guess from ticker):
 ${JSON.stringify(etf_classifications, null, 2)}
 
-NEWSLETTER INTELLIGENCE (${insights?.length ?? 0} insights from processed newsletters):
+NEWSLETTER INTELLIGENCE (${insights?.length ?? 0} insights):
 
 BUBBLE & RISK SIGNALS (${bubbleInsights.length}):
-${bubbleInsights.map((i: any) => `- [${i.source_name ?? 'Newsletter'}] ${i.content} (sentiment: ${i.sentiment})`).join('\n') || 'None detected'}
+${bubbleInsights.map((i: any) => `- [${i.source_name ?? "Newsletter"}] ${i.content} (sentiment: ${i.sentiment})`).join("\n") || "None detected"}
 
 MACRO VIEWS (${macroInsights.length}):
-${macroInsights.map((i: any) => `- [${i.source_name ?? 'Newsletter'}] ${i.content}`).join('\n') || 'None'}
+${macroInsights.map((i: any) => `- [${i.source_name ?? "Newsletter"}] ${i.content}`).join("\n") || "None"}
 
-YOUR PORTFOLIO MENTIONED IN NEWSLETTERS (${portfolioInsights.length}):
-${portfolioInsights.map((i: any) => `- [${i.source_name ?? 'Newsletter'}] Tickers: ${i.tickers_mentioned?.join(', ')} — ${i.content} (sentiment: ${i.sentiment})`).join('\n') || 'None'}
+PORTFOLIO MENTIONED IN NEWSLETTERS (${portfolioInsights.length}):
+${portfolioInsights.map((i: any) => `- [${i.source_name ?? "Newsletter"}] Tickers: ${i.tickers_mentioned?.join(", ")} — ${i.content} (sentiment: ${i.sentiment})`).join("\n") || "None"}
 
 RECENT DECISION LOG:
 ${JSON.stringify(decisions, null, 2)}
 
-${intelligence_brief ? `INTELLIGENCE BRIEF (synthesized from ${intelligence_brief.newsletters_analyzed ?? 0} newsletters, ${intelligence_brief.insights_analyzed ?? 0} insights):
+${intelligence_brief ? `INTELLIGENCE BRIEF (${intelligence_brief.newsletters_analyzed ?? 0} newsletters, ${intelligence_brief.insights_analyzed ?? 0} insights):
 Executive Summary: ${intelligence_brief.executive_summary || "N/A"}
 
 Key Points:
 ${(intelligence_brief.key_points || []).map((kp: any) => `- [${kp.relevance}] ${kp.title}: ${kp.detail}`).join("\n")}
 
-Action Items from Brief:
+Action Items:
 ${(intelligence_brief.action_items || []).map((ai: any) => `- [${ai.urgency}] ${ai.action} — ${ai.reasoning}`).join("\n")}
 
 Market Themes:
@@ -484,18 +252,10 @@ ${(intelligence_brief.market_themes || []).map((mt: any) => `- ${mt.theme} (${mt
 Contrarian Signals:
 ${(intelligence_brief.contrarian_signals || []).map((cs: string) => `- ${cs}`).join("\n")}
 
-USE THIS INTELLIGENCE BRIEF to drive your trade recommendations and reallocation suggestions. Each recommended action should reference specific brief themes where applicable.` : "No Intelligence Brief available — rely on raw insights above."}
+USE THIS BRIEF to drive trade recommendations. Reference specific themes.` : "No Intelligence Brief available — rely on raw insights above."}
 
-${stock_fundamentals && stock_fundamentals.length > 0 ? `STOCK FUNDAMENTALS (AI-estimated metrics for individual stocks — use these for quality assessment, Thorndike checks, and position alerts):
-${stock_fundamentals.map((f: any) => `${f.ticker}: ROIC=${f.roic ?? 'N/A'}%, Earnings Yield=${f.earnings_yield ?? 'N/A'}%, P/E=${f.pe_ratio ?? 'N/A'}, D/E=${f.debt_to_equity ?? 'N/A'}, Revenue Growth YoY=${f.revenue_growth_yoy ?? 'N/A'}%, FCF Yield=${f.free_cash_flow_yield ?? 'N/A'}%, Gross Margin=${f.gross_margin ?? 'N/A'}%${f.notes ? ` (${f.notes})` : ''}`).join('\n')}
-Use these metrics to:
-- Flag stocks with ROIC < 10% or negative FCF yield as potential quality concerns
-- Identify high-quality compounders (ROIC > 15%, positive FCF, growing revenue)
-- Apply Thorndike capital allocation quality checks using actual data instead of estimates
-- Factor earnings yield into valuation assessments for position sizing` : "No stock fundamentals available — recommend the user fetch fundamentals data for better quality assessment."}
-
-IMPORTANT: The allocation percentages (equities_percent, bonds_percent, commodities_percent, cash_percent) must be calculated relative to TOTAL PORTFOLIO VALUE ($${(total_portfolio_value ?? 0).toFixed(2)}), which includes the cash balance of $${(cash_balance ?? 0).toFixed(2)}. Cash percent should reflect this.
-CRITICAL: stocks_vs_etf_split must show the split WITHIN equities only (stocks as % of equities, ETFs as % of equities). These two numbers must sum to approximately 100%. Do NOT use total portfolio as the denominator for this field.
+${stock_fundamentals?.length > 0 ? `STOCK FUNDAMENTALS:
+${stock_fundamentals.map((f: any) => `${f.ticker}: ROIC=${f.roic ?? "N/A"}%, Earnings Yield=${f.earnings_yield ?? "N/A"}%, P/E=${f.pe_ratio ?? "N/A"}, D/E=${f.debt_to_equity ?? "N/A"}, Revenue Growth=${f.revenue_growth_yoy ?? "N/A"}%, FCF Yield=${f.free_cash_flow_yield ?? "N/A"}%, Gross Margin=${f.gross_margin ?? "N/A"}%${f.notes ? ` (${f.notes})` : ""}`).join("\n")}` : "No stock fundamentals available."}
 
 Analyze this portfolio and return the JSON response.`;
 
@@ -541,8 +301,6 @@ Analyze this portfolio and return the JSON response.`;
     }
 
     const aiResponse = await response.json();
-    
-    // OpenAI-compatible format: choices[0].message.content
     const content = aiResponse.choices?.[0]?.message?.content;
     const finishReason = aiResponse.choices?.[0]?.finish_reason;
 
@@ -554,38 +312,40 @@ Analyze this portfolio and return the JSON response.`;
       );
     }
 
-    // Check if response was truncated due to max_tokens
     if (finishReason === "length") {
-      console.error("AI response was truncated (hit max_tokens limit)");
+      console.error("AI response truncated (hit max_tokens)");
       return new Response(
-        JSON.stringify({ error: "Analysis response was too long and got truncated. Please try again with fewer insights." }),
+        JSON.stringify({ error: "Analysis response was truncated. Re-run with fewer insights or a shorter brief." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     console.log("AI Response received:", content.substring(0, 200));
 
-    // Parse the JSON response - handle potential markdown code blocks
+    // ── Parse JSON ───────────────────────────────────────────────────
     let analysisResult;
     try {
       let jsonString = content.trim();
-      // Extract JSON from markdown code blocks or surrounding text
-      const jsonBlockMatch = jsonString.match(/```json\s*([\s\S]*?)```/);
-      if (jsonBlockMatch) {
-        jsonString = jsonBlockMatch[1].trim();
+      // If it's a clean JSON object, parse directly
+      if (jsonString.startsWith("{") && jsonString.endsWith("}")) {
+        analysisResult = JSON.parse(jsonString);
       } else {
-        // Try to find raw JSON object in the response
-        const firstBrace = jsonString.indexOf('{');
-        const lastBrace = jsonString.lastIndexOf('}');
+        // Extract the first { to last } substring
+        const firstBrace = jsonString.indexOf("{");
+        const lastBrace = jsonString.lastIndexOf("}");
         if (firstBrace !== -1 && lastBrace > firstBrace) {
-          jsonString = jsonString.substring(firstBrace, lastBrace + 1);
+          analysisResult = JSON.parse(jsonString.substring(firstBrace, lastBrace + 1));
+        } else {
+          throw new Error("No JSON object found in response");
         }
       }
-      analysisResult = JSON.parse(jsonString);
     } catch (parseError) {
       console.error("Failed to parse AI response:", parseError);
       console.error("Raw content (first 500):", content.substring(0, 500));
-      throw new Error("Failed to parse AI analysis response");
+      return new Response(
+        JSON.stringify({ error: "Failed to parse AI analysis response" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     return new Response(JSON.stringify(analysisResult), {
