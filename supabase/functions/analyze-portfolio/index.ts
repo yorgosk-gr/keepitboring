@@ -161,6 +161,10 @@ MARKET SIGNALS RULES:
 - Keep market_signals.overall_sentiment to ONE sentence (max 30 words)
 - Keep market_signals.bubble_warnings to max 5 bullet points, each max 25 words
 - Total market_signals section must be under 200 words
+- Use PLAIN, SIMPLE ENGLISH throughout — write as if explaining to a smart friend who is not a finance professional
+- Avoid jargon like "multiples stretched past fundamentals", "parabolic highs", "private credit", "pricing hope not disaster"
+- Instead say things like: "Some tech stocks are priced too high compared to their actual earnings", "Gold and copper prices rose too fast and are now falling back", "Too much risky lending happening", "Markets are betting everything will go well, ignoring what could go wrong"
+- Every bullet point must be immediately understandable without financial expertise
 
 INDUSTRY RECOMMENDATIONS:
 - Based on newsletter insights, Intelligence Brief themes, and current market conditions, recommend which industries/sectors to overweight, underweight, or stay neutral on
