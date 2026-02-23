@@ -263,11 +263,37 @@ Synthesize these into an actionable intelligence brief. Focus on what matters fo
       }
     }
 
+    // Delete newsletters (and their insights via cascade) older than 30 days
+    const thirtyDaysAgoCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    // First delete insights belonging to old newsletters
+    const { data: oldNewsletters } = await supabase
+      .from("newsletters")
+      .select("id")
+      .eq("user_id", user.id)
+      .lt("created_at", thirtyDaysAgoCutoff);
+
+    const oldIds = (oldNewsletters ?? []).map(n => n.id);
+    if (oldIds.length > 0) {
+      await supabase.from("insights").delete().in("newsletter_id", oldIds);
+      const { error: delErr } = await supabase
+        .from("newsletters")
+        .delete()
+        .eq("user_id", user.id)
+        .lt("created_at", thirtyDaysAgoCutoff);
+      if (delErr) {
+        console.error("Cleanup error:", delErr);
+      } else {
+        console.log(`Cleaned up ${oldIds.length} newsletters older than 30 days`);
+      }
+    }
+
     return new Response(JSON.stringify({
       ...result,
       newsletters_analyzed: newsletters?.length ?? 0,
       insights_analyzed: insightsList.length,
       generated_at: new Date().toISOString(),
+      cleaned_up: oldIds.length,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
