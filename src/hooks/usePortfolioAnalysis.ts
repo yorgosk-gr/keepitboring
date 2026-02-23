@@ -225,13 +225,24 @@ export function usePortfolioAnalysis() {
         console.warn("Could not fetch intelligence brief for analysis:", e);
       }
 
-      // Prepare fundamentals data for stocks that have it
-      const stockFundamentals = positions
-        .filter(p => p.position_type === "stock" && (p as any).fundamentals)
-        .map(p => ({
+      // Fetch fundamentals directly from DB for all stocks
+      const stockTickers = positions
+        .filter(p => p.position_type === "stock")
+        .map(p => p.ticker);
+
+      let stockFundamentals: any[] = [];
+      if (stockTickers.length > 0) {
+        const { data: positionsWithFundamentals } = await supabase
+          .from("positions")
+          .select("ticker, fundamentals")
+          .in("ticker", stockTickers)
+          .not("fundamentals", "is", null);
+
+        stockFundamentals = (positionsWithFundamentals ?? []).map(p => ({
           ticker: p.ticker,
-          ...(p as any).fundamentals,
+          ...(p.fundamentals as any),
         }));
+      }
 
       const { data, error } = await supabase.functions.invoke("analyze-portfolio", {
         body: {
