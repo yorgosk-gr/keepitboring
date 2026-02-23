@@ -332,40 +332,61 @@ export type Database = {
       }
       philosophy_rules: {
         Row: {
+          category: string
           created_at: string
           description: string | null
           id: string
           is_active: boolean
+          message_on_breach: string
+          metric: string
           name: string
+          operator: string
           rule_enforcement: string
           rule_type: string | null
+          scope: string
+          scoring_weight: number | null
           source_books: string[] | null
+          tags: string[]
           threshold_max: number | null
           threshold_min: number | null
           user_id: string
         }
         Insert: {
+          category?: string
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean
+          message_on_breach?: string
+          metric?: string
           name: string
+          operator?: string
           rule_enforcement?: string
           rule_type?: string | null
+          scope?: string
+          scoring_weight?: number | null
           source_books?: string[] | null
+          tags?: string[]
           threshold_max?: number | null
           threshold_min?: number | null
           user_id: string
         }
         Update: {
+          category?: string
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean
+          message_on_breach?: string
+          metric?: string
           name?: string
+          operator?: string
           rule_enforcement?: string
           rule_type?: string | null
+          scope?: string
+          scoring_weight?: number | null
           source_books?: string[] | null
+          tags?: string[]
           threshold_max?: number | null
           threshold_min?: number | null
           user_id?: string
