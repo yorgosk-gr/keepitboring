@@ -10,7 +10,7 @@ import { NewsletterList } from "@/components/newsletters/NewsletterList";
 import { NewsletterArchiveTab } from "@/components/newsletters/NewsletterArchiveTab";
 import { InsightsModal } from "@/components/newsletters/InsightsModal";
 import { PasteTextModal } from "@/components/newsletters/PasteTextModal";
-import { CleanupActionsCard } from "@/components/newsletters/CleanupActionsCard";
+
 import { InsightsSummaryCard } from "@/components/newsletters/InsightsSummaryCard";
 
 export default function Newsletters() {
@@ -126,8 +126,6 @@ export default function Newsletters() {
             />
           </div>
 
-          {/* Cleanup Actions */}
-          <CleanupActionsCard />
         </TabsContent>
 
         <TabsContent value="archived">
