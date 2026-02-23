@@ -12,13 +12,12 @@ export interface InsightStats {
   healthStatus: "green" | "amber" | "red";
 }
 
-export type InsightsWindow = "7" | "30" | "90" | "all";
-
-export function useInsightStats(insightsWindow: InsightsWindow = "30") {
+export function useInsightStats() {
   const { user } = useAuth();
+  const windowDays = 30;
 
   return useQuery({
-    queryKey: ["insight-stats", user?.id, insightsWindow],
+    queryKey: ["insight-stats", user?.id],
     queryFn: async (): Promise<InsightStats> => {
       // Get all newsletters
       const { data: newsletters, error: nlError } = await supabase
@@ -41,16 +40,11 @@ export function useInsightStats(insightsWindow: InsightsWindow = "30") {
 
       // Calculate active insights based on window
       const now = new Date();
-      let windowDate: Date | null = null;
-      if (insightsWindow !== "all") {
-        windowDate = subDays(now, parseInt(insightsWindow));
-      }
+      const windowDate = subDays(now, windowDays);
 
-      const activeInsights = windowDate
-        ? allInsights?.filter(
+      const activeInsights = allInsights?.filter(
             (i) => !i.is_summarized && new Date(i.created_at) >= windowDate
-          ).length ?? 0
-        : allInsights?.filter((i) => !i.is_summarized).length ?? 0;
+          ).length ?? 0;
 
       // For now, assume last analysis used 50 max (we'll update this when analysis runs)
       const insightsInLastAnalysis = Math.min(activeInsights, 50);

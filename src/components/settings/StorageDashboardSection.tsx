@@ -2,15 +2,11 @@ import { Database, FileText, Lightbulb, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useInsightStats, type InsightsWindow } from "@/hooks/useInsightStats";
+import { useInsightStats } from "@/hooks/useInsightStats";
 import { HelpTooltip } from "@/components/common/HelpTooltip";
 
-interface StorageDashboardSectionProps {
-  insightsWindow: InsightsWindow;
-}
-
-export function StorageDashboardSection({ insightsWindow }: StorageDashboardSectionProps) {
-  const { data: stats, isLoading } = useInsightStats(insightsWindow);
+export function StorageDashboardSection() {
+  const { data: stats, isLoading } = useInsightStats();
 
   if (isLoading) {
     return (
@@ -55,12 +51,7 @@ export function StorageDashboardSection({ insightsWindow }: StorageDashboardSect
     }
   };
 
-  const windowLabel = {
-    "7": "7 days",
-    "30": "30 days",
-    "90": "90 days",
-    all: "all time",
-  }[insightsWindow];
+  const windowLabel = "30 days";
 
   return (
     <Card>

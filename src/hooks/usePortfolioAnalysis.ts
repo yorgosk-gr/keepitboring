@@ -184,8 +184,7 @@ export function usePortfolioAnalysis() {
 
       // Use smart insight selection
       const { insights: selectedInsights, meta: insightsMeta } = await selectSmartInsights(
-        portfolioTickers,
-        settings.insightsWindow
+        portfolioTickers
       );
 
       // Prepare ETF classification data for the analysis
