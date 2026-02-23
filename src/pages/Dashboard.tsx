@@ -72,8 +72,7 @@ export default function Dashboard() {
     return [
       { name: "Equity", value: totalWithCash > 0 ? (breakdown.equity / totalWithCash) * 100 : 0, color: "hsl(160, 84%, 39%)", target: 65 },
       { name: "Bonds", value: totalWithCash > 0 ? (breakdown.bond / totalWithCash) * 100 : 0, color: "hsl(199, 89%, 48%)", target: 20 },
-      { name: "Commodities", value: totalWithCash > 0 ? (breakdown.commodity / totalWithCash) * 100 : 0, color: "hsl(38, 92%, 50%)", target: 10 },
-      { name: "Gold", value: totalWithCash > 0 ? (breakdown.gold / totalWithCash) * 100 : 0, color: "hsl(45, 93%, 47%)" },
+      { name: "Commodities", value: totalWithCash > 0 ? ((breakdown.commodity + breakdown.gold) / totalWithCash) * 100 : 0, color: "hsl(38, 92%, 50%)", target: 5 },
       { name: "Cash", value: totalWithCash > 0 ? (cashBalance / totalWithCash) * 100 : 0, color: "hsl(217, 33%, 40%)", target: 5 },
     ].filter(item => item.value > 0);
   }, [positions, etfMetadata, cashBalance]);
