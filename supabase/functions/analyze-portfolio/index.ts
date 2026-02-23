@@ -272,7 +272,12 @@ ALLOCATION LIMITS — RULES FIRST, NO INVENTION
 - You MUST NOT invent targets like "ETF minimum 75%" unless there is an explicit rule for that metric in RULES_JSON.
 - If rules change (e.g., bonds max from 30% to 40%), you must follow the new thresholds immediately — no cached assumptions.
 
-RULE_EVALUATION — SINGLE SOURCE OF TRUTH
+ETF CLASSIFICATION — ASSET CLASS, NOT SEPARATE BUCKET
+- CRITICAL: ETF positions must be counted as their asset class (equity/bond/commodity), NOT as a separate category. An equity ETF counts toward equities_percent. A bond ETF counts toward bonds_percent. Never count ETFs as a separate bucket.
+
+TICKER VALIDITY
+- NEVER recommend a ticker you do not see in the positions or trade_recommendations list. If recommending a new BUY, use only real, exchange-listed ETF tickers (e.g. VWRA, AGGU, CSPX). Never use placeholder names like CUSTOM_BROAD_MARKET_ETF.
+
 The caller provides RULE_EVALUATION, already computed from positions + rules.
 
 RULE_EVALUATION has:

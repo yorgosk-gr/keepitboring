@@ -176,12 +176,17 @@ export function usePortfolioAnalysis() {
         portfolioTickers
       );
 
-      // Prepare ETF classification data for the analysis
+      // Prepare ETF classification data — include fallback for ETFs missing metadata
       const etfClassifications = positions
-        .filter(p => p.position_type === "etf" && etfMetadata[p.ticker])
+        .filter(p => p.position_type === "etf")
         .map(p => ({
           ticker: p.ticker,
-          ...etfMetadata[p.ticker],
+          name: p.name,
+          category: etfMetadata[p.ticker]?.category ?? p.category ?? 'equity',
+          geography: etfMetadata[p.ticker]?.geography ?? 'global',
+          is_broad_market: etfMetadata[p.ticker]?.is_broad_market ?? false,
+          is_inferred: !etfMetadata[p.ticker],
+          ...(etfMetadata[p.ticker] ?? {}),
         }));
 
       // Get unique newsletter count
