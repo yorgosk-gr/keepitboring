@@ -1,16 +1,11 @@
 import { useState } from "react";
-import { ClipboardPaste, FileText, Archive } from "lucide-react";
+import { ClipboardPaste } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { useNewsletters, type Newsletter } from "@/hooks/useNewsletters";
-import { useNewsletterCleanup } from "@/hooks/useNewsletterCleanup";
 import { NewsletterUploadZone } from "@/components/newsletters/NewsletterUploadZone";
 import { NewsletterList } from "@/components/newsletters/NewsletterList";
-import { NewsletterArchiveTab } from "@/components/newsletters/NewsletterArchiveTab";
 import { InsightsModal } from "@/components/newsletters/InsightsModal";
 import { PasteTextModal } from "@/components/newsletters/PasteTextModal";
-
 import { InsightsSummaryCard } from "@/components/newsletters/InsightsSummaryCard";
 
 export default function Newsletters() {
@@ -25,15 +20,9 @@ export default function Newsletters() {
     deleteNewsletter,
   } = useNewsletters();
 
-  const { toggleArchive } = useNewsletterCleanup();
-
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [viewingNewsletter, setViewingNewsletter] = useState<Newsletter | null>(null);
   const [showPasteModal, setShowPasteModal] = useState(false);
-
-  // Split newsletters into active and archived
-  const activeNewsletters = newsletters.filter((n) => !n.is_archived);
-  const archivedCount = newsletters.filter((n) => n.is_archived).length;
 
   const handleUpload = async (file: File, rawText: string, sourceName: string) => {
     await uploadNewsletter({ file, rawText, sourceName });
@@ -54,10 +43,6 @@ export default function Newsletters() {
 
   const handleDelete = async (newsletter: Newsletter) => {
     await deleteNewsletter(newsletter);
-  };
-
-  const handleArchive = (newsletter: Newsletter) => {
-    toggleArchive({ id: newsletter.id, isArchived: true });
   };
 
   return (
@@ -86,57 +71,21 @@ export default function Newsletters() {
       {/* Upload Zone */}
       <NewsletterUploadZone onUpload={handleUpload} />
 
-      {/* Tabs for Active vs Archived */}
-      <Tabs defaultValue="active" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="active" className="gap-2">
-            <FileText className="w-4 h-4" />
-            Active
-            {activeNewsletters.length > 0 && (
-              <Badge variant="secondary" className="ml-1">
-                {activeNewsletters.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="archived" className="gap-2">
-            <Archive className="w-4 h-4" />
-            Archived
-            {archivedCount > 0 && (
-              <Badge variant="secondary" className="ml-1">
-                {archivedCount}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="active" className="space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground mb-4">
-              Uploaded Newsletters
-            </h2>
-            <NewsletterList
-              newsletters={activeNewsletters}
-              isLoading={isLoading}
-              onProcess={handleProcess}
-              onView={setViewingNewsletter}
-              onDelete={handleDelete}
-              onArchive={handleArchive}
-              onUpdateSourceName={(id, name) => updateSourceName({ id, sourceName: name })}
-              processingId={processingId}
-            />
-          </div>
-
-        </TabsContent>
-
-        <TabsContent value="archived">
-          <NewsletterArchiveTab
-            newsletters={newsletters}
-            isLoading={isLoading}
-            onView={setViewingNewsletter}
-            onDelete={handleDelete}
-          />
-        </TabsContent>
-      </Tabs>
+      {/* Newsletter List */}
+      <div>
+        <h2 className="text-lg font-semibold text-foreground mb-4">
+          Uploaded Newsletters
+        </h2>
+        <NewsletterList
+          newsletters={newsletters}
+          isLoading={isLoading}
+          onProcess={handleProcess}
+          onView={setViewingNewsletter}
+          onDelete={handleDelete}
+          onUpdateSourceName={(id, name) => updateSourceName({ id, sourceName: name })}
+          processingId={processingId}
+        />
+      </div>
 
       {/* Insights Modal */}
       <InsightsModal
