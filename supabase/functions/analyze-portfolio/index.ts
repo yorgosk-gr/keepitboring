@@ -9,6 +9,7 @@ const corsHeaders = {
 function buildAllocationTargets(rules: any[]): string {
   if (!rules || rules.length === 0) return "(No custom rules defined — use defaults below)";
   return rules.map((r: any) => {
+    const enforcement = r.rule_enforcement || "hard";
     let line = `- ${r.name}`;
     if (r.description) line += `: ${r.description}`;
     if (r.threshold_min != null && r.threshold_max != null) {
@@ -19,6 +20,7 @@ function buildAllocationTargets(rules: any[]): string {
       line += ` (min: ${r.threshold_min}%)`;
     }
     if (r.rule_type) line += ` [type: ${r.rule_type}]`;
+    line += ` [enforcement: ${enforcement}]`;
     return line;
   }).join("\n");
 }
@@ -77,14 +79,22 @@ CRITICAL DATA ACCURACY RULE — ABSOLUTE:
 BANNED TOPICS — ABSOLUTE RULE:
 The word "thesis" must NOT appear anywhere in your response. Do not mention: "thesis", "undocumented", "missing thesis", "document investment thesis", "no invalidation criteria", "write a thesis". This applies to ALL fields: position_alerts, recommended_actions, trade_recommendations, key_risks, summary. Any mention of thesis documentation makes the response INVALID. thesis_checks must always be an empty array [].
 
-SCORING RULES (be harsh):
+RULE ENFORCEMENT LEVELS — CRITICAL:
+Each rule has an enforcement level: "hard", "soft", or "diagnostic" (shown as [enforcement: X] in the rules list).
+- HARD rules: May trigger critical/warning issues. Deduct points from portfolio_health_score. Appear in allocation_check.issues.
+- SOFT rules: May appear in position_alerts ONLY. Must NOT deduct points. Must NOT change portfolio_health_score.
+- DIAGNOSTIC rules: Informational only. Include as observations but must NOT affect scoring, must NOT trigger rebalancing, must NOT appear in allocation_check.issues.
+- If a rule has no enforcement level specified, treat it as "hard" (backward compatibility).
+
+SCORING RULES (be harsh — only "hard" rules affect score):
 - Start at 100
-- Each CRITICAL issue: -20 points (allocation breach >5% over limit)
-- Each WARNING: -10 points (near limit, stale review)
+- Each CRITICAL issue from a HARD rule: -20 points (allocation breach >5% over limit)
+- Each WARNING from a HARD rule: -10 points (near limit, stale review)
+- SOFT and DIAGNOSTIC rule violations must NOT deduct any points
 - NEVER deduct points for missing documentation of any kind
 - Minimum score: 10
 
-Example: 78% equities (breach) = -20, one stock near size limit = -10. Score = 100 - 20 - 10 = 70.
+Example: 78% equities (hard rule breach) = -20, one stock near size limit (hard rule) = -10. Score = 100 - 20 - 10 = 70.
 
 ALLOCATION TARGETS — READ THE USER'S RULES CAREFULLY:
 The user has defined these specific rules. Use their EXACT min/max values:
