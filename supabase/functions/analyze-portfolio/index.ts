@@ -221,7 +221,7 @@ JSON OUTPUT STRUCTURE (return exactly this shape):
   },
   "thesis_checks": [],
   "portfolio_health_score": number,
-  "summary": "3 sentences. First: biggest compliance problem. Second: most important risk. Third: top action."
+  "summary": "SUMMARY CONSTRAINTS: Sentence 1 MUST be exactly: 'Biggest allocation or compliance problem: ' + (allocation_check.issues[0] if there is at least one issue, otherwise 'none'). Sentence 2: one Taleb/Kindleberger risk taken from market_signals.bubble_warnings or tail_risk_summary, in one sentence. Sentence 3: If recommended_actions has at least one item, use 'Top action: ' + recommended_actions[0].action, otherwise 'Top action: none'. You MUST NOT contradict allocation_check in the summary."
 }`;
 
     // ── User Prompt ──────────────────────────────────────────────────
