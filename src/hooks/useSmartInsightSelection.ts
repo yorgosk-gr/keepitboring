@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import { subDays } from "date-fns";
-import type { InsightsWindow } from "./useInsightStats";
 
 interface Insight {
   id: string;
@@ -34,19 +33,15 @@ interface SmartSelectionResult {
 }
 
 export async function selectSmartInsights(
-  portfolioTickers: string[],
-  insightsWindow: InsightsWindow
+  portfolioTickers: string[]
 ): Promise<SmartSelectionResult> {
   const now = new Date();
   const ninetyDaysAgo = subDays(now, 90);
   const thirtyDaysAgo = subDays(now, 30);
   const sevenDaysAgo = subDays(now, 7);
 
-  // Determine base window for general insights
-  let windowDate: Date | null = null;
-  if (insightsWindow !== "all") {
-    windowDate = subDays(now, parseInt(insightsWindow));
-  }
+  // Use hardcoded 30-day window for general insights
+  const windowDate = subDays(now, 30);
 
   // Fetch all recent insights (up to 90 days for the extended rules)
   const { data: allInsights, error } = await supabase
