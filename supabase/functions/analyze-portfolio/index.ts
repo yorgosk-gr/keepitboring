@@ -85,6 +85,36 @@ You are given a RULES_JSON array. Each rule object has:
 
 Use these rules as the SOLE source of allocation limits. If a metric has NO corresponding rule, report its current value in allocation_check but do NOT flag it as a violation. State any assumptions in allocation_check.issues.
 
+ALLOCATION TARGETS — USE RULES, NO FALLBACK GUESSING:
+- For each asset class (equities, bonds, commodities, cash, EM, etc.) you MUST ONLY use the thresholds provided in the RULES array above.
+- If a rule called "Bond Allocation" exists, its threshold_min and threshold_max are the ONLY valid limits for bonds.
+- If a rule called "Commodity + Gold Allocation" exists, its thresholds fully define that allocation.
+- If NO rule exists for a given asset class, then and only then you may use these defaults:
+  - Equities: max 70%, Bonds: max 20%, Commodities: max 10%
+- You MUST NOT invent alternative limits. The user's rules always override.
+
+ALLOCATION INTERPRETATION RULES — NO SIGN ERRORS:
+- For any rule with threshold_min and threshold_max:
+  - If current < threshold_min → this is UNDERWEIGHT.
+  - If current > threshold_max → this is OVERWEIGHT.
+  - If threshold_min ≤ current ≤ threshold_max → this is WITHIN RANGE.
+- You MUST NOT describe a value as "below the minimum" if current ≥ threshold_min.
+- You MUST NOT describe a value as "above the maximum" if current ≤ threshold_max.
+- When you use words like "underweight", "overweight", "below minimum", "above maximum" in ANY field (allocation_check.issues, position_alerts, summary, etc.), they MUST match the numeric comparison above.
+
+ANTI-FRAGILE RULE:
+- Anti-fragile allocation = (gold_percent + short_term_bonds_percent + cash_percent). If bond_recommendations or allocation_check give you these components, use those numbers.
+- If anti-fragile allocation ≥ threshold_min in the relevant rule, you must treat it as PASSING and MUST NOT claim it "fails the minimum".
+
+CASH CONSISTENCY RULE:
+- cash_percent is computed from TOTAL PORTFOLIO VALUE (including cash).
+- If cash_percent <= 0.1, treat the portfolio as fully invested with effectively zero cash.
+- In that case:
+  - rebalancing_summary.net_cash_impact MUST be 0 or negative (cash_reducing).
+  - You MUST NOT write phrases like "funded by existing cash", "using cash on the sidelines", or "deploy idle cash".
+  - All net buying must be funded by trims or sells.
+- If cash_percent > 0.1, you may describe buys as partially funded by cash, but the numeric net_cash_impact must match that story.
+
 TIERED SCORING (only HARD rules affect score):
 - Start at 100, max 100, min 10.
 - HARD breach > 5% beyond limit → −20 points
@@ -92,17 +122,12 @@ TIERED SCORING (only HARD rules affect score):
 - SOFT & DIAGNOSTIC: 0 deduction — NEVER affect score.
 - Before finalizing, verify no soft/diagnostic deduction leaked in.
 
-BANNED TOPICS — ABSOLUTE:
-Do not mention "undocumented", "missing documentation", "no invalidation criteria", "write a thesis". thesis_checks must always be []. Do NOT include documentation-related actions anywhere.
-
-CRITICAL DATA ACCURACY:
-Use EXACT weight_percent, market_value, shares, current_price from position data. NEVER estimate, fabricate, or round aggressively. Double-check every percentage you cite.
-
 ALLOCATION COMPUTATION GUIDE:
 - Use etf_classifications to determine each ETF's asset class (category field: equity, bond, commodity, gold, etc.). Do NOT guess from ticker names.
 - Stocks are always equity.
 - All percentages relative to total_portfolio_value (includes cash).
 - stocks_vs_etf_split = split WITHIN equities only (must sum to ~100%).
+- allocation_check.issues MUST only contain statements that are consistent with the exact numeric percentages you compute; do not contradict your own numbers.
 
 SELL CRITERIA — Only valid reasons: allocation breach, Intelligence Brief signal, valuation concern, fundamental business problem. Never sell for documentation reasons.
 
