@@ -361,7 +361,14 @@ If equities_percent is below its minimum threshold:
 - You MUST NOT increase bonds and equities simultaneously when cash_percent ≤ 0.1.
 - Total allocation across equities + bonds + commodities + cash MUST remain 100%.
 
-- Start portfolio_health_score at 100.
+FINAL NUMERIC VALIDATION
+Before returning JSON:
+1. Confirm total_buys_value and total_sells_value.
+2. Confirm net_cash_impact = total_sells_value - total_buys_value.
+3. Confirm if cash_percent ≤ 0.1: total_buys_value ≤ total_sells_value.
+4. Confirm total allocation sums to ~100%.
+If any check fails, revise trades before output.
+
 - For each HARD rule breach (rule_enforcement === "hard") that is allocation-related:
   - If breach magnitude > 5 percentage points beyond the limit: −20 points.
   - If breach magnitude ≤ 5 percentage points: −10 points.
