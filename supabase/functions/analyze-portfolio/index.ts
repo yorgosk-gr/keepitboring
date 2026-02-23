@@ -174,7 +174,8 @@ INDUSTRY RECOMMENDATIONS:
 - Provide 4-8 industry recommendations
 - Each must have a clear stance and reasoning tied to current signals
 
-BOND ALLOCATION STRATEGY:
+BOND ALLOCATION STRATEGY — MANDATORY (must ALWAYS be included):
+- This section is REQUIRED in every analysis response. Never omit bond_recommendations.
 - Analyze the user's current bond holdings by duration (short 0-3yr, medium 3-7yr, long 7+yr), geography (US, Europe, Japan, Global), and type (Government/Treasury, Corporate, Inflation-Linked)
 - Recommend a target allocation across these dimensions based on: current rate environment, philosophy rules, Intelligence Brief themes, and newsletter insights
 - ALWAYS recommend Ireland-domiciled UCITS ETFs (for UAE tax efficiency) — never US-listed bond ETFs
