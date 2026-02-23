@@ -62,7 +62,7 @@ export default function Analysis() {
         created_at: latest.created_at,
         allocation_check: normalizedAllocation,
         position_alerts: latest.position_alerts ?? [],
-        thesis_checks: latest.thesis_checks ?? [],
+        rationale_checks: latest.thesis_checks ?? [],
         market_signals: latest.market_signals ?? {
           bubble_warnings: [], consensus_level: "mixed", overall_sentiment: "N/A",
         },
@@ -234,10 +234,9 @@ export default function Analysis() {
 function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResult; positions?: Position[] }) {
   const alloc = analysis.allocation_check;
   const filteredAlerts = analysis.position_alerts.filter((a) => 
-    a.alert_type !== "thesis" && 
+    a.alert_type !== "rationale" && 
     !a.issue?.toLowerCase().includes("no stress test") &&
     !a.issue?.toLowerCase().includes("no drawdown since") &&
-    !a.issue?.toLowerCase().includes("thesis") &&
     !a.issue?.toLowerCase().includes("undocumented")
   );
   const criticalAlerts = filteredAlerts.filter((a) => a.severity === "critical");

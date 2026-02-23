@@ -169,10 +169,10 @@ export function TradeRecommendationsCard({
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground max-w-[300px]">
                   <div className="flex items-start gap-2">
-                    {rec.thesis_aligned === false && (
+                    {(rec.rationale_aligned ?? rec.thesis_aligned) === false && (
                       <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
                     )}
-                    {rec.thesis_aligned === true && (
+                    {(rec.rationale_aligned ?? rec.thesis_aligned) === true && (
                       <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
                     )}
                     <span className="line-clamp-2">{rec.reasoning}</span>

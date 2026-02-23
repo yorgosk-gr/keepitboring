@@ -160,8 +160,8 @@ export function AnalysisResultsView({
         />
       )}
 
-      {/* Thesis Compliance */}
-      <ThesisComplianceTable checks={analysis.thesis_checks} />
+      {/* Rationale Compliance */}
+      <ThesisComplianceTable checks={analysis.rationale_checks} />
 
       {/* Recommended Actions */}
       <RecommendedActionsCard

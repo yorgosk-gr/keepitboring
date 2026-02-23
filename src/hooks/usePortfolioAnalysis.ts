@@ -38,21 +38,24 @@ export interface AllocationCheck {
 
 export interface PositionAlert {
   ticker: string;
-  alert_type: "size" | "quality" | "thesis" | "sentiment";
+  alert_type: "size" | "quality" | "rationale" | "sentiment";
   severity: "warning" | "critical";
   issue: string;
   recent_sentiment: string;
   recommendation: string;
 }
 
-export interface ThesisCheck {
+export interface RationaleCheck {
   ticker: string;
-  has_thesis: boolean;
+  has_rationale: boolean;
   has_invalidation: boolean;
   bet_type_declared: boolean;
   confidence_set: boolean;
   days_since_review: number;
 }
+
+/** @deprecated Use RationaleCheck instead */
+export type ThesisCheck = RationaleCheck;
 
 export interface MarketSignals {
   bubble_warnings: string[];
@@ -83,7 +86,9 @@ export interface TradeRecommendation {
   target_weight: number;
   reasoning: string;
   urgency: "low" | "medium" | "high";
-  thesis_aligned: boolean | null;
+  rationale_aligned: boolean | null;
+  /** @deprecated Use rationale_aligned */
+  thesis_aligned?: boolean | null;
 }
 
 export interface RebalancingSummary {
@@ -108,7 +113,7 @@ export interface AnalysisResult {
   created_at?: string;
   allocation_check: AllocationCheck;
   position_alerts: PositionAlert[];
-  thesis_checks: ThesisCheck[];
+  rationale_checks: RationaleCheck[];
   market_signals: MarketSignals;
   recommended_actions: RecommendedAction[];
   trade_recommendations: TradeRecommendation[];
@@ -128,7 +133,7 @@ export interface AnalysisHistory {
   health_score: number | null;
   allocation_check: AllocationCheck | null;
   position_alerts: PositionAlert[] | null;
-  thesis_checks: ThesisCheck[] | null;
+  thesis_checks: RationaleCheck[] | null; // DB column name kept for compat
   market_signals: MarketSignals | null;
   recommended_actions: RecommendedAction[] | null;
   key_risks: string[] | null;
@@ -164,7 +169,7 @@ export function usePortfolioAnalysis() {
         health_score: item.health_score,
         allocation_check: item.allocation_check as AllocationCheck | null,
         position_alerts: item.position_alerts as PositionAlert[] | null,
-        thesis_checks: item.thesis_checks as ThesisCheck[] | null,
+        thesis_checks: item.thesis_checks as RationaleCheck[] | null,
         market_signals: item.market_signals as MarketSignals | null,
         recommended_actions: item.recommended_actions as RecommendedAction[] | null,
         key_risks: item.key_risks,
@@ -295,7 +300,7 @@ export function usePortfolioAnalysis() {
         health_score: data.portfolio_health_score,
         allocation_check: data.allocation_check as any,
         position_alerts: data.position_alerts as any,
-        thesis_checks: data.thesis_checks as any,
+        thesis_checks: (data.rationale_checks ?? []) as any,
         market_signals: data.market_signals as any,
         recommended_actions: data.recommended_actions as any,
         key_risks: data.key_risks,
