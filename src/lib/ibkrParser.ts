@@ -311,7 +311,7 @@ export function getAllocationSummary(portfolio: ParsedPortfolio): AllocationSumm
 
   const breaches: string[] = [];
   if (pct(equitiesUSD) > 70)    breaches.push(`Equities ${pct(equitiesUSD).toFixed(1)}% exceeds 70% target`);
-  if (pct(bondsUSD) > 20)       breaches.push(`Bonds ${pct(bondsUSD).toFixed(1)}% exceeds 20% target`);
+  if (pct(bondsUSD) > 40)       breaches.push(`Bonds ${pct(bondsUSD).toFixed(1)}% exceeds 40% target`);
   if (pct(commoditiesUSD) > 10) breaches.push(`Commodities ${pct(commoditiesUSD).toFixed(1)}% exceeds 10% target`);
 
   const stocksOfEquities = (stocksUSD / (equitiesUSD || 1)) * 100;

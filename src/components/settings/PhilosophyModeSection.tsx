@@ -28,7 +28,7 @@ const modes: { value: PortfolioMode; label: string; icon: typeof Shield; descrip
     label: "Aggressive",
     icon: Flame,
     description: "Maximise long-term growth",
-    details: "Bonds 10–25% · Higher equity tolerance",
+    details: "Bonds 10–40% · Higher equity tolerance",
   },
 ];
 

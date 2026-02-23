@@ -114,7 +114,7 @@ REQUIREMENTS:
 7. Every ETF must have TER ≤ 0.22% — no exceptions
 8. Total effective US equity ≤ 40%, tech ≤ 15%
 9. Avoid hidden overlap (e.g. VWRA is ~65% US — don't stack US ETFs on top)
-10. Bonds ≥ 20% with duration diversification (short + intermediate)
+10. Bonds 10–40% with duration diversification (short + intermediate)
 11. One gold ETF preferred over splitting physical + miners
 
 JSON OUTPUT:
