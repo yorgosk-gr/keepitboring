@@ -6,6 +6,45 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function parseAIJson(content: string) {
+  let jsonString = content.trim();
+  // Extract from markdown code blocks
+  const jsonBlockMatch = jsonString.match(/```json\s*([\s\S]*?)```/);
+  if (jsonBlockMatch) {
+    jsonString = jsonBlockMatch[1].trim();
+  } else {
+    const firstBrace = jsonString.indexOf('{');
+    const lastBrace = jsonString.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      jsonString = jsonString.substring(firstBrace, lastBrace + 1);
+    }
+  }
+
+  try {
+    return JSON.parse(jsonString);
+  } catch {
+    // Normalize and retry
+    const cleaned = jsonString
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/\r?\n/g, " ")
+      .replace(/\s+/g, " ");
+
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      // Last resort: single quotes to double quotes
+      try {
+        return JSON.parse(cleaned.replace(/'/g, '"'));
+      } catch (e) {
+        console.error("Failed to parse AI response:", e);
+        console.error("Raw content:", content.substring(0, 1000));
+        return null;
+      }
+    }
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -55,12 +94,15 @@ serve(async (req) => {
 
     if (newsletterIds.length === 0) {
       return new Response(JSON.stringify({
-        summary: "No newsletters uploaded in the last 30 days. Upload some newsletters to get AI-generated insights.",
+        executive_summary: "No newsletters uploaded in the last 30 days. Upload some newsletters to get AI-generated insights.",
+        weekly_priority: null,
         key_points: [],
         action_items: [],
         market_themes: [],
+        contrarian_signals: [],
         newsletters_analyzed: 0,
         insights_analyzed: 0,
+        persistent_signals: [],
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -82,56 +124,116 @@ serve(async (req) => {
       .eq("user_id", user.id);
 
     const portfolioTickers = (positions ?? []).map(p => p.ticker);
+    const portfolioContext = (positions ?? []).map(p => ({
+      ticker: p.ticker,
+      name: p.name,
+      type: p.position_type,
+      category: p.category,
+      weight: p.weight_percent,
+    }));
 
-    const systemPrompt = `You are an investment research analyst. Synthesize newsletter insights into an actionable intelligence brief.
+    // Fetch previous brief for signal persistence tracking
+    const { data: previousBrief } = await supabase
+      .from("intelligence_briefs")
+      .select("key_points, market_themes, contrarian_signals")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const previousKeyPointTitles = ((previousBrief?.key_points as any[]) ?? []).map((kp: any) => kp.title);
+    const previousThemeNames = ((previousBrief?.market_themes as any[]) ?? []).map((t: any) => t.theme);
+
+    // Build newsletter source map for the prompt
+    const sourceMap: Record<string, string> = {};
+    for (const n of newsletters ?? []) {
+      sourceMap[n.id] = n.source_name;
+    }
+
+    const systemPrompt = `You are an investment research analyst. Synthesize newsletter insights into an actionable, portfolio-specific intelligence brief.
 
 RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose, no explanation outside the JSON. Do not wrap in \`\`\`json code blocks. Do not use unescaped double quotes inside string values — use single quotes instead (e.g., use 'crushed' not "crushed").
+
+CRITICAL RULES:
+- For every claim, cite how many source newsletters support it. Never make a claim supported by only one source without flagging it as "single_source": true.
+- Prioritize insights that directly affect the user's portfolio holdings.
+- Be specific: mention tickers, percentages, dates.
+- Flag consensus (>2 sources agree) and contrarian views explicitly.
+- When computing portfolio_alignment_score (1-10), score based on how directly the signal impacts the user's ACTUAL holdings — 10 means direct impact on a top holding, 1 means tangential/no holdings exposed.
 
 OUTPUT FORMAT (valid JSON):
 {
   "executive_summary": "2-3 sentence overview of the most important themes and actionable signals from the last 30 days.",
+  "weekly_priority": "A single sentence: the ONE thing the user should do this week with their specific portfolio tickers mentioned. Be concrete and specific.",
   "key_points": [
     {
       "title": "Short headline (5-8 words)",
       "detail": "1-2 sentence explanation with specific data points",
       "relevance": "high" | "medium" | "low",
-      "category": "macro" | "sector" | "stock" | "risk" | "opportunity"
+      "category": "macro" | "sector" | "stock" | "risk" | "opportunity",
+      "portfolio_alignment_score": 8,
+      "exposed_tickers": ["AMZN", "VWRA"],
+      "source_count": 3,
+      "source_names": ["Friday Brief", "Gold Tier Update"],
+      "single_source": false
     }
   ],
   "action_items": [
     {
-      "action": "Specific actionable recommendation (e.g. 'Review AMZN position — multiple sources flag valuation concern')",
+      "action": "Specific actionable recommendation mentioning tickers",
       "urgency": "high" | "medium" | "low",
       "reasoning": "One sentence why"
     }
   ],
   "market_themes": [
     {
-      "theme": "Theme name (e.g. 'AI Bubble Risk')",
+      "theme": "Theme name",
       "sentiment": "bullish" | "bearish" | "mixed",
       "source_count": 3,
-      "portfolio_impact": "Which of your holdings are affected and how"
+      "source_names": ["Newsletter A", "Newsletter B"],
+      "portfolio_impact": "Which of your holdings are affected and how",
+      "portfolio_alignment_score": 7,
+      "exposed_tickers": ["AMZN"]
     }
   ],
   "contrarian_signals": [
-    "Any cases where newsletters disagree or consensus seems too strong"
+    {
+      "topic": "The topic of disagreement",
+      "bull_case": "Newsletter X sees [bullish reasoning]",
+      "bear_case": "Newsletter Y flags [bearish reasoning]",
+      "your_exposure": ["AMZN", "IUQA"],
+      "recommended_stance": "Specific recommendation for this user"
+    }
+  ],
+  "persistent_signals": [
+    {
+      "signal": "Signal description",
+      "weeks_active": 2,
+      "trend": "strengthening" | "stable" | "weakening"
+    }
   ]
 }
 
-RULES:
-- Prioritize insights that directly affect the user's portfolio holdings
-- Be specific: mention tickers, percentages, dates
-- Flag consensus (>2 sources agree) and contrarian views
-- Keep key_points to 5-8 items max
-- Keep action_items to 3-5 items max
-- Keep market_themes to 3-5 items max
+LIMITS:
+- key_points: 5-8 items max, sorted by portfolio_alignment_score descending
+- action_items: 3-5 items max
+- market_themes: 3-5 items max
+- contrarian_signals: 2-4 items max (structured objects, NOT strings)
+- persistent_signals: 2-5 items max
 - Do NOT fabricate data not present in the insights`;
 
-    const userPrompt = `PORTFOLIO HOLDINGS:
-${JSON.stringify(portfolioTickers)}
+    const userPrompt = `PORTFOLIO HOLDINGS (with weights):
+${JSON.stringify(portfolioContext, null, 2)}
+
+PORTFOLIO TICKERS: ${JSON.stringify(portfolioTickers)}
 
 NEWSLETTERS ANALYZED (${newsletters?.length ?? 0} sources):
-${(newsletters ?? []).map(n => `- ${n.source_name} (${n.upload_date})`).join("\n")}
+${(newsletters ?? []).map(n => `- "${n.source_name}" (${n.upload_date})`).join("\n")}
+
+PREVIOUS BRIEF SIGNALS (for persistence tracking):
+Previous key point titles: ${JSON.stringify(previousKeyPointTitles)}
+Previous market themes: ${JSON.stringify(previousThemeNames)}
+Flag any signals that appeared in the previous brief as persistent (weeks_active >= 2). If a signal is new, do not include it in persistent_signals.
 
 INSIGHTS (${insightsList.length} total):
 ${JSON.stringify(insightsList.map(i => ({
@@ -143,7 +245,7 @@ ${JSON.stringify(insightsList.map(i => ({
   source: (i.newsletters as any)?.source_name,
 })), null, 2)}
 
-Synthesize these into an actionable intelligence brief. Focus on what matters for MY portfolio.`;
+Synthesize these into an actionable intelligence brief. Focus on what matters for MY portfolio. Sort key_points by portfolio_alignment_score (highest first). For contrarian_signals, provide structured objects with named sources — not plain strings.`;
 
     console.log(`Summarizing ${insightsList.length} insights from ${newsletters?.length} newsletters...`);
 
@@ -194,78 +296,16 @@ Synthesize these into an actionable intelligence brief. Focus on what matters fo
       );
     }
 
-    // Parse JSON from response - robust extraction
-    let result;
-    try {
-      let jsonString = content.trim();
-      // Extract from markdown code blocks
-      const jsonBlockMatch = jsonString.match(/```json\s*([\s\S]*?)```/);
-      if (jsonBlockMatch) {
-        jsonString = jsonBlockMatch[1].trim();
-      } else {
-        // Try to find raw JSON object
-        const firstBrace = jsonString.indexOf('{');
-        const lastBrace = jsonString.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace > firstBrace) {
-          jsonString = jsonString.substring(firstBrace, lastBrace + 1);
-        }
-      }
-      result = JSON.parse(jsonString);
-    } catch {
-      // Try fixing unescaped quotes inside string values by collapsing to single line
-      try {
-        let cleaned = content.trim();
-        const jsonBlockMatch2 = cleaned.match(/```json\s*([\s\S]*?)```/);
-        if (jsonBlockMatch2) {
-          cleaned = jsonBlockMatch2[1].trim();
-        } else {
-          const firstBrace = cleaned.indexOf('{');
-          const lastBrace = cleaned.lastIndexOf('}');
-          if (firstBrace !== -1 && lastBrace > firstBrace) {
-            cleaned = cleaned.substring(firstBrace, lastBrace + 1);
-          }
-        }
-        // Replace unescaped internal double quotes: look for patterns like "word" inside JSON strings
-        // by replacing literal newlines and collapsing whitespace
-        const singleLine = cleaned.replace(/\r?\n/g, " ").replace(/\s+/g, " ");
-        // Fix unescaped quotes by replacing "word" patterns inside strings with \"word\"
-        const fixed = singleLine.replace(/(?<=:\s*"[^"]*)"(?=[^"]*"[^"]*(?:,|\}))/g, '\\"');
-        result = JSON.parse(fixed);
-      } catch {
-        // Last resort: handle Python-style single-quoted dicts
-        try {
-          let raw = content.trim();
-          const m = raw.match(/```json\s*([\s\S]*?)```/);
-          if (m) raw = m[1].trim();
-          else {
-            const f = raw.indexOf('{');
-            const l = raw.lastIndexOf('}');
-            if (f !== -1 && l > f) raw = raw.substring(f, l + 1);
-          }
-          // Replace curly/smart quotes with straight quotes
-          raw = raw.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
-          // Convert Python-style single-quoted keys/values to double-quoted JSON
-          // Replace single quotes with double quotes (handling escaped single quotes)
-          const converted = raw
-            .replace(/\r?\n/g, " ")
-            .replace(/\s+/g, " ")
-            .replace(/'/g, '"');
-          result = JSON.parse(converted);
-        } catch (e4) {
-          console.error("Failed to parse AI summary response:", e4);
-          console.error("Raw content:", content.substring(0, 1000));
-          return new Response(
-            JSON.stringify({ error: "Failed to parse AI summary response." }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-      }
+    const result = parseAIJson(content);
+    if (!result) {
+      return new Response(
+        JSON.stringify({ error: "Failed to parse AI summary response." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // Delete newsletters (and their insights via cascade) older than 30 days
+    // Clean up old newsletters (30 days)
     const thirtyDaysAgoCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-    // First delete insights belonging to old newsletters
     const { data: oldNewsletters } = await supabase
       .from("newsletters")
       .select("id")
@@ -280,11 +320,8 @@ Synthesize these into an actionable intelligence brief. Focus on what matters fo
         .delete()
         .eq("user_id", user.id)
         .lt("created_at", thirtyDaysAgoCutoff);
-      if (delErr) {
-        console.error("Cleanup error:", delErr);
-      } else {
-        console.log(`Cleaned up ${oldIds.length} newsletters older than 30 days`);
-      }
+      if (delErr) console.error("Cleanup error:", delErr);
+      else console.log(`Cleaned up ${oldIds.length} newsletters older than 30 days`);
     }
 
     return new Response(JSON.stringify({
