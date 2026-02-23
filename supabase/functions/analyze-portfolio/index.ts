@@ -432,7 +432,6 @@ JSON structure:
     "deployment_plan": "noted"
   },
   "portfolio_health_score": number,
-  "key_risks": [],
   "summary": "3 sentences. First: biggest allocation or compliance problem. Second: most important Taleb/Kindleberger risk. Third: top action."
 }`;
 

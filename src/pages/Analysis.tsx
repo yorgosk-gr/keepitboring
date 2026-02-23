@@ -72,10 +72,8 @@ export default function Analysis() {
           total_sells: "$0", total_buys: "$0", net_cash_impact: "$0", primary_goal: "N/A",
         },
         bond_recommendations: rawResponse?.bond_recommendations,
-        stock_picks: rawResponse?.stock_picks,
         industry_recommendations: rawResponse?.industry_recommendations,
         portfolio_health_score: latest.health_score ?? 0,
-        key_risks: latest.key_risks ?? [],
         summary: latest.summary ?? "",
       } as any);
     }
@@ -273,29 +271,6 @@ function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResu
         </div>
       </section>
 
-      {/* Key Risks (filtered, shown only if not empty after removing thesis/stress-test items) */}
-      {analysis.key_risks.filter(r => 
-        !r.toLowerCase().includes("thesis") && 
-        !r.toLowerCase().includes("no stress test") &&
-        !r.toLowerCase().includes("invalidation criteria") &&
-        !r.toLowerCase().includes("undocumented")
-      ).length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold mb-3 border-b border-border pb-2">Key Risks</h2>
-          <ul className="space-y-2">
-            {analysis.key_risks.filter(r => 
-              !r.toLowerCase().includes("thesis") && 
-              !r.toLowerCase().includes("no stress test") &&
-              !r.toLowerCase().includes("invalidation criteria") &&
-              !r.toLowerCase().includes("undocumented")
-            ).map((risk, i) => (
-              <li key={i} className="text-sm text-muted-foreground">
-                <span className="text-destructive font-medium">{i + 1}.</span> {risk}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       {/* Position Alerts */}
       {(criticalAlerts.length > 0 || warningAlerts.length > 0) && (
@@ -526,47 +501,6 @@ function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResu
         </section>
       )}
 
-      {/* Stock Picks */}
-      {(analysis as any).stock_picks && (analysis as any).stock_picks.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold mb-3 border-b border-border pb-2">Quality Stock Picks</h2>
-          <div className="space-y-4">
-            {(analysis as any).stock_picks.map((pick: any, i: number) => (
-              <div key={i} className="text-sm space-y-1">
-                <p className="font-medium">
-                  <span className="font-mono font-bold">{pick.ticker}</span>
-                  {" "}
-                  <span className={
-                    pick.action === "BUY" ? "text-emerald-500" :
-                    pick.action === "ADD" ? "text-primary" :
-                    "text-amber-500"
-                  }>{pick.action}</span>
-                  {pick.already_held && <span className="text-xs text-primary ml-2">(In Portfolio)</span>}
-                  {pick.expected_return && <span className="text-emerald-500 ml-2">↑ {pick.expected_return}</span>}
-                </p>
-                <p className="text-foreground">{pick.name} · {pick.sector}</p>
-                <p className="text-muted-foreground">{pick.thesis}</p>
-                {pick.catalysts?.length > 0 && (
-                  <div className="ml-4">
-                    <p className="text-xs font-medium text-emerald-500">Catalysts:</p>
-                    {pick.catalysts.map((c: string, j: number) => (
-                      <p key={j} className="text-xs text-muted-foreground">• {c}</p>
-                    ))}
-                  </div>
-                )}
-                {pick.risks?.length > 0 && (
-                  <div className="ml-4">
-                    <p className="text-xs font-medium text-amber-500">Risks:</p>
-                    {pick.risks.map((r: string, j: number) => (
-                      <p key={j} className="text-xs text-muted-foreground">• {r}</p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Industry Recommendations */}
       {(analysis as any).industry_recommendations && (analysis as any).industry_recommendations.length > 0 && (
