@@ -184,13 +184,15 @@ BOND ALLOCATION STRATEGY — MANDATORY (must ALWAYS be included):
 - Assess whether current bond holdings are well-diversified or over-concentrated
 - If the user only holds one type of bond ETF, recommend diversification with specific alternatives
 
-STOCK PICKS — QUALITY GROWTH OPPORTUNITIES:
-- Based on newsletter insights, Intelligence Brief themes, and current market signals, recommend 1-5 quality stocks with high 12-month price growth potential
-- Focus on companies with: strong free cash flow, competitive moats, earnings growth momentum, and favorable newsletter sentiment
-- Each pick must have a clear investment thesis grounded in specific newsletter insights or Intelligence Brief themes
+STOCK PICKS — NEWSLETTER-DRIVEN QUALITY OPPORTUNITIES:
+- ONLY recommend stocks that have appeared as STRONG RECOMMENDATIONS in the newsletter insights or Intelligence Brief — do NOT pick stocks based on general market knowledge alone
+- A "strong recommendation" means: the stock was explicitly recommended as a buy/add in one or more newsletters, OR it was mentioned positively across multiple newsletter sources with bullish sentiment
+- If no stocks meet this criteria from the newsletters, return an empty stock_picks array [] — do NOT fabricate picks
+- For qualifying stocks, focus on companies with: strong free cash flow, competitive moats, earnings growth momentum
+- Each pick must cite WHICH newsletter(s) or Intelligence Brief theme recommended it (e.g., "Recommended as a BUY in [Newsletter Name]; also mentioned positively in 2 other sources")
 - Include a target price or expected return range where possible
 - Flag any risks or invalidation triggers for each pick
-- Prefer stocks mentioned positively across multiple newsletter sources (consensus signal)
+- The newsletter_mentions field must reflect the ACTUAL count of newsletter sources that mentioned this stock positively
 - If a stock is already in the user's portfolio, note that and whether to increase position
 - Apply Thorndike capital allocation quality checks: FCF positive, insider buying, capex discipline
 
