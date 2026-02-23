@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { BondRecommendations } from "@/components/analysis/BondRecommendationsCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePositions } from "./usePositions";
@@ -111,6 +112,7 @@ export interface AnalysisResult {
   recommended_actions: RecommendedAction[];
   trade_recommendations: TradeRecommendation[];
   rebalancing_summary: RebalancingSummary;
+  bond_recommendations?: BondRecommendations;
   portfolio_health_score: number;
   key_risks: string[];
   summary: string;
