@@ -108,6 +108,7 @@ export interface AnalysisResult {
   bond_recommendations?: BondRecommendations;
   portfolio_health_score: number;
   summary: string;
+  thesis_checks?: any[]; // always [] from v2, kept for compat
   analysis_meta?: AnalysisMeta;
 }
 
