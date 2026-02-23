@@ -126,17 +126,17 @@ TIER 3 — DIAGNOSTIC rules (enforcement: "diagnostic"):
 - These are purely observational signals for the user's awareness
 
 SCORING RULES (ONLY Tier 1 / hard rules affect the score):
-- Start at 100
-- Each CRITICAL issue from a HARD rule: -20 points (allocation breach >5% over limit)
-- Each WARNING from a HARD rule: -10 points (near limit, approaching threshold)
-- SOFT rule violations: 0 points deducted — NO IMPACT on score
-- DIAGNOSTIC rule observations: 0 points deducted — NO IMPACT on score
-- NEVER deduct points for missing documentation of any kind
-- Minimum score: 10
+- Start at 100, maximum score is 100
+- HARD rule breach MORE THAN 5% beyond limit → -20 points (e.g. rule says max 60%, actual is 66% = 6% beyond = -20)
+- HARD rule breach 5% OR LESS beyond limit → -10 points (e.g. rule says max 60%, actual is 64% = 4% beyond = -10)
+- SOFT rule violations: 0 points deducted — NO IMPACT on score whatsoever
+- DIAGNOSTIC rule observations: 0 points deducted — NO IMPACT on score whatsoever
+- Documentation-related issues: 0 points — NEVER deduct for missing documentation
+- Minimum score: 10 (never go below this)
 
 Before finalizing portfolio_health_score, verify: did any soft or diagnostic rule cause a deduction? If yes, remove that deduction. Only hard rule breaches count.
 
-Example: 78% equities (hard rule breach) = -20, one stock near size limit (hard rule warning) = -10, soft rule guideline noted but 0 deduction. Score = 100 - 20 - 10 = 70.
+Example: equities at 68% with hard max 60% → 8% beyond → -20. One stock at 6% with hard max 5% → 1% beyond → -10. Soft rule noted but 0 deduction. Score = 100 - 20 - 10 = 70.
 
 ALLOCATION TARGETS — READ THE USER'S RULES CAREFULLY:
 The user has defined these specific rules. Use their EXACT min/max values:
