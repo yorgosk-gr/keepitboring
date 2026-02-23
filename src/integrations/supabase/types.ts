@@ -337,6 +337,7 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          rule_enforcement: string
           rule_type: string | null
           source_books: string[] | null
           threshold_max: number | null
@@ -349,6 +350,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          rule_enforcement?: string
           rule_type?: string | null
           source_books?: string[] | null
           threshold_max?: number | null
@@ -361,6 +363,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          rule_enforcement?: string
           rule_type?: string | null
           source_books?: string[] | null
           threshold_max?: number | null

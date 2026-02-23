@@ -6,6 +6,8 @@ import { usePositions } from "./usePositions";
 import { useDashboardData } from "./useDashboardData";
 import { useAllETFMetadata } from "./useAllETFMetadata";
 
+export type RuleEnforcement = "hard" | "soft" | "diagnostic";
+
 export interface PhilosophyRule {
   id: string;
   user_id: string;
@@ -16,6 +18,7 @@ export interface PhilosophyRule {
   threshold_max: number | null;
   is_active: boolean;
   source_books: string[] | null;
+  rule_enforcement: RuleEnforcement;
   created_at: string;
 }
 
@@ -33,37 +36,38 @@ export interface RuleFormData {
   threshold_min?: number | null;
   threshold_max?: number | null;
   source_books?: string[];
+  rule_enforcement?: RuleEnforcement;
 }
 
 const DEFAULT_RULES: Omit<PhilosophyRule, "id" | "user_id" | "created_at">[] = [
-  // Allocation Rules
-  { name: "Stock Allocation", rule_type: "allocation", threshold_min: 15, threshold_max: 25, description: "Individual stocks should be 15-25% of portfolio", source_books: ["Graham", "Malkiel"], is_active: true },
-  { name: "ETF Allocation", rule_type: "allocation", threshold_min: 75, threshold_max: 85, description: "ETFs should be 75-85% of portfolio", source_books: ["Malkiel", "Siegel"], is_active: true },
-  { name: "Equity Allocation", rule_type: "allocation", threshold_min: 40, threshold_max: 60, description: "True equity exposure (stocks + equity ETFs) should be 40-60%", source_books: ["Siegel", "Malkiel"], is_active: true },
-  { name: "Bond Allocation", rule_type: "allocation", threshold_min: 10, threshold_max: 25, description: "Bond ETFs should be 10-25% of portfolio", source_books: ["Graham", "Siegel"], is_active: true },
-  { name: "Commodity + Gold Allocation", rule_type: "allocation", threshold_min: 5, threshold_max: 15, description: "Commodities + Gold should be 5-15%", source_books: ["Marks", "Taleb"], is_active: true },
-  { name: "Anti-Fragile Minimum", rule_type: "allocation", threshold_min: 5, threshold_max: null, description: "Gold + short-term bonds + cash for tail risk protection", source_books: ["Taleb", "Marks"], is_active: true },
-  { name: "Cash Limit", rule_type: "allocation", threshold_min: null, threshold_max: 10, description: "Cash should not exceed 10%", source_books: ["Siegel", "Erkan"], is_active: true },
-  { name: "Sector Limit", rule_type: "allocation", threshold_min: null, threshold_max: 25, description: "No sector should exceed 25%", source_books: ["Graham", "Marks"], is_active: true },
+  // Allocation Rules (hard enforcement)
+  { name: "Stock Allocation", rule_type: "allocation", threshold_min: 15, threshold_max: 25, description: "Individual stocks should be 15-25% of portfolio", source_books: ["Graham", "Malkiel"], is_active: true, rule_enforcement: "hard" },
+  { name: "ETF Allocation", rule_type: "allocation", threshold_min: 75, threshold_max: 85, description: "ETFs should be 75-85% of portfolio", source_books: ["Malkiel", "Siegel"], is_active: true, rule_enforcement: "hard" },
+  { name: "Equity Allocation", rule_type: "allocation", threshold_min: 40, threshold_max: 60, description: "True equity exposure (stocks + equity ETFs) should be 40-60%", source_books: ["Siegel", "Malkiel"], is_active: true, rule_enforcement: "hard" },
+  { name: "Bond Allocation", rule_type: "allocation", threshold_min: 10, threshold_max: 25, description: "Bond ETFs should be 10-25% of portfolio", source_books: ["Graham", "Siegel"], is_active: true, rule_enforcement: "hard" },
+  { name: "Commodity + Gold Allocation", rule_type: "allocation", threshold_min: 5, threshold_max: 15, description: "Commodities + Gold should be 5-15%", source_books: ["Marks", "Taleb"], is_active: true, rule_enforcement: "hard" },
+  { name: "Anti-Fragile Minimum", rule_type: "allocation", threshold_min: 5, threshold_max: null, description: "Gold + short-term bonds + cash for tail risk protection", source_books: ["Taleb", "Marks"], is_active: true, rule_enforcement: "hard" },
+  { name: "Cash Limit", rule_type: "allocation", threshold_min: null, threshold_max: 10, description: "Cash should not exceed 10%", source_books: ["Siegel", "Erkan"], is_active: true, rule_enforcement: "hard" },
+  { name: "Sector Limit", rule_type: "allocation", threshold_min: null, threshold_max: 25, description: "No sector should exceed 25%", source_books: ["Graham", "Marks"], is_active: true, rule_enforcement: "soft" },
   // Position Size Rules
-  { name: "Single Stock Limit", rule_type: "position_size", threshold_min: null, threshold_max: 8, description: "No single stock over 8%", source_books: ["Graham", "Duke"], is_active: true },
-  { name: "Theme ETF Limit", rule_type: "position_size", threshold_min: null, threshold_max: 15, description: "Non-broad ETFs max 15%", source_books: ["Marks"], is_active: true },
-  { name: "Broad ETF Limit", rule_type: "position_size", threshold_min: null, threshold_max: 35, description: "Global/All-World ETFs can go to 35%", source_books: ["Malkiel"], is_active: true },
-  { name: "Country ETF Limit", rule_type: "position_size", threshold_min: null, threshold_max: 10, description: "Single country (ex-US) max 10%", source_books: ["Marks"], is_active: true },
+  { name: "Single Stock Limit", rule_type: "position_size", threshold_min: null, threshold_max: 8, description: "No single stock over 8%", source_books: ["Graham", "Duke"], is_active: true, rule_enforcement: "hard" },
+  { name: "Theme ETF Limit", rule_type: "position_size", threshold_min: null, threshold_max: 15, description: "Non-broad ETFs max 15%", source_books: ["Marks"], is_active: true, rule_enforcement: "soft" },
+  { name: "Broad ETF Limit", rule_type: "position_size", threshold_min: null, threshold_max: 35, description: "Global/All-World ETFs can go to 35%", source_books: ["Malkiel"], is_active: true, rule_enforcement: "soft" },
+  { name: "Country ETF Limit", rule_type: "position_size", threshold_min: null, threshold_max: 10, description: "Single country (ex-US) max 10%", source_books: ["Marks"], is_active: true, rule_enforcement: "soft" },
   // Geography Rules
-  { name: "Single Country Concentration", rule_type: "allocation", threshold_min: null, threshold_max: 10, description: "Any single country (except US) max 10%", source_books: ["Marks"], is_active: true },
-  { name: "Emerging Markets Limit", rule_type: "allocation", threshold_min: null, threshold_max: 15, description: "Total EM exposure max 15%", source_books: ["Marks"], is_active: true },
-  // Quality Rules
-  { name: "Earnings Yield Floor", rule_type: "quality", threshold_min: 5, threshold_max: null, description: "Prefer stocks with >5% earnings yield", source_books: ["Greenblatt"], is_active: true },
-  { name: "ROIC Floor", rule_type: "quality", threshold_min: 15, threshold_max: null, description: "Prefer stocks with >15% ROIC", source_books: ["Greenblatt", "Thorndike"], is_active: true },
-  // Decision Rules
-  { name: "Bet Type Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "Positions >3% must have declared bet type", source_books: ["Duke"], is_active: true },
-  { name: "Confidence Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "All positions need confidence rating", source_books: ["Duke"], is_active: true },
-  { name: "Thesis Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "Stock positions need written thesis", source_books: ["Duke", "Marks"], is_active: true },
-  { name: "Invalidation Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "Must define what would invalidate thesis", source_books: ["Duke"], is_active: true },
-  // Market Rules
-  { name: "Bubble Language Alert", rule_type: "market", threshold_min: null, threshold_max: null, description: "Flag euphoria language in newsletters", source_books: ["Kindleberger", "Taleb"], is_active: true },
-  { name: "Extreme Consensus Alert", rule_type: "market", threshold_min: null, threshold_max: null, description: "Flag when >80% newsletters agree", source_books: ["Marks", "Lefèvre"], is_active: true },
+  { name: "Single Country Concentration", rule_type: "allocation", threshold_min: null, threshold_max: 10, description: "Any single country (except US) max 10%", source_books: ["Marks"], is_active: true, rule_enforcement: "soft" },
+  { name: "Emerging Markets Limit", rule_type: "allocation", threshold_min: null, threshold_max: 15, description: "Total EM exposure max 15%", source_books: ["Marks"], is_active: true, rule_enforcement: "soft" },
+  // Quality Rules (diagnostic)
+  { name: "Earnings Yield Floor", rule_type: "quality", threshold_min: 5, threshold_max: null, description: "Prefer stocks with >5% earnings yield", source_books: ["Greenblatt"], is_active: true, rule_enforcement: "diagnostic" },
+  { name: "ROIC Floor", rule_type: "quality", threshold_min: 15, threshold_max: null, description: "Prefer stocks with >15% ROIC", source_books: ["Greenblatt", "Thorndike"], is_active: true, rule_enforcement: "diagnostic" },
+  // Decision Rules (soft)
+  { name: "Bet Type Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "Positions >3% must have declared bet type", source_books: ["Duke"], is_active: true, rule_enforcement: "soft" },
+  { name: "Confidence Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "All positions need confidence rating", source_books: ["Duke"], is_active: true, rule_enforcement: "soft" },
+  { name: "Thesis Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "Stock positions need written thesis", source_books: ["Duke", "Marks"], is_active: true, rule_enforcement: "soft" },
+  { name: "Invalidation Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "Must define what would invalidate thesis", source_books: ["Duke"], is_active: true, rule_enforcement: "soft" },
+  // Market Rules (diagnostic)
+  { name: "Bubble Language Alert", rule_type: "market", threshold_min: null, threshold_max: null, description: "Flag euphoria language in newsletters", source_books: ["Kindleberger", "Taleb"], is_active: true, rule_enforcement: "diagnostic" },
+  { name: "Extreme Consensus Alert", rule_type: "market", threshold_min: null, threshold_max: null, description: "Flag when >80% newsletters agree", source_books: ["Marks", "Lefèvre"], is_active: true, rule_enforcement: "diagnostic" },
 ];
 
 export function usePhilosophyRules() {
@@ -82,7 +86,10 @@ export function usePhilosophyRules() {
         .order("created_at", { ascending: true });
 
       if (error) throw error;
-      return data as PhilosophyRule[];
+      return (data ?? []).map((d: any) => ({
+        ...d,
+        rule_enforcement: d.rule_enforcement ?? "hard",
+      })) as PhilosophyRule[];
     },
     enabled: !!user,
   });
@@ -137,6 +144,7 @@ export function usePhilosophyRules() {
           threshold_min: formData.threshold_min ?? null,
           threshold_max: formData.threshold_max ?? null,
           source_books: formData.source_books ?? [],
+          rule_enforcement: formData.rule_enforcement ?? "hard",
           is_active: true,
         })
         .select()

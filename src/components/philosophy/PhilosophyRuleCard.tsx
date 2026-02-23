@@ -24,7 +24,19 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { type PhilosophyRule, type RuleCheckResult } from "@/hooks/usePhilosophyRules";
+import { type PhilosophyRule, type RuleCheckResult, type RuleEnforcement } from "@/hooks/usePhilosophyRules";
+
+const enforcementStyles: Record<RuleEnforcement, string> = {
+  hard: "bg-red-500/10 text-red-500 border-red-500/20",
+  soft: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+  diagnostic: "bg-sky-500/10 text-sky-500 border-sky-500/20",
+};
+
+const enforcementLabels: Record<RuleEnforcement, string> = {
+  hard: "Hard",
+  soft: "Soft",
+  diagnostic: "Diagnostic",
+};
 
 const ruleTypeColors: Record<string, string> = {
   allocation: "bg-blue-500/10 text-blue-500 border-blue-500/20",
@@ -97,12 +109,26 @@ export function PhilosophyRuleCard({
               />
             </div>
           </div>
-          <Badge
-            variant="outline"
-            className={cn("w-fit text-xs", ruleTypeColors[rule.rule_type || ""])}
-          >
-            {rule.rule_type?.replace("_", " ")}
-          </Badge>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Badge
+              variant="outline"
+              className={cn("w-fit text-xs", ruleTypeColors[rule.rule_type || ""])}
+            >
+              {rule.rule_type?.replace("_", " ")}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={cn("w-fit text-xs cursor-pointer", enforcementStyles[rule.rule_enforcement ?? "hard"])}
+              onClick={() => {
+                const cycle: RuleEnforcement[] = ["hard", "soft", "diagnostic"];
+                const idx = cycle.indexOf(rule.rule_enforcement ?? "hard");
+                const next = cycle[(idx + 1) % cycle.length];
+                onUpdate(rule.id, { rule_enforcement: next } as Partial<PhilosophyRule>);
+              }}
+            >
+              {enforcementLabels[rule.rule_enforcement ?? "hard"]}
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">{rule.description}</p>

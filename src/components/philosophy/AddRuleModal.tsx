@@ -27,12 +27,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Loader2 } from "lucide-react";
-import { type RuleFormData } from "@/hooks/usePhilosophyRules";
+import { type RuleFormData, type RuleEnforcement } from "@/hooks/usePhilosophyRules";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   description: z.string().min(1, "Description is required").max(500),
   rule_type: z.enum(["allocation", "position_size", "quality", "decision", "market"]),
+  rule_enforcement: z.enum(["hard", "soft", "diagnostic"]),
   threshold_min: z.number().min(0, "Threshold cannot be negative").max(100, "Threshold cannot exceed 100%").nullable().optional(),
   threshold_max: z.number().min(0, "Threshold cannot be negative").max(100, "Threshold cannot exceed 100%").nullable().optional(),
   source_books: z.string().optional(),
@@ -63,6 +64,7 @@ export function AddRuleModal({ open, onClose, onSubmit, isLoading }: AddRuleModa
       name: "",
       description: "",
       rule_type: "allocation",
+      rule_enforcement: "hard",
       threshold_min: null,
       threshold_max: null,
       source_books: "",
@@ -74,6 +76,7 @@ export function AddRuleModal({ open, onClose, onSubmit, isLoading }: AddRuleModa
       name: values.name,
       description: values.description,
       rule_type: values.rule_type,
+      rule_enforcement: values.rule_enforcement as RuleEnforcement,
       threshold_min: values.threshold_min,
       threshold_max: values.threshold_max,
       source_books: values.source_books
@@ -132,6 +135,28 @@ export function AddRuleModal({ open, onClose, onSubmit, isLoading }: AddRuleModa
               )}
             />
 
+            <FormField
+              control={form.control}
+              name="rule_enforcement"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Enforcement</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="hard">Hard — affects score & triggers alerts</SelectItem>
+                      <SelectItem value="soft">Soft — alerts only, no score impact</SelectItem>
+                      <SelectItem value="diagnostic">Diagnostic — informational only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="description"
