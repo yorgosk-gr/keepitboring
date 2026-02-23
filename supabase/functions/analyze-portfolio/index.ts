@@ -62,7 +62,7 @@ serve(async (req) => {
       );
     }
 
-    const { positions, rules, insights, decisions, cash_balance, total_portfolio_value, intelligence_brief, etf_classifications, stock_fundamentals } = await req.json();
+    const { positions, rules, insights, decisions, cash_balance, total_portfolio_value, intelligence_brief, etf_classifications, stock_fundamentals, portfolio_mode } = await req.json();
 
      const systemPrompt = `You are a strict portfolio compliance officer. Your job is to find problems and give specific fixes.
 
@@ -73,6 +73,13 @@ DECISION PRIORITY HIERARCHY — FOLLOW THIS ORDER:
 4. DIAGNOSTIC signals (informational observations only)
 
 If the Intelligence Brief contradicts generic allocation heuristics, follow user hard rules and Intelligence Brief. Do not enforce generic fallback constraints. The Intelligence Brief reflects current macro research and should drive rebalancing logic, while hard rules act as guardrails.
+
+PHILOSOPHY MODE — ACTIVE MODE: "${portfolio_mode || 'balanced'}"
+This modifies how you INTERPRET allocation rules (but never overrides explicit hard limits):
+- "capital_preservation": Conservative stance. Bonds up to 45% is acceptable. Gold 3–10% is neutral (not flagged). Prefer stability and lower drawdown risk. Trim equity overweight more aggressively.
+- "balanced": Standard stance. Bonds 20–35% target range. Follow all rules at face value.
+- "aggressive": Growth-oriented stance. Bonds 10–25% target range. Higher equity tolerance. Prioritise growth opportunities from Intelligence Brief.
+Apply the active mode as a LENS on allocation assessment — it shifts what counts as "on target" vs "overweight/underweight" for bonds, equities, and commodities. It must NOT override explicit user-defined hard rule min/max values.
 
 RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose, no explanation outside the JSON. Do not wrap in \`\`\`json code blocks.
 

@@ -554,6 +554,7 @@ export type Database = {
           anthropic_api_key: string | null
           created_at: string
           id: string
+          portfolio_mode: string
           updated_at: string
           user_id: string
         }
@@ -561,6 +562,7 @@ export type Database = {
           anthropic_api_key?: string | null
           created_at?: string
           id?: string
+          portfolio_mode?: string
           updated_at?: string
           user_id: string
         }
@@ -568,6 +570,7 @@ export type Database = {
           anthropic_api_key?: string | null
           created_at?: string
           id?: string
+          portfolio_mode?: string
           updated_at?: string
           user_id?: string
         }

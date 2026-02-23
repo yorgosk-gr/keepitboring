@@ -269,6 +269,7 @@ export function usePortfolioAnalysis() {
           total_portfolio_value: totalPortfolioValue,
           intelligence_brief: intelligenceBrief,
           stock_fundamentals: stockFundamentals,
+          portfolio_mode: settings.portfolioMode ?? "balanced",
         },
       });
 
