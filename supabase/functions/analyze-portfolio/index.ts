@@ -206,7 +206,7 @@ JSON OUTPUT STRUCTURE (return exactly this shape):
     "target_weight": number,
     "reasoning": string,
     "urgency": "low" | "medium" | "high",
-    "rationale_aligned": boolean | null
+    "rationale_aligned": true
   }],
   "rebalancing_summary": {
     "total_sells": string,
