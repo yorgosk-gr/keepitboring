@@ -6,6 +6,155 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ── Deterministic Rule Evaluation ────────────────────────────────
+type RuleStatus = "underweight" | "overweight" | "within_range" | "not_applicable";
+
+interface RuleEvaluationEntry {
+  rule_id: string;
+  name: string;
+  category: string;
+  metric: string;
+  current: number | null;
+  min: number | null;
+  max: number | null;
+  status: RuleStatus;
+  message: string;
+}
+
+interface RuleEvaluation {
+  entries: RuleEvaluationEntry[];
+  main_allocation_issues: string[];
+}
+
+function computeRuleEvaluation(
+  positions: any[],
+  rules: any[],
+  etfClassifications: any[],
+  cashBalance: number,
+  totalPortfolioValue: number
+): RuleEvaluation {
+  const safePositions = positions ?? [];
+  const safeRules = (rules ?? []).filter((r: any) => r.is_active !== false);
+  const totalVal = totalPortfolioValue || 1;
+
+  // Build classification lookup: ticker -> category
+  const classMap: Record<string, string> = {};
+  for (const c of (etfClassifications ?? [])) {
+    if (c.ticker && c.category) {
+      classMap[c.ticker] = c.category.toLowerCase();
+    }
+  }
+
+  // Compute asset class sums
+  let equityValue = 0;
+  let bondValue = 0;
+  let commodityGoldValue = 0;
+  let goldValue = 0;
+
+  for (const p of safePositions) {
+    const mv = p.market_value ?? 0;
+    const posType = (p.position_type || "").toLowerCase();
+    const cat = classMap[p.ticker] || "";
+
+    if (posType === "stock") {
+      equityValue += mv;
+    } else if (cat === "equity") {
+      equityValue += mv;
+    } else if (cat === "bond") {
+      bondValue += mv;
+    } else if (cat === "commodity" || cat === "gold") {
+      commodityGoldValue += mv;
+      if (cat === "gold" || (p.name || "").toLowerCase().includes("gold")) {
+        goldValue += mv;
+      }
+    }
+  }
+
+  const stocksValue = safePositions
+    .filter((p: any) => (p.position_type || "").toLowerCase() === "stock")
+    .reduce((s: number, p: any) => s + (p.market_value ?? 0), 0);
+
+  const equityPercent = (equityValue / totalVal) * 100;
+  const bondPercent = (bondValue / totalVal) * 100;
+  const commodityGoldPercent = (commodityGoldValue / totalVal) * 100;
+  const cashPercent = (cashBalance / totalVal) * 100;
+  const goldPercent = (goldValue / totalVal) * 100;
+  const stocksPercent = (stocksValue / totalVal) * 100;
+  const etfsPercent = equityPercent - stocksPercent;
+  // Anti-fragile = gold + short-term bonds (approximate as 30% of bonds) + cash
+  const shortTermBondPercent = bondPercent * 0.3;
+  const antifragilePercent = goldPercent + shortTermBondPercent + cashPercent;
+
+  // Metric resolver
+  const metricValues: Record<string, number> = {
+    stocks_percent: stocksPercent,
+    etfs_percent: etfsPercent,
+    equity_percent: equityPercent,
+    bonds_percent: bondPercent,
+    commodities_gold_percent: commodityGoldPercent,
+    gold_percent: goldPercent,
+    cash_percent: cashPercent,
+    antifragile_percent: antifragilePercent,
+  };
+
+  const entries: RuleEvaluationEntry[] = [];
+  const issues: string[] = [];
+
+  for (const rule of safeRules) {
+    if (rule.scope !== "portfolio" || rule.category !== "allocation") continue;
+    if (rule.threshold_min == null && rule.threshold_max == null) continue;
+
+    const current = metricValues[rule.metric] ?? null;
+    if (current === null) {
+      entries.push({
+        rule_id: rule.id,
+        name: rule.name,
+        category: rule.category,
+        metric: rule.metric,
+        current: null,
+        min: rule.threshold_min,
+        max: rule.threshold_max,
+        status: "not_applicable",
+        message: `Metric "${rule.metric}" could not be resolved.`,
+      });
+      continue;
+    }
+
+    const min = rule.threshold_min;
+    const max = rule.threshold_max;
+    let status: RuleStatus = "within_range";
+    let message = "";
+
+    if (min != null && current < min) {
+      status = "underweight";
+      message = `${rule.name}: ${current.toFixed(1)}% is below minimum ${min}% — underweight.`;
+    } else if (max != null && current > max) {
+      status = "overweight";
+      message = `${rule.name}: ${current.toFixed(1)}% exceeds maximum ${max}% — overweight.`;
+    } else {
+      message = `${rule.name}: ${current.toFixed(1)}% is within range [${min ?? "–"}%, ${max ?? "–"}%].`;
+    }
+
+    entries.push({
+      rule_id: rule.id,
+      name: rule.name,
+      category: rule.category,
+      metric: rule.metric,
+      current: parseFloat(current.toFixed(2)),
+      min,
+      max,
+      status,
+      message,
+    });
+
+    if (status !== "within_range" && rule.rule_enforcement === "hard") {
+      issues.push(message);
+    }
+  }
+
+  return { entries, main_allocation_issues: issues.slice(0, 3) };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -54,6 +203,12 @@ serve(async (req) => {
       stock_fundamentals,
       portfolio_mode,
     } = await req.json();
+
+    // ── Deterministic Rule Evaluation ─────────────────────────────────
+    const ruleEvaluation = computeRuleEvaluation(
+      positions, rules, etf_classifications, cash_balance ?? 0, total_portfolio_value ?? 0
+    );
+    console.log("Rule evaluation computed:", JSON.stringify(ruleEvaluation.main_allocation_issues));
 
     // ── System Prompt ────────────────────────────────────────────────
     const systemPrompt = `You are a strict portfolio compliance officer. Your job is to find problems and give specific fixes.
@@ -127,12 +282,19 @@ BANNED TOPICS — ABSOLUTE RULE:
 - You MAY still use JSON key names that contain the string "thesis" if the schema requires it, but avoid introducing new keys with that word.
 - thesis_checks must always be an empty array [] if present. Do NOT include documentation-related actions anywhere.
 
+RULE EVALUATION AUTHORITY:
+- The RULE_EVALUATION object in the user prompt contains the TRUE, precomputed status of each allocation rule: "underweight", "overweight", or "within_range".
+- You MUST treat RULE_EVALUATION as ground truth and MUST NOT re-interpret thresholds or recompute statuses.
+- allocation_check.issues MUST be derived from rule_evaluation.entries (especially those with status != "within_range").
+- The summary and position_alerts MUST NOT contradict rule_evaluation.
+- Use the precomputed current percentages from rule_evaluation for allocation_check fields (equities_percent, bonds_percent, etc.).
+
 ALLOCATION COMPUTATION GUIDE:
 - Use etf_classifications to determine each ETF's asset class (category field: equity, bond, commodity, gold, etc.). Do NOT guess from ticker names.
 - Stocks are always equity.
 - All percentages relative to total_portfolio_value (includes cash).
 - stocks_vs_etf_split = split WITHIN equities only (must sum to ~100%).
-- allocation_check.issues MUST only contain statements that are consistent with the exact numeric percentages you compute; do not contradict your own numbers.
+- allocation_check.issues MUST only contain statements that are consistent with the exact numeric percentages from RULE_EVALUATION; do not contradict your own numbers.
 
 SELL CRITERIA — Only valid reasons: allocation breach, Intelligence Brief signal, valuation concern, fundamental business problem. Never sell for documentation reasons.
 
@@ -286,6 +448,9 @@ USE THIS BRIEF to drive trade recommendations. Reference specific themes.` : "No
 
 ${stock_fundamentals?.length > 0 ? `STOCK FUNDAMENTALS:
 ${stock_fundamentals.map((f: any) => `${f.ticker}: ROIC=${f.roic ?? "N/A"}%, Earnings Yield=${f.earnings_yield ?? "N/A"}%, P/E=${f.pe_ratio ?? "N/A"}, D/E=${f.debt_to_equity ?? "N/A"}, Revenue Growth=${f.revenue_growth_yoy ?? "N/A"}%, FCF Yield=${f.free_cash_flow_yield ?? "N/A"}%, Gross Margin=${f.gross_margin ?? "N/A"}%${f.notes ? ` (${f.notes})` : ""}`).join("\n")}` : "No stock fundamentals available."}
+
+RULE EVALUATION (precomputed, use as ground truth for all rule statuses):
+${JSON.stringify(ruleEvaluation, null, 2)}
 
 Analyze this portfolio and return the JSON response.`;
 
