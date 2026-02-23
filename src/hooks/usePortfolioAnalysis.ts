@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { BondRecommendations } from "@/components/analysis/BondRecommendationsCard";
-import type { StockPick } from "@/components/analysis/StockPicksCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePositions } from "./usePositions";
@@ -45,17 +44,6 @@ export interface PositionAlert {
   recommendation: string;
 }
 
-export interface RationaleCheck {
-  ticker: string;
-  has_rationale: boolean;
-  has_invalidation: boolean;
-  bet_type_declared: boolean;
-  confidence_set: boolean;
-  days_since_review: number;
-}
-
-/** @deprecated Use RationaleCheck instead */
-export type ThesisCheck = RationaleCheck;
 
 export interface MarketSignals {
   bubble_warnings: string[];
@@ -113,15 +101,12 @@ export interface AnalysisResult {
   created_at?: string;
   allocation_check: AllocationCheck;
   position_alerts: PositionAlert[];
-  rationale_checks?: RationaleCheck[];
   market_signals: MarketSignals;
   recommended_actions: RecommendedAction[];
   trade_recommendations: TradeRecommendation[];
   rebalancing_summary: RebalancingSummary;
   bond_recommendations?: BondRecommendations;
-  stock_picks?: StockPick[];
   portfolio_health_score: number;
-  key_risks: string[];
   summary: string;
   analysis_meta?: AnalysisMeta;
 }
@@ -133,10 +118,8 @@ export interface AnalysisHistory {
   health_score: number | null;
   allocation_check: AllocationCheck | null;
   position_alerts: PositionAlert[] | null;
-  thesis_checks: RationaleCheck[] | null; // DB column name kept for compat
   market_signals: MarketSignals | null;
   recommended_actions: RecommendedAction[] | null;
-  key_risks: string[] | null;
   summary: string | null;
   raw_response: any | null;
 }
@@ -169,10 +152,8 @@ export function usePortfolioAnalysis() {
         health_score: item.health_score,
         allocation_check: item.allocation_check as AllocationCheck | null,
         position_alerts: item.position_alerts as PositionAlert[] | null,
-        thesis_checks: item.thesis_checks as RationaleCheck[] | null,
         market_signals: item.market_signals as MarketSignals | null,
         recommended_actions: item.recommended_actions as RecommendedAction[] | null,
-        key_risks: item.key_risks,
         summary: item.summary,
         raw_response: item.raw_response,
       })) as AnalysisHistory[];
@@ -301,10 +282,9 @@ export function usePortfolioAnalysis() {
         health_score: data.portfolio_health_score,
         allocation_check: data.allocation_check as any,
         position_alerts: data.position_alerts as any,
-        thesis_checks: (data.rationale_checks ?? []) as any,
         market_signals: data.market_signals as any,
         recommended_actions: data.recommended_actions as any,
-        key_risks: data.key_risks,
+        key_risks: [],
         summary: data.summary,
         raw_response: data as any,
       });

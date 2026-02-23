@@ -9,7 +9,7 @@ import { MarketSignalsCard } from "./MarketSignalsCard";
 import { RecommendedActionsCard } from "./RecommendedActionsCard";
 import { TradeRecommendationsCard } from "./TradeRecommendationsCard";
 import { BondRecommendationsCard } from "./BondRecommendationsCard";
-import { KeyRisksCard } from "./KeyRisksCard";
+
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import type { AnalysisResult, RecommendedAction } from "@/hooks/usePortfolioAnalysis";
 
@@ -97,9 +97,6 @@ export function AnalysisResultsView({
         <HealthScoreGauge score={analysis.portfolio_health_score} />
         <AllocationDisplay allocation={analysis.allocation_check} />
       </div>
-
-      {/* Key Risks */}
-      <KeyRisksCard risks={analysis.key_risks} />
 
       {/* Position Alerts */}
       {analysis.position_alerts.length > 0 && (
