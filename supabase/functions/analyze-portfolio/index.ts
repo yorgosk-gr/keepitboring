@@ -532,6 +532,15 @@ SUMMARY FIELD RULES
   3) If recommended_actions has at least one item: "Top action: " + recommended_actions[0].action, otherwise "Top action: none".
 - summary MUST NOT contradict allocation_check or RULE_EVALUATION in any way.`;
 
+    // ── Cash constraint fence ────────────────────────────────────────
+    const cashBal = cash_balance ?? 0;
+    const totalVal2 = total_portfolio_value ?? 1;
+    const maxBuyValue = cashBal > (totalVal2 * 0.001)
+      ? null
+      : ruleEvaluation.metrics.cash_percent <= 0.1
+        ? `HARD STOP: total_buys_value MUST NOT exceed total_sells_value. Current cash = $${cashBal.toFixed(0)}. Any buy must be funded by a sell. Net cash impact must be ≥ $0. This is non-negotiable.`
+        : null;
+
     // ── User Prompt ──────────────────────────────────────────────────
     const bubbleInsights = (insights ?? []).filter((i: any) => i.insight_type === "bubble_signal");
     const macroInsights = (insights ?? []).filter((i: any) =>
@@ -590,7 +599,9 @@ USE THIS BRIEF to drive trade recommendations. Reference specific themes.` : "No
 ${stock_fundamentals?.length > 0 ? `STOCK FUNDAMENTALS:
 ${stock_fundamentals.map((f: any) => `${f.ticker}: ROIC=${f.roic ?? "N/A"}%, Earnings Yield=${f.earnings_yield ?? "N/A"}%, P/E=${f.pe_ratio ?? "N/A"}, D/E=${f.debt_to_equity ?? "N/A"}, Revenue Growth=${f.revenue_growth_yoy ?? "N/A"}%, FCF Yield=${f.free_cash_flow_yield ?? "N/A"}%, Gross Margin=${f.gross_margin ?? "N/A"}%${f.notes ? ` (${f.notes})` : ""}`).join("\n")}` : "No stock fundamentals available."}
 
-RULE EVALUATION (precomputed, use as ground truth for all rule statuses):
+CIRCULAR TRADE RULE: Never sell a position and then recommend buying it back in bond_recommendations or anywhere else in the same analysis. A position is either held or sold — not both.
+
+${maxBuyValue ? `⚠️ ${maxBuyValue}\n` : ""}RULE EVALUATION (precomputed, use as ground truth for all rule statuses):
 ${JSON.stringify(ruleEvaluation, null, 2)}
 
 Analyze this portfolio and return the JSON response.`;
