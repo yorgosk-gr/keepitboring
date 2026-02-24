@@ -131,6 +131,15 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
     onClose();
   };
 
+  const currencySymbol = (() => {
+    const c = position?.currency;
+    if (!c || c === "USD") return "$";
+    if (c === "EUR") return "€";
+    if (c === "GBP") return "£";
+    if (c === "AUD") return "A$";
+    return c + " ";
+  })();
+
   const marketValue = (parseFloat(formData.shares) || 0) * (parseFloat(formData.current_price) || 0);
   const pnlPercent = formData.avg_cost && formData.current_price
     ? (((parseFloat(formData.current_price) - parseFloat(formData.avg_cost)) / parseFloat(formData.avg_cost)) * 100)
@@ -222,7 +231,7 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="avg_cost">Avg Cost ($) *</Label>
+              <Label htmlFor="avg_cost">Avg Cost ({currencySymbol}) *</Label>
               <Input
                 id="avg_cost"
                 type="number"
@@ -236,7 +245,7 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="current_price">Current Price ($) *</Label>
+              <Label htmlFor="current_price">Current Price ({currencySymbol}) *</Label>
               <Input
                 id="current_price"
                 type="number"
@@ -256,7 +265,7 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
               <div>
                 <span className="text-xs text-muted-foreground">Market Value</span>
                 <p className="text-lg font-semibold text-foreground">
-                  ${marketValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  {currencySymbol}{marketValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                 </p>
               </div>
               <div>

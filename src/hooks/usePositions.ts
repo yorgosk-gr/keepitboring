@@ -11,6 +11,7 @@ export interface Position {
   position_type: string | null;
   category: string | null;
   exchange: string | null;
+  currency: string | null;
   shares: number | null;
   avg_cost: number | null;
   current_price: number | null;
