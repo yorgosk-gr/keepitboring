@@ -667,7 +667,7 @@ Analyze this portfolio and return the JSON response.`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        max_tokens: 16000,
+        max_tokens: 20000,
       }),
     });
 
@@ -738,12 +738,58 @@ Analyze this portfolio and return the JSON response.`;
       
       analysisResult = JSON.parse(jsonString);
     } catch (parseError) {
-      console.error("Failed to parse AI response:", parseError);
+      console.error("Failed to parse AI response (attempt 1):", parseError);
       console.error("Raw content (first 500):", content.substring(0, 500));
-      return new Response(
-        JSON.stringify({ error: "Failed to parse AI analysis response" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      
+      // Attempt repair: try to find the last valid closing brace by progressively trimming
+      try {
+        let jsonString = content.trim();
+        jsonString = jsonString.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+        const firstBrace = jsonString.indexOf("{");
+        if (firstBrace === -1) throw new Error("No JSON object");
+        jsonString = jsonString.substring(firstBrace);
+        
+        // Fix trailing commas
+        jsonString = jsonString.replace(/,\s*([}\]])/g, '$1');
+        
+        // Try to repair truncated JSON by closing open structures
+        let repaired = jsonString;
+        // Count unclosed braces/brackets
+        let braceCount = 0;
+        let bracketCount = 0;
+        let inString = false;
+        let escape = false;
+        for (let i = 0; i < repaired.length; i++) {
+          const ch = repaired[i];
+          if (escape) { escape = false; continue; }
+          if (ch === '\\') { escape = true; continue; }
+          if (ch === '"') { inString = !inString; continue; }
+          if (inString) continue;
+          if (ch === '{') braceCount++;
+          else if (ch === '}') braceCount--;
+          else if (ch === '[') bracketCount++;
+          else if (ch === ']') bracketCount--;
+        }
+        
+        // If we're inside a string, close it
+        if (inString) repaired += '"';
+        
+        // Close any open brackets/braces
+        for (let i = 0; i < bracketCount; i++) repaired += ']';
+        for (let i = 0; i < braceCount; i++) repaired += '}';
+        
+        // Remove any trailing commas again after repair
+        repaired = repaired.replace(/,\s*([}\]])/g, '$1');
+        
+        analysisResult = JSON.parse(repaired);
+        console.log("JSON repair succeeded");
+      } catch (repairError) {
+        console.error("JSON repair also failed:", repairError);
+        return new Response(
+          JSON.stringify({ error: "Failed to parse AI analysis response. Please try again." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // ── Server-side cash constraint enforcement ───────────────────────
