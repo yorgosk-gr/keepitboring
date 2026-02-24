@@ -95,6 +95,7 @@ function computeRuleEvaluation(
   const goldPercent = (goldValue / totalVal) * 100;
   const stocksPercent = (stocksValue / totalVal) * 100;
   const etfsPercent = equityPercent - stocksPercent;
+
   // Anti-fragile = gold + short-term bonds (approximate as 30% of bonds) + cash
   const shortTermBondPercent = bondPercent * 0.3;
   const antifragilePercent = goldPercent + shortTermBondPercent + cashPercent;
@@ -185,14 +186,15 @@ function computeRuleEvaluation(
       message,
     });
 
+    // Separate hard vs soft issues
     if (status !== "within_range") {
-      const enforcement = rule.rule_enforcement ?? "hard";
+      const enforcement = (rule.rule_enforcement ?? "hard").toLowerCase();
       if (enforcement === "hard") {
         issues.push(message);
       } else if (enforcement === "soft") {
         softIssues.push(message);
       }
-      // diagnostic rules: never add to issues
+      // diagnostic: never add to issues
     }
   }
 
@@ -214,9 +216,9 @@ function computeRuleEvaluation(
   };
 }
 
-// ── Server-side cash constraint enforcement ──────────────────────
+// ── Server-side cash constraint enforcement ───────────────────────
 function enforceCashConstraint(analysisResult: any, cashBalance: number): any {
-  if (cashBalance > 500) return analysisResult;
+  if (cashBalance > 500) return analysisResult; // meaningful cash, skip
   const trades = analysisResult.trade_recommendations ?? [];
   const totalSells = trades
     .filter((t: any) => t.shares_to_trade < 0)
@@ -224,7 +226,7 @@ function enforceCashConstraint(analysisResult: any, cashBalance: number): any {
   const totalBuys = trades
     .filter((t: any) => t.action === "BUY" && t.shares_to_trade > 0)
     .reduce((s: number, t: any) => s + (t.estimated_value ?? 0), 0);
-  if (totalBuys <= totalSells) return analysisResult;
+  if (totalBuys <= totalSells) return analysisResult; // already balanced
   const scaleFactor = totalSells > 0 ? totalSells / totalBuys : 0;
   for (const trade of trades) {
     if (trade.action === "BUY" && trade.shares_to_trade > 0) {
@@ -298,7 +300,11 @@ serve(async (req) => {
     const ruleEvaluation = computeRuleEvaluation(
       positions, rules, etf_classifications, cash_balance ?? 0, total_portfolio_value ?? 0
     );
-    console.log("Rule evaluation computed:", JSON.stringify(ruleEvaluation.main_allocation_issues));
+    console.log("Rule evaluation computed:", JSON.stringify({
+      main: ruleEvaluation.main_allocation_issues,
+      soft: ruleEvaluation.soft_issues,
+      metrics: ruleEvaluation.metrics,
+    }));
 
     // ── System Prompt ────────────────────────────────────────────────
     const systemPrompt = `You are a strict portfolio compliance officer. Your job is to find problems and give specific, numerically consistent fixes.
@@ -343,164 +349,111 @@ ETF CLASSIFICATION — ASSET CLASS, NOT SEPARATE BUCKET
 - CRITICAL: ETF positions must be counted as their asset class (equity/bond/commodity), NOT as a separate category. An equity ETF counts toward equities_percent. A bond ETF counts toward bonds_percent. Never count ETFs as a separate bucket.
 
 TICKER VALIDITY
-- NEVER recommend a ticker you do not see in the positions or trade_recommendations list. If recommending a new BUY, use only real, exchange-listed ETF tickers (e.g. VWRA, AGGU, CSPX). Never use placeholder names like CUSTOM_BROAD_MARKET_ETF.
+- NEVER recommend a ticker you do not see in the positions list. If recommending a new BUY, use only real, exchange-listed ETF tickers (e.g. VWRA, AGGU, CSPX). Never use placeholder names like CUSTOM_BROAD_MARKET_ETF.
+
+CIRCULAR TRADE RULE
+- Never sell one position to buy another in the same asset class and category with no allocation benefit.
+- Selling an equity ETF to buy another equity ETF is FORBIDDEN — it changes nothing.
+- A trade is only valid if it changes allocation meaningfully (different asset class, geography, or duration) OR addresses a specific position-level alert.
 
 The caller provides RULE_EVALUATION, already computed from positions + rules.
 
 RULE_EVALUATION has:
-- entries: array of objects:
-  - rule_id, name, category, metric, current, min, max, status, message
+- entries: array of objects with rule_id, name, category, metric, current, min, max, status, message
   - status ∈ "underweight" | "overweight" | "within_range" | "not_applicable"
-- main_allocation_issues: array of strings (top hard-rule allocation issues)
-- metrics: canonical percentages:
-  - equities_percent
-  - bonds_percent
-  - commodities_percent
-  - cash_percent
-  - stocks_percent
-  - etfs_percent
-  - etfs_of_equities_percent
-  - stocks_of_equities_percent
-  - antifragile_percent
+- main_allocation_issues: HARD rule breaches only (drives score deductions and trades)
+- soft_issues: SOFT rule breaches only (observations, no score impact, no forced trades)
+- metrics: canonical percentages including etfs_of_equities_percent and stocks_of_equities_percent
 
 YOU MUST TREAT RULE_EVALUATION AS AUTHORITATIVE:
-- DO NOT recompute equities/bonds/commodities/cash/stocks/etfs/antifragile percentages from raw positions.
+- DO NOT recompute any percentages from raw positions.
 - DO NOT re-interpret min/max or statuses.
+- If an entry has status "within_range", you MUST NOT describe that metric as "underweight" or "overweight" anywhere.
 
 RULE ENFORCEMENT LEVELS:
-- RULE_EVALUATION.main_allocation_issues contains HARD rule breaches only — these drive score deductions and must be addressed with trades.
-- RULE_EVALUATION.soft_issues contains SOFT rule breaches — mention as observations only. Do NOT deduct score points, do NOT list as primary problem, do NOT drive sell recommendations from soft breaches alone.
-- If main_allocation_issues is empty, summary sentence 1 must say "Biggest allocation or compliance problem: none."
-- The ETF Allocation rule is SOFT. A soft ETF breach means: note it, suggest a gradual increase, never sell other ETFs to fix it.
-
-- If RULE_EVALUATION.metrics.etfs_percent = 43.4 and there is no ETF allocation rule in entries with status != "within_range":
-  - You MUST NOT say things like "ETF Allocation: 8.3% is below minimum 75%".
-- If an entry has status "within_range", you MUST NOT describe that metric anywhere as "underweight" or "overweight".
+- main_allocation_issues = HARD breaches only → deduct score, must address with trades.
+- soft_issues = SOFT breaches only → mention as observations only. Do NOT deduct score points. Do NOT list as the primary problem. Do NOT drive sell recommendations from soft breaches alone.
+- If main_allocation_issues is empty, summary sentence 1 MUST say "Biggest allocation or compliance problem: none."
+- The ETF Allocation rule is SOFT. A soft ETF breach = note it, suggest gradual increase over time, never sell other positions just to fix it.
 
 ALLOCATION_CHECK FIELDS — EXACT MAPPING
-You MUST fill allocation_check as follows:
-
 - allocation_check.equities_percent = RULE_EVALUATION.metrics.equities_percent
 - allocation_check.bonds_percent    = RULE_EVALUATION.metrics.bonds_percent
 - allocation_check.commodities_percent = RULE_EVALUATION.metrics.commodities_percent
 - allocation_check.cash_percent     = RULE_EVALUATION.metrics.cash_percent
-
-- stocks_vs_etf_split:
-  - Express as "<X>% stocks / <Y>% ETFs (within equities only)" using RULE_EVALUATION.metrics.stocks_of_equities_percent and RULE_EVALUATION.metrics.etfs_of_equities_percent.
-  - Those two MUST sum to 100% (they represent the split within equities, not total portfolio).
-
-- allocation_check.issues:
-  - MUST equal RULE_EVALUATION.main_allocation_issues (same strings, same order).
-  - You are NOT allowed to add invented issues here.
-  - If main_allocation_issues is empty, issues must be [].
-
-- equities_status / bonds_status / commodities_status:
-  - Map from RULE_EVALUATION.entries for those metrics:
-    - status "within_range" → "ok"
-    - status "underweight"  → "warning" or "critical" depending on severity (only for hard rules; soft rules should be "ok" if there is no hard breach).
-    - status "overweight"   → "warning" or "critical" similarly.
-  - If there are multiple rules on the same metric, the HARDEST status (any hard breach) wins.
-  - You MUST NOT mark a metric as "warning" or "critical" if all rules for that metric are "within_range" or "not_applicable".
-  - For commodities_status, use the rule on "commodities_gold_percent" if present; otherwise treat it as "ok" unless you explicitly have a hard breach rule.
+- stocks_vs_etf_split: use RULE_EVALUATION.metrics.stocks_of_equities_percent and etfs_of_equities_percent. Express as "<X>% stocks / <Y>% ETFs (within equities only)".
+- allocation_check.issues: MUST equal RULE_EVALUATION.main_allocation_issues exactly. If empty, issues = [].
+- equities_status / bonds_status / commodities_status: map from RULE_EVALUATION.entries. "within_range" → "ok". Only hard breaches → "warning" or "critical". Soft breaches → "ok".
 
 ANTI-FRAGILE RULE
-- Anti-fragile allocation = RULE_EVALUATION.metrics.antifragile_percent.
-- If there is a rule on this metric and its entry in RULE_EVALUATION.entries is "within_range":
-  - You MUST NOT say "fails the minimum" or "below anti-fragile minimum".
-- If it is "underweight" or "overweight", you may reference that EXACTLY as per the status and message.
+- Use RULE_EVALUATION.metrics.antifragile_percent.
+- Only reference as breach if its entry status is "underweight" or "overweight".
+- If "within_range", MUST NOT say "fails the minimum".
 
 HARD CASH CONSTRAINT — NON-NEGOTIABLE
-
 Use RULE_EVALUATION.metrics.cash_percent as authoritative.
 
 If cash_percent ≤ 0.1:
-- Treat the portfolio as fully invested.
-- You MUST enforce:
-  total_buys_value ≤ total_sells_value
-- net_cash_impact MUST be ≥ 0 (zero or positive).
-  (Positive = raising cash. Zero = perfectly funded by sells.)
-- You are STRICTLY FORBIDDEN from:
-  • Proposing net buys greater than sells.
-  • Writing phrases like "funded by cash", "deploy cash", or "using cash".
-  • Increasing total portfolio exposure without trimming something.
-- If equity is underweight and cash = 0:
-  You MUST fund ALL equity buys by trimming bonds, commodities, or stocks.
-- Before finalizing JSON:
-  - Compute total_sells and total_buys.
-  - If total_buys > total_sells:
-    You MUST adjust trades until total_buys ≈ total_sells.
-  - If not possible, reduce buy sizes.
+- Portfolio is fully invested. total_buys_value MUST NOT exceed total_sells_value.
+- net_cash_impact MUST be ≥ 0.
+- FORBIDDEN: proposing net buys > sells, phrases like "funded by cash", "deploy cash".
+- Fund ALL equity buys by trimming bonds, commodities, or stocks.
+- Before finalizing: if total_buys > total_sells, reduce buy sizes until balanced.
 
 If cash_percent > 0.1:
-- You may describe buys as funded partly by cash, but numeric totals MUST match.
+- Buys may be funded partly by cash, but numeric totals MUST match.
 
 ALLOCATION CONSISTENCY RULE
-If equities_percent is below its minimum threshold:
-- target_equities_percent MUST be ≥ threshold_min.
-- target_bonds_percent MUST decrease accordingly if cash_percent ≤ 0.1.
-- You MUST NOT increase bonds and equities simultaneously when cash_percent ≤ 0.1.
-- Total allocation across equities + bonds + commodities + cash MUST remain 100%.
+Total allocation across equities + bonds + commodities + cash MUST remain 100%.
+MUST NOT increase bonds and equities simultaneously when cash_percent ≤ 0.1.
 
 FINAL NUMERIC VALIDATION
-Before returning JSON:
 1. Confirm total_buys_value and total_sells_value.
-2. Confirm net_cash_impact = total_sells_value - total_buys_value.
-3. Confirm if cash_percent ≤ 0.1: total_buys_value ≤ total_sells_value.
-4. Confirm total allocation sums to ~100%.
+2. net_cash_impact = total_sells_value - total_buys_value.
+3. If cash_percent ≤ 0.1: total_buys_value ≤ total_sells_value.
+4. Total allocation sums to ~100%.
 If any check fails, revise trades before output.
 
-- For each HARD rule breach (rule_enforcement === "hard") that is allocation-related:
-  - If breach magnitude > 5 percentage points beyond the limit: −20 points.
-  - If breach magnitude ≤ 5 percentage points: −10 points.
+HEALTH SCORE
+- Start at 100.
+- For each HARD rule breach (main_allocation_issues): −20 if breach > 5pp beyond limit, −10 if ≤ 5pp.
 - SOFT and DIAGNOSTIC rules MUST NOT change the score.
-- Enforce a floor of 10 and ceiling of 100.
-- At the end, verify you have NOT applied any deduction from soft/diagnostic rules.
-- For scores > 75, somewhere in summary or reasoning you must mention:
-  - "Score reflects current data quality, not future certainty."
+- Floor 10, ceiling 100.
+- For scores > 75: mention "Score reflects current data quality, not future certainty." somewhere.
 
 BANNED TERM
-- In ANY free-text field (summary, message, issue, reasoning, recommendation, etc.) you MUST NOT use the word "thesis" or phrases like "missing thesis", "write a thesis", "undocumented thesis".
-- The JSON key "thesis_checks" MUST be present and MUST ALWAYS be an empty array [].
-- Do not create any other keys containing the string "thesis".
+- NEVER use the word "thesis" in any free-text field.
+- "thesis_checks" key MUST always be present and always be [].
 
-SELL CRITERIA
-You may recommend SELLs or TRIMs only for:
-- Allocation/rule breaches,
-- Intelligence Brief signals,
-- Valuation concerns,
-- Fundamental business problems.
-NEVER sell just to tidy documentation.
+SELL CRITERIA — only for:
+- HARD allocation/rule breaches
+- Intelligence Brief signals on specific tickers
+- Valuation concerns with fundamental evidence
+- Fundamental business problems
+NEVER sell just to tidy documentation or fix a SOFT rule.
 
 TRADE RECOMMENDATIONS
-- Include an entry for EVERY existing position plus any NEW ETFs/stocks you recommend.
-- For holds: action = "HOLD", recommended_shares = current_shares, shares_to_trade = 0.
-- For trims and adds: adjust recommended_shares so that target_weight is coherent with the rebalancing story.
-- total_buys and total_sells (rebalancing_summary) MUST be numerically consistent with trade_recommendations.
-- net_cash_impact MUST equal (total_sells − total_buys) and MUST respect the cash rule above.
+- Include EVERY existing position plus any new ETFs/stocks recommended.
+- HOLD: action="HOLD", recommended_shares=current_shares, shares_to_trade=0.
+- total_buys and total_sells MUST be numerically consistent with trade_recommendations.
+- net_cash_impact MUST equal (total_sells − total_buys).
 
 MARKET SIGNALS
 - bubble_warnings: max 5 items, each ≤ 25 words.
-- overall_sentiment: ≤ 30 words, plain English.
-- consensus_level: "mixed" | "bullish_consensus" | "bearish_consensus".
-- Use Intelligence Brief + insights to populate these fields; do NOT invent macro views that are not supported.
+- overall_sentiment: ≤ 30 words.
+- Use Intelligence Brief + insights only; do NOT invent macro views.
 
 BOND RECOMMENDATIONS (MANDATORY)
-Fill bond_recommendations with a coherent, compact plan:
 - current_bond_percent = RULE_EVALUATION.metrics.bonds_percent.
-- target_bond_percent: pick a value within any hard rule bounds (e.g., between min and max).
-- duration_allocation: 2–4 buckets ("short-term", "intermediate", "long-term", "EM").
-- geography_allocation: at least "US" and "EM" if present, or appropriate regions.
-- type_split: government vs corporate vs inflation-linked with reasoning.
 - recommended_etfs: only Ireland-domiciled UCITS bond ETFs, 2–4 items max.
-- current_holdings_assessment: assessment for each existing bond ETF (e.g., IB01, IDTM, IEML) with percent-of-bonds and a one-sentence assessment.
+- current_holdings_assessment: assess each existing bond ETF with percent-of-bonds.
 
 INTELLIGENCE BRIEF INTEGRATION
-If intelligence_brief is present:
-- Use it as the PRIMARY research signal for tilts and themes.
-- For each action item and market theme in the brief, consider if the user's positions are exposed; reflect that in key trade_recommendations and market_signals.
+- Use as PRIMARY research signal for tilts and themes.
+- Reflect in trade_recommendations and market_signals.
 - Do NOT contradict explicit data in the brief.
 
-JSON OUTPUT SCHEMA — YOU MUST MATCH THIS EXACT SHAPE
+JSON OUTPUT SCHEMA — MATCH THIS EXACT SHAPE:
 {
   "allocation_check": {
     "equities_percent": number,
@@ -572,20 +525,11 @@ JSON OUTPUT SCHEMA — YOU MUST MATCH THIS EXACT SHAPE
 }
 
 SUMMARY FIELD RULES
-- summary MUST be exactly 3 sentences:
-  1) "Biggest allocation or compliance problem: " + (allocation_check.issues[0] if it exists, otherwise "none").
-  2) One tail-risk or bubble warning taken from market_signals.bubble_warnings, or from your own tail risk reasoning if none are present, max 25 words.
-  3) If recommended_actions has at least one item: "Top action: " + recommended_actions[0].action, otherwise "Top action: none".
-- summary MUST NOT contradict allocation_check or RULE_EVALUATION in any way.`;
-
-    // ── Cash constraint fence ────────────────────────────────────────
-    const cashBal = cash_balance ?? 0;
-    const totalVal2 = total_portfolio_value ?? 1;
-    const maxBuyValue = cashBal > (totalVal2 * 0.001)
-      ? null
-      : ruleEvaluation.metrics.cash_percent <= 0.1
-        ? `HARD STOP: total_buys_value MUST NOT exceed total_sells_value. Current cash = $${cashBal.toFixed(0)}. Any buy must be funded by a sell. Net cash impact must be ≥ $0. This is non-negotiable.`
-        : null;
+- Exactly 3 sentences:
+  1) "Biggest allocation or compliance problem: " + (main_allocation_issues[0] if exists, otherwise "none").
+  2) One tail-risk or bubble warning from market_signals.bubble_warnings (max 25 words).
+  3) "Top action: " + recommended_actions[0].action (or "none" if empty).
+- MUST NOT contradict allocation_check or RULE_EVALUATION.`;
 
     // ── User Prompt ──────────────────────────────────────────────────
     const bubbleInsights = (insights ?? []).filter((i: any) => i.insight_type === "bubble_signal");
@@ -645,9 +589,7 @@ USE THIS BRIEF to drive trade recommendations. Reference specific themes.` : "No
 ${stock_fundamentals?.length > 0 ? `STOCK FUNDAMENTALS:
 ${stock_fundamentals.map((f: any) => `${f.ticker}: ROIC=${f.roic ?? "N/A"}%, Earnings Yield=${f.earnings_yield ?? "N/A"}%, P/E=${f.pe_ratio ?? "N/A"}, D/E=${f.debt_to_equity ?? "N/A"}, Revenue Growth=${f.revenue_growth_yoy ?? "N/A"}%, FCF Yield=${f.free_cash_flow_yield ?? "N/A"}%, Gross Margin=${f.gross_margin ?? "N/A"}%${f.notes ? ` (${f.notes})` : ""}`).join("\n")}` : "No stock fundamentals available."}
 
-CIRCULAR TRADE RULE: Never sell a position and then recommend buying it back in bond_recommendations or anywhere else in the same analysis. A position is either held or sold — not both.
-
-${maxBuyValue ? `⚠️ ${maxBuyValue}\n` : ""}RULE EVALUATION (precomputed, use as ground truth for all rule statuses):
+RULE EVALUATION (precomputed — use as ground truth for ALL rule statuses and percentages):
 ${JSON.stringify(ruleEvaluation, null, 2)}
 
 Analyze this portfolio and return the JSON response.`;
@@ -666,7 +608,7 @@ Analyze this portfolio and return the JSON response.`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        max_tokens: 20000,
+        max_tokens: 16000,
       }),
     });
 
@@ -719,10 +661,10 @@ Analyze this portfolio and return the JSON response.`;
     let analysisResult;
     try {
       let jsonString = content.trim();
-      
-      // Strip markdown code fences (```json ... ```)
+
+      // Strip markdown code fences
       jsonString = jsonString.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
-      
+
       // Extract first { to last }
       const firstBrace = jsonString.indexOf("{");
       const lastBrace = jsonString.lastIndexOf("}");
@@ -731,67 +673,21 @@ Analyze this portfolio and return the JSON response.`;
       } else {
         throw new Error("No JSON object found in response");
       }
-      
+
       // Fix common trailing-comma issues
       jsonString = jsonString.replace(/,\s*([}\]])/g, '$1');
-      
+
       analysisResult = JSON.parse(jsonString);
     } catch (parseError) {
-      console.error("Failed to parse AI response (attempt 1):", parseError);
+      console.error("Failed to parse AI response:", parseError);
       console.error("Raw content (first 500):", content.substring(0, 500));
-      
-      // Attempt repair: try to find the last valid closing brace by progressively trimming
-      try {
-        let jsonString = content.trim();
-        jsonString = jsonString.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
-        const firstBrace = jsonString.indexOf("{");
-        if (firstBrace === -1) throw new Error("No JSON object");
-        jsonString = jsonString.substring(firstBrace);
-        
-        // Fix trailing commas
-        jsonString = jsonString.replace(/,\s*([}\]])/g, '$1');
-        
-        // Try to repair truncated JSON by closing open structures
-        let repaired = jsonString;
-        // Count unclosed braces/brackets
-        let braceCount = 0;
-        let bracketCount = 0;
-        let inString = false;
-        let escape = false;
-        for (let i = 0; i < repaired.length; i++) {
-          const ch = repaired[i];
-          if (escape) { escape = false; continue; }
-          if (ch === '\\') { escape = true; continue; }
-          if (ch === '"') { inString = !inString; continue; }
-          if (inString) continue;
-          if (ch === '{') braceCount++;
-          else if (ch === '}') braceCount--;
-          else if (ch === '[') bracketCount++;
-          else if (ch === ']') bracketCount--;
-        }
-        
-        // If we're inside a string, close it
-        if (inString) repaired += '"';
-        
-        // Close any open brackets/braces
-        for (let i = 0; i < bracketCount; i++) repaired += ']';
-        for (let i = 0; i < braceCount; i++) repaired += '}';
-        
-        // Remove any trailing commas again after repair
-        repaired = repaired.replace(/,\s*([}\]])/g, '$1');
-        
-        analysisResult = JSON.parse(repaired);
-        console.log("JSON repair succeeded");
-      } catch (repairError) {
-        console.error("JSON repair also failed:", repairError);
-        return new Response(
-          JSON.stringify({ error: "Failed to parse AI analysis response. Please try again." }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      return new Response(
+        JSON.stringify({ error: "Failed to parse AI analysis response" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // ── Server-side cash constraint enforcement ───────────────────────
+    // ── Enforce cash constraint server-side ───────────────────────────
     analysisResult = enforceCashConstraint(analysisResult, cash_balance ?? 0);
 
     return new Response(JSON.stringify(analysisResult), {
