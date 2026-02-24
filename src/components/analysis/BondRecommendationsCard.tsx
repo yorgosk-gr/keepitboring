@@ -39,8 +39,6 @@ const actionColors: Record<string, string> = {
 };
 
 export function BondRecommendationsCard({ bondRecs }: BondRecommendationsCardProps) {
-  const [showHolds, setShowHolds] = useState(false);
-
   // Normalize: support both new bond_actions and legacy recommended_etfs
   const actions: BondAction[] = bondRecs.bond_actions ?? 
     (bondRecs.recommended_etfs ?? []).map((etf: any) => ({
@@ -54,8 +52,10 @@ export function BondRecommendationsCard({ bondRecs }: BondRecommendationsCardPro
 
   const activeActions = actions.filter((a) => a.action !== "HOLD");
   const holdActions = actions.filter((a) => a.action === "HOLD");
-  const hasChanges = activeActions.length > 0 || bondRecs.current_bond_percent !== bondRecs.target_bond_percent;
-  const noChanges = !hasChanges && activeActions.length === 0;
+  const allHolds = activeActions.length === 0 && holdActions.length > 0;
+
+  // Auto-expand holds when there are no active changes (so users see the sleeve)
+  const [showHolds, setShowHolds] = useState(allHolds);
 
   return (
     <Card>
@@ -79,10 +79,10 @@ export function BondRecommendationsCard({ bondRecs }: BondRecommendationsCardPro
       </CardHeader>
 
       <CardContent className="space-y-3 pt-2">
-        {noChanges && (
+        {allHolds && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary/40 rounded-lg px-3 py-2 border border-border">
             <Info className="w-4 h-4 text-primary shrink-0" />
-            Bond allocation on target — no changes recommended.
+            Bond sleeve on target — current holdings maintained.
           </div>
         )}
 
