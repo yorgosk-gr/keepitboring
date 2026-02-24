@@ -214,6 +214,38 @@ function computeRuleEvaluation(
   };
 }
 
+// ── Server-side cash constraint enforcement ──────────────────────
+function enforceCashConstraint(analysisResult: any, cashBalance: number): any {
+  if (cashBalance > 500) return analysisResult; // has meaningful cash, skip
+  const trades = analysisResult.trade_recommendations ?? [];
+  const totalSells = trades
+    .filter((t: any) => t.action === "SELL" || t.action === "TRIM" || t.shares_to_trade < 0)
+    .reduce((s: number, t: any) => s + Math.abs(t.estimated_value ?? 0), 0);
+  const totalBuys = trades
+    .filter((t: any) => t.action === "BUY" && t.shares_to_trade > 0)
+    .reduce((s: number, t: any) => s + (t.estimated_value ?? 0), 0);
+  if (totalBuys <= totalSells) return analysisResult; // already balanced
+  const scaleFactor = totalSells > 0 ? totalSells / totalBuys : 0;
+  for (const trade of trades) {
+    if (trade.action === "BUY" && trade.shares_to_trade > 0) {
+      trade.recommended_shares = Math.floor((trade.current_shares ?? 0) + trade.shares_to_trade * scaleFactor);
+      trade.shares_to_trade = Math.floor(trade.shares_to_trade * scaleFactor);
+      trade.estimated_value = Math.round((trade.estimated_value ?? 0) * scaleFactor);
+      trade.target_weight = parseFloat(((trade.target_weight ?? 0) * scaleFactor).toFixed(2));
+    }
+  }
+  const newBuys = trades
+    .filter((t: any) => t.action === "BUY")
+    .reduce((s: number, t: any) => s + (t.estimated_value ?? 0), 0);
+  const netImpact = totalSells - newBuys;
+  analysisResult.rebalancing_summary = {
+    ...analysisResult.rebalancing_summary,
+    total_buys: `$${Math.round(newBuys).toLocaleString()}`,
+    net_cash_impact: `+$${Math.round(netImpact).toLocaleString()}`,
+  };
+  return analysisResult;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -337,9 +369,10 @@ YOU MUST TREAT RULE_EVALUATION AS AUTHORITATIVE:
 - DO NOT re-interpret min/max or statuses.
 
 RULE ENFORCEMENT LEVELS:
-- main_allocation_issues contains HARD rule breaches only — these drive score deductions and must be addressed.
-- soft_issues contains SOFT rule breaches — mention them as observations but do NOT deduct score points, do NOT list them as the primary problem, and do NOT drive sell recommendations from them alone.
-- If main_allocation_issues is empty, the summary first sentence must say "No hard rule breaches detected."
+- RULE_EVALUATION.main_allocation_issues contains HARD rule breaches only — these drive score deductions and must be addressed with trades.
+- RULE_EVALUATION.soft_issues contains SOFT rule breaches — mention as observations only. Do NOT deduct score points, do NOT list as primary problem, do NOT drive sell recommendations from soft breaches alone.
+- If main_allocation_issues is empty, summary sentence 1 must say "Biggest allocation or compliance problem: none."
+- The ETF Allocation rule is SOFT. A soft ETF breach means: note it, suggest a gradual increase, never sell other ETFs to fix it.
 
 - If RULE_EVALUATION.metrics.etfs_percent = 43.4 and there is no ETF allocation rule in entries with status != "within_range":
   - You MUST NOT say things like "ETF Allocation: 8.3% is below minimum 75%".
@@ -712,6 +745,9 @@ Analyze this portfolio and return the JSON response.`;
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // ── Server-side cash constraint enforcement ───────────────────────
+    analysisResult = enforceCashConstraint(analysisResult, cash_balance ?? 0);
 
     return new Response(JSON.stringify(analysisResult), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
