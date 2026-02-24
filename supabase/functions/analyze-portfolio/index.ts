@@ -28,6 +28,8 @@ interface RuleEvaluationMetrics {
   cash_percent: number;
   stocks_percent: number;
   etfs_percent: number;
+  etfs_of_equities_percent: number;
+  stocks_of_equities_percent: number;
   antifragile_percent: number;
 }
 
@@ -197,6 +199,8 @@ function computeRuleEvaluation(
       cash_percent: parseFloat(cashPercent.toFixed(2)),
       stocks_percent: parseFloat(stocksPercent.toFixed(2)),
       etfs_percent: parseFloat(etfsPercent.toFixed(2)),
+      etfs_of_equities_percent: parseFloat(etfsOfEquitiesPercent.toFixed(2)),
+      stocks_of_equities_percent: parseFloat(stocksOfEquitiesPercent.toFixed(2)),
       antifragile_percent: parseFloat(antifragilePercent.toFixed(2)),
     },
   };
@@ -316,6 +320,8 @@ RULE_EVALUATION has:
   - cash_percent
   - stocks_percent
   - etfs_percent
+  - etfs_of_equities_percent
+  - stocks_of_equities_percent
   - antifragile_percent
 
 YOU MUST TREAT RULE_EVALUATION AS AUTHORITATIVE:
@@ -334,9 +340,8 @@ You MUST fill allocation_check as follows:
 - allocation_check.cash_percent     = RULE_EVALUATION.metrics.cash_percent
 
 - stocks_vs_etf_split:
-  - Compute from RULE_EVALUATION.metrics.stocks_percent and RULE_EVALUATION.metrics.etfs_percent.
-  - Those two MUST sum (approximately) to RULE_EVALUATION.metrics.equities_percent.
-  - Express as: "<X>% stocks / <Y>% ETFs (within equities only)".
+  - Express as "<X>% stocks / <Y>% ETFs (within equities only)" using RULE_EVALUATION.metrics.stocks_of_equities_percent and RULE_EVALUATION.metrics.etfs_of_equities_percent.
+  - Those two MUST sum to 100% (they represent the split within equities, not total portfolio).
 
 - allocation_check.issues:
   - MUST equal RULE_EVALUATION.main_allocation_issues (same strings, same order).
