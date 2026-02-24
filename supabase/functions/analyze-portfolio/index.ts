@@ -55,7 +55,10 @@ function computeRuleEvaluation(
   const classMap: Record<string, string> = {};
   for (const c of (etfClassifications ?? [])) {
     if (c.ticker && c.category) {
-      classMap[c.ticker] = c.category.toLowerCase();
+      // Normalise to singular lowercase: "Equities" -> "equity", "Bonds" -> "bond", "Commodities" -> "commodity"
+      const raw = c.category.toLowerCase().trim();
+      const normalised = raw.replace(/ies$/, "y").replace(/s$/, "");
+      classMap[c.ticker] = normalised;
     }
   }
 
@@ -68,7 +71,8 @@ function computeRuleEvaluation(
   for (const p of safePositions) {
     const mv = p.market_value ?? 0;
     const posType = (p.position_type || "").toLowerCase();
-    const cat = classMap[p.ticker] || "";
+    const rawCat = (classMap[p.ticker] || p.category || "").toLowerCase().trim();
+    const cat = rawCat.replace(/ies$/, "y").replace(/s$/, "");
 
     if (posType === "stock") {
       equityValue += mv;
