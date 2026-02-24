@@ -536,10 +536,12 @@ JSON OUTPUT SCHEMA — MATCH THIS EXACT SHAPE:
 }
 
 SUMMARY FIELD RULES
-- Exactly 3 sentences:
-  1) "Biggest allocation or compliance problem: " + (main_allocation_issues[0] if exists, otherwise "none").
-  2) One tail-risk or bubble warning from market_signals.bubble_warnings (max 25 words).
-  3) "Top action: " + recommended_actions[0].action (or "none" if empty).
+- Exactly 4 sentences. Each must add NEW information — no repetition across sentences:
+  1) "Portfolio Health Score: X/100" — state the score.
+  2) "Biggest problem: " + (main_allocation_issues[0] if exists, otherwise "none — all hard rules pass."). Keep under 20 words.
+  3) One specific, non-obvious insight: a tail-risk from bubble_warnings, a concentration risk, or a noteworthy market signal. DO NOT repeat the allocation problem. Max 25 words.
+  4) "Top action: " + a SPECIFIC, ACTIONABLE step naming at most 2 tickers and a concrete size change (e.g. "Trim AMZN by 2% and redeploy into VWRA"). NOT a generic list of all positions.
+- The summary must read like a portfolio manager's brief, not a rule-engine dump.
 - MUST NOT contradict allocation_check or RULE_EVALUATION.`;
 
     // ── User Prompt ──────────────────────────────────────────────────
