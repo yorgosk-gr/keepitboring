@@ -96,6 +96,10 @@ function computeRuleEvaluation(
   const shortTermBondPercent = bondPercent * 0.3;
   const antifragilePercent = goldPercent + shortTermBondPercent + cashPercent;
 
+  // Derived metrics: ETF/Stock as % of equities (not total portfolio)
+  const etfsOfEquitiesPercent = equityPercent > 0 ? ((equityValue - stocksValue) / equityValue) * 100 : 0;
+  const stocksOfEquitiesPercent = equityPercent > 0 ? (stocksValue / equityValue) * 100 : 0;
+
   // Metric resolver
   const metricValues: Record<string, number> = {
     stocks_percent: stocksPercent,
@@ -106,12 +110,14 @@ function computeRuleEvaluation(
     gold_percent: goldPercent,
     cash_percent: cashPercent,
     antifragile_percent: antifragilePercent,
+    etfs_of_equities_percent: etfsOfEquitiesPercent,
+    stocks_of_equities_percent: stocksOfEquitiesPercent,
   };
 
   // Name-to-metric mapping for rules that use name instead of metric field
   const nameToMetric: Record<string, string> = {
-    "Stock Allocation": "stocks_percent",
-    "ETF Allocation": "etfs_percent",
+    "Stock Allocation": "stocks_of_equities_percent",
+    "ETF Allocation": "etfs_of_equities_percent",
     "Equity Allocation": "equity_percent",
     "Bond Allocation": "bonds_percent",
     "Commodity + Gold Allocation": "commodities_gold_percent",
