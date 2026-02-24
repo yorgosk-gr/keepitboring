@@ -59,8 +59,8 @@ export interface RuleFormData {
 
 const DEFAULT_RULES: Omit<PhilosophyRule, "id" | "user_id" | "created_at">[] = [
   // Allocation Rules
-  { name: "Stock Allocation", rule_type: "allocation", threshold_min: 15, threshold_max: 25, description: "Individual stocks should be 15-25% of portfolio", source_books: ["Graham", "Malkiel"], is_active: true, rule_enforcement: "hard", scope: "portfolio", category: "allocation", metric: "stocks_percent", operator: "between", tags: ["stocks", "allocation"], message_on_breach: "Stock allocation outside target range", scoring_weight: 1 },
-  { name: "ETF Allocation", rule_type: "allocation", threshold_min: 75, threshold_max: 85, description: "ETFs should be 75-85% of portfolio", source_books: ["Malkiel", "Siegel"], is_active: true, rule_enforcement: "hard", scope: "portfolio", category: "allocation", metric: "etfs_percent", operator: "between", tags: ["etf", "allocation"], message_on_breach: "ETF allocation outside target range", scoring_weight: 1 },
+  { name: "Stock Allocation", rule_type: "allocation", threshold_min: 15, threshold_max: 25, description: "Individual stocks should be 15-25% of equities", source_books: ["Graham", "Malkiel"], is_active: true, rule_enforcement: "hard", scope: "portfolio", category: "allocation", metric: "stocks_of_equities_percent", operator: "between", tags: ["stocks", "allocation"], message_on_breach: "Stock allocation outside target range", scoring_weight: 1 },
+  { name: "ETF Allocation", rule_type: "allocation", threshold_min: 75, threshold_max: 85, description: "ETFs should be 75-85% of equities", source_books: ["Malkiel", "Siegel"], is_active: true, rule_enforcement: "hard", scope: "portfolio", category: "allocation", metric: "etfs_of_equities_percent", operator: "between", tags: ["etf", "allocation"], message_on_breach: "ETF allocation outside target range", scoring_weight: 1 },
   { name: "Equity Allocation", rule_type: "allocation", threshold_min: 40, threshold_max: 60, description: "True equity exposure (stocks + equity ETFs) should be 40-60%", source_books: ["Siegel", "Malkiel"], is_active: true, rule_enforcement: "hard", scope: "portfolio", category: "allocation", metric: "equity_percent", operator: "between", tags: ["equity", "allocation"], message_on_breach: "Equity allocation outside target range", scoring_weight: 1 },
   { name: "Bond Allocation", rule_type: "allocation", threshold_min: 10, threshold_max: 40, description: "Bond ETFs should be 10-40% of portfolio", source_books: ["Graham", "Siegel"], is_active: true, rule_enforcement: "hard", scope: "portfolio", category: "allocation", metric: "bonds_percent", operator: "between", tags: ["bonds", "allocation"], message_on_breach: "Bond allocation outside target range", scoring_weight: 1 },
   { name: "Commodity + Gold Allocation", rule_type: "allocation", threshold_min: 5, threshold_max: 15, description: "Commodities + Gold should be 5-15%", source_books: ["Marks", "Taleb"], is_active: true, rule_enforcement: "hard", scope: "portfolio", category: "allocation", metric: "commodities_gold_percent", operator: "between", tags: ["commodities", "gold", "allocation"], message_on_breach: "Commodity + Gold allocation outside target range", scoring_weight: 1 },
@@ -281,6 +281,14 @@ export function usePhilosophyRules() {
       }
       case "antifragile_percent": {
         return calculateAssetClassAllocation("gold") + calculateAssetClassAllocation("bond") + cashPercent;
+      }
+      case "etfs_of_equities_percent": {
+        const equityTotal = calculateAssetClassAllocation("equity");
+        return equityTotal > 0 ? ((etfsPercent / (stocksPercent + etfsPercent)) * 100) : 0;
+      }
+      case "stocks_of_equities_percent": {
+        const equityTotal2 = calculateAssetClassAllocation("equity");
+        return equityTotal2 > 0 ? ((stocksPercent / (stocksPercent + etfsPercent)) * 100) : 0;
       }
       case "sector_percent": {
         // Return the MAX sector concentration
