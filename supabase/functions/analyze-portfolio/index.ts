@@ -36,6 +36,7 @@ interface RuleEvaluationMetrics {
 interface RuleEvaluation {
   entries: RuleEvaluationEntry[];
   main_allocation_issues: string[];
+  soft_issues: string[];
   metrics: RuleEvaluationMetrics;
 }
 
@@ -129,6 +130,7 @@ function computeRuleEvaluation(
 
   const entries: RuleEvaluationEntry[] = [];
   const issues: string[] = [];
+  const softIssues: string[] = [];
 
   for (const rule of safeRules) {
     // Match allocation rules by rule_type OR category
@@ -183,15 +185,21 @@ function computeRuleEvaluation(
       message,
     });
 
-    // Treat all active allocation rules as hard for scoring
     if (status !== "within_range") {
-      issues.push(message);
+      const enforcement = rule.rule_enforcement ?? "hard";
+      if (enforcement === "hard") {
+        issues.push(message);
+      } else if (enforcement === "soft") {
+        softIssues.push(message);
+      }
+      // diagnostic rules: never add to issues
     }
   }
 
   return {
     entries,
     main_allocation_issues: issues.slice(0, 3),
+    soft_issues: softIssues.slice(0, 3),
     metrics: {
       equities_percent: parseFloat(equityPercent.toFixed(2)),
       bonds_percent: parseFloat(bondPercent.toFixed(2)),
@@ -327,6 +335,12 @@ RULE_EVALUATION has:
 YOU MUST TREAT RULE_EVALUATION AS AUTHORITATIVE:
 - DO NOT recompute equities/bonds/commodities/cash/stocks/etfs/antifragile percentages from raw positions.
 - DO NOT re-interpret min/max or statuses.
+
+RULE ENFORCEMENT LEVELS:
+- main_allocation_issues contains HARD rule breaches only — these drive score deductions and must be addressed.
+- soft_issues contains SOFT rule breaches — mention them as observations but do NOT deduct score points, do NOT list them as the primary problem, and do NOT drive sell recommendations from them alone.
+- If main_allocation_issues is empty, the summary first sentence must say "No hard rule breaches detected."
+
 - If RULE_EVALUATION.metrics.etfs_percent = 43.4 and there is no ETF allocation rule in entries with status != "within_range":
   - You MUST NOT say things like "ETF Allocation: 8.3% is below minimum 75%".
 - If an entry has status "within_range", you MUST NOT describe that metric anywhere as "underweight" or "overweight".
