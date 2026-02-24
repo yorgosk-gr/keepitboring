@@ -216,20 +216,20 @@ function computeRuleEvaluation(
 
 // ── Server-side cash constraint enforcement ──────────────────────
 function enforceCashConstraint(analysisResult: any, cashBalance: number): any {
-  if (cashBalance > 500) return analysisResult; // has meaningful cash, skip
+  if (cashBalance > 500) return analysisResult;
   const trades = analysisResult.trade_recommendations ?? [];
   const totalSells = trades
-    .filter((t: any) => t.action === "SELL" || t.action === "TRIM" || t.shares_to_trade < 0)
+    .filter((t: any) => t.shares_to_trade < 0)
     .reduce((s: number, t: any) => s + Math.abs(t.estimated_value ?? 0), 0);
   const totalBuys = trades
     .filter((t: any) => t.action === "BUY" && t.shares_to_trade > 0)
     .reduce((s: number, t: any) => s + (t.estimated_value ?? 0), 0);
-  if (totalBuys <= totalSells) return analysisResult; // already balanced
+  if (totalBuys <= totalSells) return analysisResult;
   const scaleFactor = totalSells > 0 ? totalSells / totalBuys : 0;
   for (const trade of trades) {
     if (trade.action === "BUY" && trade.shares_to_trade > 0) {
-      trade.recommended_shares = Math.floor((trade.current_shares ?? 0) + trade.shares_to_trade * scaleFactor);
       trade.shares_to_trade = Math.floor(trade.shares_to_trade * scaleFactor);
+      trade.recommended_shares = (trade.current_shares ?? 0) + trade.shares_to_trade;
       trade.estimated_value = Math.round((trade.estimated_value ?? 0) * scaleFactor);
       trade.target_weight = parseFloat(((trade.target_weight ?? 0) * scaleFactor).toFixed(2));
     }
@@ -237,11 +237,10 @@ function enforceCashConstraint(analysisResult: any, cashBalance: number): any {
   const newBuys = trades
     .filter((t: any) => t.action === "BUY")
     .reduce((s: number, t: any) => s + (t.estimated_value ?? 0), 0);
-  const netImpact = totalSells - newBuys;
   analysisResult.rebalancing_summary = {
     ...analysisResult.rebalancing_summary,
     total_buys: `$${Math.round(newBuys).toLocaleString()}`,
-    net_cash_impact: `+$${Math.round(netImpact).toLocaleString()}`,
+    net_cash_impact: `+$${Math.round(totalSells - newBuys).toLocaleString()}`,
   };
   return analysisResult;
 }
