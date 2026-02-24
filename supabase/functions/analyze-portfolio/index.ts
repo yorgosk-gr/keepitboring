@@ -76,8 +76,6 @@ function computeRuleEvaluation(
 
     if (posType === "stock") {
       equityValue += mv;
-    } else if (cat === "equity") {
-      equityValue += mv;
     } else if (cat === "bond") {
       bondValue += mv;
     } else if (cat === "commodity" || cat === "gold") {
@@ -85,6 +83,9 @@ function computeRuleEvaluation(
       if (cat === "gold" || (p.name || "").toLowerCase().includes("gold")) {
         goldValue += mv;
       }
+    } else {
+      // Default: unclassified ETFs and equity ETFs both count as equity
+      equityValue += mv;
     }
   }
 
