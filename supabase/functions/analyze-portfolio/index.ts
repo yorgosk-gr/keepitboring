@@ -536,12 +536,13 @@ JSON OUTPUT SCHEMA — MATCH THIS EXACT SHAPE:
 }
 
 SUMMARY FIELD RULES
-- Exactly 4 sentences. Each must add NEW information — no repetition across sentences:
-  1) "Portfolio Health Score: X/100" — state the score.
-  2) "Biggest problem: " + (main_allocation_issues[0] if exists, otherwise "none — all hard rules pass."). Keep under 20 words.
-  3) One specific, non-obvious insight: a tail-risk from bubble_warnings, a concentration risk, or a noteworthy market signal. DO NOT repeat the allocation problem. Max 25 words.
-  4) "Top action: " + a SPECIFIC, ACTIONABLE step naming at most 2 tickers and a concrete size change (e.g. "Trim AMZN by 2% and redeploy into VWRA"). NOT a generic list of all positions.
-- The summary must read like a portfolio manager's brief, not a rule-engine dump.
+- Exactly 4 sentences. Each must add NEW information — zero repetition:
+  1) What's working well — highlight 1-2 strengths (e.g. strong diversification, good bond core, solid ETF backbone). Be specific, mention tickers or allocations.
+  2) What needs attention — the most important compliance issue or portfolio weakness, in ≤20 words. Not a laundry list.
+  3) Key risk or opportunity ahead — a non-obvious insight from market signals, newsletter intelligence, or concentration analysis. ≤25 words.
+  4) "Top action: " + ONE specific, actionable next step naming at most 2 tickers with a concrete change (e.g. "Trim AMZN by 2% into VWRA"). Not a list of all trades.
+- Do NOT start with the health score (it's displayed separately). Do NOT use labels like "Biggest problem:" or "Strengths:".
+- Write as a portfolio manager's narrative brief — conversational, insightful, no jargon dump.
 - MUST NOT contradict allocation_check or RULE_EVALUATION.`;
 
     // ── User Prompt ──────────────────────────────────────────────────
