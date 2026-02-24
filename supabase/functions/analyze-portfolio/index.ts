@@ -524,11 +524,8 @@ JSON OUTPUT SCHEMA — MATCH THIS EXACT SHAPE:
     "current_bond_percent": number,
     "target_bond_percent": number,
     "strategy_summary": string (1-2 sentences MAX, no filler),
-    "duration_allocation": [{ "duration": string, "current_percent_of_bonds": number, "target_percent_of_bonds": number, "reasoning": string (≤12 words) }],
-    "geography_allocation": [{ "region": string, "target_percent_of_bonds": number, "reasoning": string (≤10 words) }],
-    "type_split": { "government_percent": number, "corporate_percent": number, "inflation_linked_percent": number, "reasoning": string (≤15 words) },
-    "recommended_etfs": [{ "ticker": string, "name": string, "duration": string, "region": string, "type": string, "action": "HOLD"|"BUY"|"INCREASE"|"REDUCE"|"SELL", "target_percent_of_bonds": number, "reasoning": string (≤15 words) }],
-    "current_holdings_assessment": [{ "ticker": string, "name": string, "duration": string, "region": string, "type": string, "current_percent_of_bonds": number, "assessment": string (≤12 words) }]
+    "bond_actions": [{ "ticker": string, "name": string, "action": "HOLD"|"BUY"|"INCREASE"|"REDUCE"|"SELL", "current_percent_of_bonds": number|null, "target_percent_of_bonds": number, "reasoning": string (≤15 words) }],
+    "funding_note": string|null (e.g. "Funded by reducing IB01 by 10%" or "Requires $2,000 additional cash" — only when BUY/INCREASE actions exist, otherwise null)
   },
   "thesis_checks": [],
   "portfolio_health_score": number,

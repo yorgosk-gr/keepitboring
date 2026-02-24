@@ -1,57 +1,29 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Landmark, ArrowRight, TrendingUp } from "lucide-react";
+import { Landmark, ArrowRight, ChevronDown, ChevronUp, Info } from "lucide-react";
 
-export interface BondDurationAllocation {
-  duration: string;
-  current_percent_of_bonds: number;
-  target_percent_of_bonds: number;
-  reasoning: string;
-}
-
-export interface BondGeographyAllocation {
-  region: string;
-  target_percent_of_bonds: number;
-  reasoning: string;
-}
-
-export interface BondTypeSplit {
-  government_percent: number;
-  corporate_percent: number;
-  inflation_linked_percent: number;
-  reasoning: string;
-}
-
-export interface BondETFRecommendation {
+export interface BondAction {
   ticker: string;
   name: string;
-  duration: string;
-  region: string;
-  type: string;
   action: "HOLD" | "BUY" | "INCREASE" | "REDUCE" | "SELL";
+  current_percent_of_bonds: number | null;
   target_percent_of_bonds: number;
   reasoning: string;
-}
-
-export interface BondHoldingAssessment {
-  ticker: string;
-  name: string;
-  duration: string;
-  region: string;
-  type: string;
-  current_percent_of_bonds: number;
-  assessment: string;
 }
 
 export interface BondRecommendations {
   current_bond_percent: number;
   target_bond_percent: number;
   strategy_summary: string;
-  duration_allocation: BondDurationAllocation[];
-  geography_allocation: BondGeographyAllocation[];
-  type_split: BondTypeSplit;
-  recommended_etfs: BondETFRecommendation[];
-  current_holdings_assessment: BondHoldingAssessment[];
+  bond_actions: BondAction[];
+  funding_note: string | null;
+  // Legacy fields — keep for backward compat with old analysis results
+  duration_allocation?: any[];
+  geography_allocation?: any[];
+  type_split?: any;
+  recommended_etfs?: any[];
+  current_holdings_assessment?: any[];
 }
 
 interface BondRecommendationsCardProps {
@@ -66,17 +38,28 @@ const actionColors: Record<string, string> = {
   SELL: "bg-destructive/15 text-destructive border-destructive/30",
 };
 
-const typeEntries = (ts: BondTypeSplit) =>
-  [
-    { label: "Gov", value: ts.government_percent },
-    { label: "Corp", value: ts.corporate_percent },
-    { label: "Infl-Linked", value: ts.inflation_linked_percent },
-  ].filter((e) => e.value > 0);
-
 export function BondRecommendationsCard({ bondRecs }: BondRecommendationsCardProps) {
+  const [showHolds, setShowHolds] = useState(false);
+
+  // Normalize: support both new bond_actions and legacy recommended_etfs
+  const actions: BondAction[] = bondRecs.bond_actions ?? 
+    (bondRecs.recommended_etfs ?? []).map((etf: any) => ({
+      ticker: etf.ticker,
+      name: etf.name,
+      action: etf.action,
+      current_percent_of_bonds: null,
+      target_percent_of_bonds: etf.target_percent_of_bonds,
+      reasoning: etf.reasoning,
+    }));
+
+  const activeActions = actions.filter((a) => a.action !== "HOLD");
+  const holdActions = actions.filter((a) => a.action === "HOLD");
+  const hasChanges = activeActions.length > 0 || bondRecs.current_bond_percent !== bondRecs.target_bond_percent;
+  const noChanges = !hasChanges && activeActions.length === 0;
+
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             <Landmark className="w-5 h-5 text-primary" />
@@ -84,102 +67,81 @@ export function BondRecommendationsCard({ bondRecs }: BondRecommendationsCardPro
           </CardTitle>
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">{bondRecs.current_bond_percent}%</span>
-            <ArrowRight className="w-3 h-3 text-muted-foreground" />
-            <span className="font-medium text-foreground">{bondRecs.target_bond_percent}%</span>
+            {bondRecs.current_bond_percent !== bondRecs.target_bond_percent && (
+              <>
+                <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                <span className="font-medium text-foreground">{bondRecs.target_bond_percent}%</span>
+              </>
+            )}
           </div>
         </div>
         <p className="text-xs text-muted-foreground mt-1">{bondRecs.strategy_summary}</p>
       </CardHeader>
 
-      <CardContent className="space-y-4">
-        {/* Duration + Geography + Type in a compact grid */}
-        <div className="grid gap-3 md:grid-cols-3">
-          {/* Duration */}
-          <div>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Duration</h4>
-            <div className="space-y-1.5">
-              {bondRecs.duration_allocation.map((d) => (
-                <div key={d.duration} className="text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-foreground">{d.duration}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {d.current_percent_of_bonds}→{d.target_percent_of_bonds}%
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Geography */}
-          <div>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Geography</h4>
-            <div className="space-y-1.5">
-              {bondRecs.geography_allocation.map((g) => (
-                <div key={g.region} className="flex items-center justify-between text-sm">
-                  <span className="text-foreground">{g.region}</span>
-                  <span className="text-xs text-primary font-medium">{g.target_percent_of_bonds}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Type */}
-          <div>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Type Split</h4>
-            <div className="space-y-1.5">
-              {typeEntries(bondRecs.type_split).map((e) => (
-                <div key={e.label} className="flex items-center justify-between text-sm">
-                  <span className="text-foreground">{e.label}</span>
-                  <span className="text-xs text-primary font-medium">{e.value}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Current Holdings - compact table-like */}
-        {bondRecs.current_holdings_assessment?.length > 0 && (
-          <div>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Current Holdings</h4>
-            <div className="space-y-1">
-              {bondRecs.current_holdings_assessment.map((h) => (
-                <div key={h.ticker} className="flex items-center justify-between gap-2 text-sm py-1 border-b border-border last:border-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-mono font-semibold text-foreground">{h.ticker}</span>
-                    <span className="text-xs text-muted-foreground truncate">{h.assessment}</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">{h.current_percent_of_bonds}%</span>
-                </div>
-              ))}
-            </div>
+      <CardContent className="space-y-3 pt-2">
+        {noChanges && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary/40 rounded-lg px-3 py-2 border border-border">
+            <Info className="w-4 h-4 text-primary shrink-0" />
+            Bond allocation on target — no changes recommended.
           </div>
         )}
 
-        {/* Recommended ETFs - compact */}
-        {bondRecs.recommended_etfs?.length > 0 && (
-          <div>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1">
-              <TrendingUp className="w-3.5 h-3.5 text-primary" />
-              Recommended
-            </h4>
-            <div className="space-y-1.5">
-              {bondRecs.recommended_etfs.map((etf) => (
-                <div key={etf.ticker} className="flex items-center justify-between gap-2 text-sm py-1.5 border-b border-border last:border-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-mono font-semibold text-foreground">{etf.ticker}</span>
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${actionColors[etf.action] || ""}`}>
-                      {etf.action}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground truncate">{etf.reasoning}</span>
-                  </div>
-                  <span className="text-xs text-primary font-medium whitespace-nowrap">{etf.target_percent_of_bonds}%</span>
-                </div>
-              ))}
-            </div>
+        {/* Active actions (BUY/SELL/INCREASE/REDUCE) */}
+        {activeActions.length > 0 && (
+          <div className="space-y-1">
+            {activeActions.map((a) => (
+              <ActionRow key={a.ticker} action={a} />
+            ))}
           </div>
+        )}
+
+        {/* Collapsible HOLDs */}
+        {holdActions.length > 0 && (
+          <div>
+            <button
+              onClick={() => setShowHolds(!showHolds)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full py-1"
+            >
+              {showHolds ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              {holdActions.length} holding{holdActions.length !== 1 ? "s" : ""} unchanged
+            </button>
+            {showHolds && (
+              <div className="space-y-1 mt-1">
+                {holdActions.map((a) => (
+                  <ActionRow key={a.ticker} action={a} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Funding note */}
+        {bondRecs.funding_note && activeActions.length > 0 && (
+          <p className="text-xs text-muted-foreground border-t border-border pt-2">
+            💰 {bondRecs.funding_note}
+          </p>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function ActionRow({ action }: { action: BondAction }) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-sm py-1.5 border-b border-border last:border-0">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="font-mono font-semibold text-foreground w-12 shrink-0">{action.ticker}</span>
+        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 shrink-0 ${actionColors[action.action] || ""}`}>
+          {action.action}
+        </Badge>
+        {action.current_percent_of_bonds != null && action.current_percent_of_bonds !== action.target_percent_of_bonds && (
+          <span className="text-xs text-muted-foreground shrink-0">
+            {action.current_percent_of_bonds}→{action.target_percent_of_bonds}%
+          </span>
+        )}
+        <span className="text-xs text-muted-foreground truncate">{action.reasoning}</span>
+      </div>
+      <span className="text-xs text-primary font-medium whitespace-nowrap">{action.target_percent_of_bonds}%</span>
+    </div>
   );
 }
