@@ -436,6 +436,12 @@ SELL CRITERIA — only for:
 - Fundamental business problems
 NEVER sell just to tidy documentation or fix a SOFT rule.
 
+DIAGNOSTIC RULES (rule_enforcement === "diagnostic") are informational only:
+- NEVER use diagnostic rule breaches as the primary reason to sell a position.
+- NEVER deduct health score points for diagnostic rule breaches.
+- You MAY mention them in position_alerts as observations, but severity must be "warning" not "critical", and recommendation must be "monitor" not "sell".
+- Quality metrics (ROIC floor, Earnings Yield floor) are diagnostic rules — they inform but do not mandate trades.
+
 TRADE RECOMMENDATIONS
 - Include EVERY existing position plus any new ETFs/stocks recommended.
 - HOLD: action="HOLD", recommended_shares=current_shares, shares_to_trade=0.

@@ -176,18 +176,24 @@ export function usePortfolioAnalysis() {
         portfolioTickers
       );
 
-      // Prepare ETF classification data — include fallback for ETFs missing metadata
+      // Prepare ETF classification data — manually classified positions take priority
       const etfClassifications = positions
         .filter(p => p.position_type === "etf")
-        .map(p => ({
-          ticker: p.ticker,
-          name: p.name,
-          category: etfMetadata[p.ticker]?.category ?? p.category ?? 'equity',
-          geography: etfMetadata[p.ticker]?.geography ?? 'global',
-          is_broad_market: etfMetadata[p.ticker]?.is_broad_market ?? false,
-          is_inferred: !etfMetadata[p.ticker],
-          ...(etfMetadata[p.ticker] ?? {}),
-        }));
+        .map(p => {
+          const meta = etfMetadata[p.ticker];
+          const resolvedCategory = p.manually_classified
+            ? (p.category ?? meta?.category ?? "equity")
+            : (meta?.category ?? p.category ?? "equity");
+          return {
+            ticker: p.ticker,
+            name: p.name,
+            geography: meta?.geography ?? "global",
+            is_broad_market: meta?.is_broad_market ?? false,
+            is_inferred: !meta,
+            ...(meta ?? {}),
+            category: resolvedCategory,
+          };
+        });
 
       // Get unique newsletter count
       const uniqueNewsletterIds = new Set(selectedInsights.map((i) => i.newsletter_id));

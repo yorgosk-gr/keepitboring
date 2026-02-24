@@ -22,6 +22,7 @@ export interface Position {
   last_review_date: string | null;
   created_at: string;
   updated_at: string;
+  manually_classified: boolean | null;
 }
 
 export interface PositionFormData {
