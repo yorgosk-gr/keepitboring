@@ -58,6 +58,8 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
     confidence_level: position?.confidence_level ?? 5,
     thesis_notes: parsed.thesis,
     invalidation_triggers: parsed.triggers,
+    currency: position?.currency ?? "USD",
+    exchange: position?.exchange ?? "",
   });
 
   // Reset form when position changes (fixes edit not pre-populating)
@@ -75,6 +77,8 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
       confidence_level: position?.confidence_level ?? 5,
       thesis_notes: parsed.thesis,
       invalidation_triggers: parsed.triggers,
+      currency: position?.currency ?? "USD",
+      exchange: position?.exchange ?? "",
     });
     setErrors({});
   }, [position]);
@@ -112,7 +116,6 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
       return;
     }
 
-    // Cast to PositionFormData since we've validated it
     const validatedData: PositionFormData = {
       ticker: result.data.ticker,
       name: result.data.name,
@@ -125,6 +128,8 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
       confidence_level: result.data.confidence_level,
       thesis_notes: result.data.thesis_notes,
       invalidation_triggers: result.data.invalidation_triggers,
+      currency: formData.currency || undefined,
+      exchange: formData.exchange || undefined,
     };
 
     await onSubmit(validatedData);
@@ -211,6 +216,38 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
                   <SelectItem value="commodity">Commodity</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          {/* Currency & Exchange Row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="currency">Currency</Label>
+              <Select
+                value={formData.currency}
+                onValueChange={(v) => setFormData({ ...formData, currency: v })}
+              >
+                <SelectTrigger className="bg-secondary border-border">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USD">USD</SelectItem>
+                  <SelectItem value="EUR">EUR</SelectItem>
+                  <SelectItem value="GBP">GBP</SelectItem>
+                  <SelectItem value="AUD">AUD</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="exchange">Exchange</Label>
+              <Input
+                id="exchange"
+                value={formData.exchange}
+                onChange={(e) => setFormData({ ...formData, exchange: e.target.value.toUpperCase() })}
+                placeholder="e.g. AMS, LSE, NYSE"
+                className="bg-secondary border-border"
+              />
             </div>
           </div>
 

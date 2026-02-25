@@ -38,6 +38,8 @@ export interface PositionFormData {
   confidence_level: number;
   thesis_notes?: string;
   invalidation_triggers?: string;
+  currency?: string;
+  exchange?: string;
 }
 
 export function usePositions() {
@@ -79,7 +81,8 @@ export function usePositions() {
           thesis_notes: formData.thesis_notes 
             ? `${formData.thesis_notes}${formData.invalidation_triggers ? `\n\n**Invalidation Triggers:**\n${formData.invalidation_triggers}` : ""}`
             : null,
-          // Mark as manually classified since user set the category
+          currency: formData.currency || null,
+          exchange: formData.exchange || null,
           manually_classified: true,
         })
         .select()
@@ -117,7 +120,8 @@ export function usePositions() {
           thesis_notes: formData.thesis_notes 
             ? `${formData.thesis_notes}${formData.invalidation_triggers ? `\n\n**Invalidation Triggers:**\n${formData.invalidation_triggers}` : ""}`
             : null,
-          // Mark as manually classified when user edits the category
+          currency: formData.currency || null,
+          exchange: formData.exchange || null,
           manually_classified: true,
         })
         .eq("id", id)
