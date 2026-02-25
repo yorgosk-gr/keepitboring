@@ -26,6 +26,7 @@ import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import { UploadScreenshotModal } from "@/components/portfolio/UploadScreenshotModal";
 import { UploadCSVModal } from "@/components/portfolio/UploadCSVModal";
 import { RefreshPricesModal } from "@/components/portfolio/RefreshPricesModal";
+import { CashBalanceEditor } from "@/components/portfolio/CashBalanceEditor";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -503,6 +504,16 @@ export default function Portfolio() {
             Add Position
           </Button>
         </div>
+      </div>
+
+      {/* Cash Balance Editor */}
+      <div className="max-w-sm">
+        <CashBalanceEditor
+          cashBalance={cashBalance}
+          cashPercent={totalValue > 0 ? (cashBalance / totalValue) * 100 : 0}
+          onUpdate={updateCashBalance}
+          isUpdating={isUpdatingCash}
+        />
       </div>
 
       {/* Search and Actions Bar */}
