@@ -12,13 +12,31 @@ const ALIASES: Record<string, string> = {
   "BRK B": "BRK-B",
 };
 
-function getYahooTicker(ticker: string, currency?: string, instrumentType?: string): string {
+function getYahooTicker(ticker: string, currency?: string, instrumentType?: string, exchange?: string): string {
   const upper = ticker.toUpperCase().replace(/ /g, "-");
   if (ALIASES[ticker]) return ALIASES[ticker];
 
-  // Derive suffix from currency and instrument type
+  // Use exchange field first for accurate suffix resolution
+  const exNorm = (exchange || "").toUpperCase();
+  if (exNorm.includes("AMS") || exNorm === "AEB" || exNorm === "EURONEXT") {
+    return upper + ".AS"; // Euronext Amsterdam
+  }
+  if (exNorm.includes("PAR") || exNorm === "EPA") {
+    return upper + ".PA"; // Euronext Paris
+  }
+  if (exNorm.includes("LSE") || exNorm === "LSEETF") {
+    return upper + ".L"; // London Stock Exchange
+  }
+  if (exNorm.includes("ASX")) {
+    return upper + ".AX"; // Australian
+  }
+  if (exNorm.includes("XETRA") || exNorm === "FRA") {
+    return upper + ".DE"; // Germany
+  }
+
+  // Fallback: derive suffix from currency
   if (currency === "AUD") return upper + ".AX";
-  if (currency === "EUR") return upper + ".PA";
+  if (currency === "EUR") return upper + ".AS"; // Default EUR to Amsterdam (most UCITS ETFs)
   if (currency === "GBP") return upper + ".L";
   if (currency === "USD" && (instrumentType === "ETF" || instrumentType === "ETC")) {
     return upper + ".L"; // UCITS ETFs listed on LSE, priced in USD
@@ -67,9 +85,10 @@ async function fetchYahooPrice(
   ticker: string,
   currency?: string,
   instrumentType?: string,
-  fxRates?: Record<string, number>
+  fxRates?: Record<string, number>,
+  exchange?: string
 ): Promise<PriceResult | null> {
-  const yahooTicker = getYahooTicker(ticker, currency, instrumentType);
+  const yahooTicker = getYahooTicker(ticker, currency, instrumentType, exchange);
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooTicker)}?range=1d&interval=1d`;
     const response = await fetch(url, {
@@ -120,9 +139,9 @@ serve(async (req) => {
   }
   try {
     const body = await req.json();
-    const tickerItems: { ticker: string; currency?: string; instrumentType?: string }[] =
+    const tickerItems: { ticker: string; currency?: string; instrumentType?: string; exchange?: string }[] =
       Array.isArray(body.tickers)
-        ? body.tickers.map((t: string | { ticker: string; currency?: string; instrumentType?: string }) =>
+        ? body.tickers.map((t: string | { ticker: string; currency?: string; instrumentType?: string; exchange?: string }) =>
             typeof t === "string" ? { ticker: t } : t
           )
         : [];
@@ -161,7 +180,7 @@ serve(async (req) => {
 
     console.log(`Yahoo Finance: fetching ${tickerItems.length} tickers`);
     const results = await Promise.allSettled(
-      tickerItems.map(t => fetchYahooPrice(t.ticker, t.currency, t.instrumentType, fxRates))
+      tickerItems.map(t => fetchYahooPrice(t.ticker, t.currency, t.instrumentType, fxRates, t.exchange))
     );
     const prices: PriceResult[] = [];
     const notFound: string[] = [];
