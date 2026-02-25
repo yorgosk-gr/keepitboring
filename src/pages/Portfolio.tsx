@@ -297,6 +297,7 @@ export default function Portfolio() {
     const tickerInfos = positions.map(p => ({
       ticker: p.ticker,
       currency: (p as any).currency || undefined,
+      exchange: (p as any).exchange || undefined,
       instrumentType: p.position_type === "stock" ? "Stock" : p.position_type === "etf" ? "ETF" : undefined,
     }));
     const { prices, notFound } = await fetchPrices(tickerInfos);

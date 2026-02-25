@@ -21,6 +21,7 @@ interface PriceRefreshProgress {
 export interface TickerInfo {
   ticker: string;
   currency?: string;
+  exchange?: string;
   instrumentType?: string;
 }
 
