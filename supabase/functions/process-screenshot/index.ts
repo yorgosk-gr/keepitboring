@@ -181,6 +181,12 @@ The Net Liquidation Value in these screenshots is typically around 500,000-510,0
 
 ${!isSingleImage ? `MULTI-PAGE INSTRUCTIONS: These are ${images.length} pages from the SAME portfolio view. The user scrolled and took multiple screenshots, so there WILL be overlapping positions. Deduplicate — include each ticker only once. Cash balances typically appear only on the last page.` : ""}
 
+CRITICAL — ALL VALUES MUST BE PLAIN NUMBERS:
+Every numeric field (shares, avg_price, current_price, market_value, pnl) must be a plain number literal.
+Do NOT use arithmetic expressions like "205.34 + (478.2 / 96)" or "4157 / 1". Calculate the result yourself and write the final number.
+WRONG: "current_price": 205.34 + (478.2 / 96)
+CORRECT: "current_price": 210.32
+
 Return ONLY valid JSON (no markdown, no code blocks, no explanation):
 {
   "detected_broker": "Interactive Brokers",
@@ -298,6 +304,24 @@ Return ONLY valid JSON (no markdown, no code blocks, no explanation):
         cleanContent = cleanContent.slice(0, -3);
       }
       cleanContent = cleanContent.trim();
+      
+      // Sanitize: AI sometimes returns arithmetic expressions instead of plain numbers.
+      // Replace patterns like `: 205.34 + (478.2 / 96)` or `: 4157 / 1` with evaluated results.
+      cleanContent = cleanContent.replace(
+        /:\s*([\d.]+\s*[+\-*/]\s*[\d.(/)\s*+\-*/]+)/g,
+        (match, expr) => {
+          try {
+            // Only evaluate if it looks like simple arithmetic (digits, operators, parens, spaces)
+            if (/^[\d.+\-*/() \t]+$/.test(expr.trim())) {
+              const result = Function(`"use strict"; return (${expr.trim()})`)();
+              if (typeof result === "number" && isFinite(result)) {
+                return `: ${Math.round(result * 10000) / 10000}`;
+              }
+            }
+          } catch { /* fall through */ }
+          return match;
+        }
+      );
       
       extractedData = JSON.parse(cleanContent);
     } catch (parseError) {
