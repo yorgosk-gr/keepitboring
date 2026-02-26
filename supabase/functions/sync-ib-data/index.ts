@@ -156,6 +156,7 @@ function parsePositions(xml: string, userId: string, accountId: string) {
     percent_of_nav: safeNum(p.percentOfNAV),
     unrealized_pnl: safeNum(p.fifoPnlUnrealized),
     side: p.side || null,
+    listing_exchange: p.listingExchange || p.primaryExch || null,
     open_date_time: safeDate(p.openDateTime),
     report_date: safeDate(p.reportDate),
     synced_at: new Date().toISOString(),

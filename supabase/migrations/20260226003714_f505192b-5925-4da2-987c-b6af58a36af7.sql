@@ -1,0 +1,1 @@
+ALTER TABLE public.ib_positions ADD COLUMN listing_exchange text;
