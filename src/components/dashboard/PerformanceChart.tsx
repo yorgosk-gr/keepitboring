@@ -77,28 +77,38 @@ export function PerformanceChart() {
       }));
   }, [navData, rangeStart]);
 
-  // Find a TWR record that closely matches the selected period (within 7 days tolerance)
-  const twrForRange = useMemo(() => {
+  // Chain daily TWR records multiplicatively for the selected period
+  const chainedTWR = useMemo(() => {
     if (twrData.length === 0) return null;
-    const tolerance = 7 * 24 * 60 * 60 * 1000; // 7 days
-    
-    for (const t of twrData) {
-      if (!t.from_date || !t.to_date) continue;
-      const fromDiff = Math.abs(new Date(t.from_date).getTime() - rangeStart.getTime());
-      const toDiff = Math.abs(new Date(t.to_date).getTime() - new Date().getTime());
-      if (fromDiff <= tolerance && toDiff <= tolerance) {
-        return t;
-      }
-    }
-    return null;
+    const startStr = format(rangeStart, "yyyy-MM-dd");
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+
+    const periodRecords = twrData.filter(t =>
+      t.from_date && t.to_date &&
+      t.from_date >= startStr && t.to_date <= todayStr && t.twr !== null
+    );
+
+    if (periodRecords.length === 0) return null;
+
+    // IB TWR values may be in percent (3.5) or decimal (0.035)
+    const firstTwr = Math.abs(Number(periodRecords[0].twr));
+    const isPercent = firstTwr > 0.5;
+
+    const chained = periodRecords.reduce((acc, t) => {
+      const dailyReturn = isPercent
+        ? Number(t.twr) / 100
+        : Number(t.twr);
+      return acc * (1 + dailyReturn);
+    }, 1);
+
+    return (chained - 1) * 100;
   }, [twrData, rangeStart]);
 
-  // If we have a matching TWR record, use it. Otherwise compute simple return from NAV.
+  // Use chained TWR if available, otherwise fall back to simple NAV return
   const periodReturn = useMemo(() => {
-    if (twrForRange?.twr !== null && twrForRange?.twr !== undefined) {
-      return { value: Number(twrForRange.twr), label: "TWR" };
+    if (chainedTWR !== null) {
+      return { value: chainedTWR, label: "TWR" };
     }
-    // Simple return from first/last NAV in the filtered range
     if (filteredNav.length >= 2) {
       const first = filteredNav[0].nav;
       const last = filteredNav[filteredNav.length - 1].nav;
@@ -107,7 +117,7 @@ export function PerformanceChart() {
       }
     }
     return null;
-  }, [twrForRange, filteredNav]);
+  }, [chainedTWR, filteredNav]);
 
   if (navLoading) {
     return (
