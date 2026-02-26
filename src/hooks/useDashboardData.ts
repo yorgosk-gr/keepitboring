@@ -115,6 +115,21 @@ export function useDashboardData() {
     },
   });
 
+  // Fetch cash balance from ib_accounts
+  const ibAccountQuery = useQuery({
+    queryKey: ["ib-account", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ib_accounts")
+        .select("cash_balance")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   // Fetch unresolved alerts
   const alertsQuery = useQuery({
     queryKey: ["alerts", "unresolved", user?.id],
@@ -213,11 +228,12 @@ export function useDashboardData() {
   const decisionLogs = decisionLogsQuery.data ?? [];
   const snapshots = snapshotsQuery.data ?? [];
 
-  const latestSnapshot = snapshots[0];
   const previousSnapshot = snapshots[1];
-  const cashBalance = latestSnapshot?.cash_balance ?? 0;
 
-  // Derive totals from IB positions — use raw ib data to avoid any mapping issues
+  // Cash balance from IB account (primary), fallback to snapshots
+  const cashBalance = Number(ibAccountQuery.data?.cash_balance) || snapshots[0]?.cash_balance || 0;
+
+  // Derive totals from IB positions
   const positionsValue = ibPositions.reduce((sum, p) => sum + (Number(p.position_value) || 0), 0);
   const totalValue = positionsValue + cashBalance;
 
@@ -251,6 +267,7 @@ export function useDashboardData() {
     ? Math.floor((Date.now() - lastUpdateDate) / (1000 * 60 * 60 * 24))
     : null;
 
+  const latestSnapshot = snapshots[0];
   const lastPriceRefresh = latestSnapshot?.data_json && typeof latestSnapshot.data_json === "object" && "price_refresh" in latestSnapshot.data_json
     ? new Date(latestSnapshot.data_json.price_refresh as string)
     : latestSnapshot?.snapshot_date
@@ -265,41 +282,18 @@ export function useDashboardData() {
     .sort((a, b) => (Number(b.weight_percent) || 0) - (Number(a.weight_percent) || 0))
     .slice(0, 5);
 
-  // Update cash balance mutation
+  // Update cash balance mutation — saves to ib_accounts
   const updateCashMutation = useMutation({
     mutationFn: async (newCashBalance: number) => {
       if (!user) throw new Error("Not authenticated");
-      const today = new Date().toISOString().split("T")[0];
-
-      const { data: existingSnapshot } = await supabase
-        .from("portfolio_snapshots")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("snapshot_date", today)
-        .maybeSingle();
-
-      if (existingSnapshot) {
-        const { error } = await supabase
-          .from("portfolio_snapshots")
-          .update({ cash_balance: newCashBalance })
-          .eq("id", existingSnapshot.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("portfolio_snapshots")
-          .insert({
-            user_id: user.id,
-            snapshot_date: today,
-            cash_balance: newCashBalance,
-            total_value: positionsValue + newCashBalance,
-            stocks_percent: (positionsValue + newCashBalance) > 0 ? (stocksValue / (positionsValue + newCashBalance)) * 100 : 0,
-            etfs_percent: (positionsValue + newCashBalance) > 0 ? (etfsValue / (positionsValue + newCashBalance)) * 100 : 0,
-          });
-        if (error) throw error;
-      }
+      const { error } = await supabase
+        .from("ib_accounts")
+        .update({ cash_balance: newCashBalance })
+        .eq("user_id", user.id);
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["portfolio_snapshots"] });
+      queryClient.invalidateQueries({ queryKey: ["ib-account"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });

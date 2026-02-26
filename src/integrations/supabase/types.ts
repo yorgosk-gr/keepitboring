@@ -261,6 +261,7 @@ export type Database = {
       }
       ib_accounts: {
         Row: {
+          cash_balance: number | null
           created_at: string | null
           flex_query_id: string
           flex_token: string
@@ -270,6 +271,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cash_balance?: number | null
           created_at?: string | null
           flex_query_id: string
           flex_token: string
@@ -279,6 +281,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cash_balance?: number | null
           created_at?: string | null
           flex_query_id?: string
           flex_token?: string

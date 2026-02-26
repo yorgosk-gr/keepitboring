@@ -1,0 +1,1 @@
+ALTER TABLE public.ib_accounts ADD COLUMN cash_balance numeric DEFAULT NULL;

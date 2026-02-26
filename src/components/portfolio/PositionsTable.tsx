@@ -29,6 +29,8 @@ interface PositionsTableProps {
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
   hideDeleteActions?: boolean;
+  cashBalance?: number;
+  totalValue?: number;
 }
 
 function calculatePnL(position: Position) {
@@ -157,6 +159,8 @@ export function PositionsTable({
   selectedIds,
   onSelectionChange,
   hideDeleteActions,
+  cashBalance,
+  totalValue,
 }: PositionsTableProps) {
   const [sortField, setSortField] = useState<SortField>("market_value");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -446,6 +450,33 @@ export function PositionsTable({
                 </>
               );
             })}
+            {/* Cash row */}
+            {cashBalance != null && cashBalance > 0 && (
+              <tr className="border-t-2 border-border bg-secondary/10">
+                {!hideDeleteActions && <td className="py-3 pr-2" />}
+                <td className="py-3 font-bold text-foreground text-base">Cash</td>
+                <td className="py-3 text-muted-foreground text-xs">USD Cash Balance</td>
+                <td className="py-3">
+                  <span className="px-2 py-0.5 text-xs font-medium bg-muted/50 text-muted-foreground rounded-full">
+                    Cash
+                  </span>
+                </td>
+                <td className="py-3 text-muted-foreground text-xs">Cash</td>
+                <td className="py-3 text-muted-foreground text-xs font-mono">—</td>
+                <td className="py-3 text-center text-muted-foreground text-xs font-mono">USD</td>
+                <td className="py-3 text-right font-mono text-xs">—</td>
+                <td className="py-3 text-right font-mono text-xs">—</td>
+                <td className="py-3 text-right font-mono text-xs">—</td>
+                <td className="py-3 text-right font-mono font-semibold text-base text-foreground">
+                  {formatWholeNumber(cashBalance)}
+                </td>
+                <td className="py-3 text-right font-mono text-xs">—</td>
+                <td className="py-3 text-right font-mono text-xs">
+                  {totalValue && totalValue > 0 ? ((cashBalance / totalValue) * 100).toFixed(1) : "0.0"}%
+                </td>
+                <td className="py-3" />
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

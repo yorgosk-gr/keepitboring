@@ -162,6 +162,43 @@ function parsePositions(xml: string, userId: string, accountId: string) {
   }));
 }
 
+function parseCashBalance(xml: string): number | null {
+  // Try CashReportCurrency tags first (most common in Flex reports)
+  const cashTags = extractTags(xml, "CashReportCurrency");
+  if (cashTags.length > 0) {
+    // Find the BASE_SUMMARY or total row, fallback to first row
+    const baseSummary = cashTags.find(t => t.currency === "BASE_SUMMARY") || cashTags[0];
+    const ending = safeNum(baseSummary.endingCash) ?? safeNum(baseSummary.endingSettledCash);
+    if (ending !== null) {
+      console.log(`Parsed cash balance from CashReportCurrency: ${ending}`);
+      return ending;
+    }
+  }
+
+  // Try EquitySummaryInBase (has endingCash attribute)
+  const equitySummary = extractTags(xml, "EquitySummaryInBase");
+  if (equitySummary.length > 0) {
+    const cash = safeNum(equitySummary[0].cash);
+    if (cash !== null) {
+      console.log(`Parsed cash balance from EquitySummaryInBase: ${cash}`);
+      return cash;
+    }
+  }
+
+  // Try regex for endingCash attribute anywhere
+  const endingCashMatch = xml.match(/endingCash="([^"]+)"/);
+  if (endingCashMatch) {
+    const val = safeNum(endingCashMatch[1]);
+    if (val !== null) {
+      console.log(`Parsed cash balance from endingCash attribute: ${val}`);
+      return val;
+    }
+  }
+
+  console.log("No cash balance found in XML");
+  return null;
+}
+
 function parseCashTransactions(xml: string, userId: string, accountId: string) {
   const txns = extractTags(xml, "CashTransaction");
   return txns.map(t => ({
@@ -217,8 +254,9 @@ serve(async (req) => {
     const trades = parseTrades(xml, user.id, ib_account_id);
     const positions = parsePositions(xml, user.id, ib_account_id);
     const cashTxns = parseCashTransactions(xml, user.id, ib_account_id);
+    const cashBalance = parseCashBalance(xml);
 
-    console.log(`Parsed: ${trades.length} trades, ${positions.length} positions, ${cashTxns.length} cash transactions`);
+    console.log(`Parsed: ${trades.length} trades, ${positions.length} positions, ${cashTxns.length} cash transactions, cash: ${cashBalance}`);
 
     if (trades.length > 0) {
       const { error: tradesError } = await supabase
@@ -242,7 +280,10 @@ serve(async (req) => {
 
     await supabase
       .from("ib_accounts")
-      .update({ last_synced_at: new Date().toISOString() })
+      .update({ 
+        last_synced_at: new Date().toISOString(),
+        ...(cashBalance !== null ? { cash_balance: cashBalance } : {}),
+      })
       .eq("user_id", user.id);
 
     return new Response(JSON.stringify({
@@ -251,6 +292,7 @@ serve(async (req) => {
         trades: trades.length,
         positions: positions.length,
         cash_transactions: cashTxns.length,
+        cash_balance: cashBalance,
       }
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
