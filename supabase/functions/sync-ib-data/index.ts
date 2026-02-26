@@ -148,7 +148,7 @@ function parsePositions(xml: string, userId: string, accountId: string) {
     description: p.description || null,
     asset_class: p.assetCategory || null,
     sub_category: p.subCategory || null,
-    quantity: safeNum(p.quantity),
+    quantity: safeNum(p.position) ?? safeNum(p.quantity),
     mark_price: safeNum(p.markPrice),
     position_value: safeNum(p.positionValue),
     cost_basis_price: safeNum(p.costBasisPrice),

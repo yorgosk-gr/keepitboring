@@ -133,12 +133,23 @@ export function usePositions() {
     },
   });
 
+  // Helper: look up ETF metadata with 0/O fallback
+  function lookupEtfMeta(ticker: string) {
+    if (etfMeta[ticker]) return etfMeta[ticker];
+    // Try swapping 0↔O for ticker mismatches (e.g. IB01 vs IBO1)
+    const variant = ticker.replace(/0/g, "O");
+    if (variant !== ticker && etfMeta[variant]) return etfMeta[variant];
+    const variant2 = ticker.replace(/O/g, "0");
+    if (variant2 !== ticker && etfMeta[variant2]) return etfMeta[variant2];
+    return null;
+  }
+
   // Merge IB positions with annotations + ETF metadata
   const etfMeta = etfMetadataQuery.data ?? {};
   const positions: Position[] = (ibPositionsQuery.data ?? []).map((ib) => {
     const ticker = ib.symbol || "";
     const ann = annotationsQuery.data?.[ticker];
-    const meta = etfMeta[ticker];
+    const meta = lookupEtfMeta(ticker);
     const hasEtfMetadata = !!meta;
 
     // Position type: manual override > etf_metadata > derive from IB fields
