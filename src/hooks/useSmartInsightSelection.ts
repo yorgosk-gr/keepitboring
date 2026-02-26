@@ -77,7 +77,7 @@ export async function selectSmartInsights(
     const createdAt = new Date(insight.created_at);
     const tickersMentioned = insight.tickers_mentioned ?? [];
     const mentionsPortfolio = tickersMentioned.some((t) =>
-      tickerSet.has(t.toUpperCase())
+      t && tickerSet.has(t.toUpperCase())
     );
 
     // Rule a: Always include portfolio mentions (up to 90 days)
