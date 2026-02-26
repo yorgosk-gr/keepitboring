@@ -28,6 +28,7 @@ interface PositionsTableProps {
   verifyingId?: string | null;
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
+  hideDeleteActions?: boolean;
 }
 
 function calculatePnL(position: Position) {
@@ -143,6 +144,7 @@ export function PositionsTable({
   verifyingId,
   selectedIds,
   onSelectionChange,
+  hideDeleteActions,
 }: PositionsTableProps) {
   const [sortField, setSortField] = useState<SortField>("market_value");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -277,12 +279,14 @@ export function PositionsTable({
         <table className="w-full text-sm">
           <thead className="text-xs text-muted-foreground uppercase tracking-wide border-b border-border">
             <tr>
-              <th className="pb-3 pr-2 w-8">
-                <Checkbox
-                  checked={selectedIds.length === positions.length && positions.length > 0}
-                  onCheckedChange={toggleSelectAll}
-                />
-              </th>
+              {!hideDeleteActions && (
+                <th className="pb-3 pr-2 w-8">
+                  <Checkbox
+                    checked={selectedIds.length === positions.length && positions.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </th>
+              )}
               <SortHeader field="ticker">Ticker</SortHeader>
               <SortHeader field="name">Name</SortHeader>
               <SortHeader field="position_type">Type</SortHeader>
@@ -313,12 +317,14 @@ export function PositionsTable({
                     key={position.id}
                     className={`group hover:bg-secondary/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
                   >
-                    <td className="py-3 pr-2">
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => toggleSelect(position.id)}
-                      />
-                    </td>
+                    {!hideDeleteActions && (
+                      <td className="py-3 pr-2">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelect(position.id)}
+                        />
+                      </td>
+                    )}
                     <td className="py-3">
                       <button
                         className="font-bold text-foreground hover:text-primary transition-colors flex items-center gap-1 text-base"
@@ -400,9 +406,11 @@ export function PositionsTable({
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(position)}>
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-destructive/20 hover:text-destructive" onClick={() => onDelete(position)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        {!hideDeleteActions && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-destructive/20 hover:text-destructive" onClick={() => onDelete(position)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>

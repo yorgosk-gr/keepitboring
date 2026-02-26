@@ -50,21 +50,43 @@ export interface PortfolioSnapshot {
   data_json: Record<string, unknown> | null;
 }
 
+function derivePositionType(assetClass: string | null, subCategory: string | null): string {
+  const ac = (assetClass || "").toUpperCase();
+  const sc = (subCategory || "").toUpperCase();
+  if (ac === "STK") return "stock";
+  if (ac === "FND" || ac === "ETF" || sc.includes("ETF")) return "etf";
+  return "stock";
+}
+
 export function useDashboardData() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch positions
-  const positionsQuery = useQuery({
-    queryKey: ["positions", user?.id],
+  // Fetch IB positions as primary source
+  const ibPositionsQuery = useQuery({
+    queryKey: ["ib-positions", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ib_positions")
+        .select("*")
+        .order("position_value", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  // Fetch annotations for bet_type etc
+  const annotationsQuery = useQuery({
+    queryKey: ["position-annotations", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("positions")
-        .select("*")
-        .order("market_value", { ascending: false });
-      
+        .select("ticker, thesis_notes, bet_type, confidence_level, last_review_date, category, position_type, name, manually_classified");
       if (error) throw error;
-      return data as Position[];
+      const map: Record<string, typeof data[number]> = {};
+      for (const row of data) map[row.ticker] = row;
+      return map;
     },
     enabled: !!user,
   });
@@ -78,10 +100,7 @@ export function useDashboardData() {
         .select("*")
         .eq("resolved", false)
         .order("created_at", { ascending: false });
-      
       if (error) throw error;
-      
-      // Sort by severity: critical > warning > info
       const severityOrder = { critical: 0, warning: 1, info: 2 };
       return (data as Alert[]).sort((a, b) => {
         const aOrder = severityOrder[a.severity as keyof typeof severityOrder] ?? 3;
@@ -92,7 +111,6 @@ export function useDashboardData() {
     enabled: !!user,
   });
 
-  // Fetch recent decision logs
   const decisionLogsQuery = useQuery({
     queryKey: ["decision_logs", "recent", user?.id],
     queryFn: async () => {
@@ -101,14 +119,12 @@ export function useDashboardData() {
         .select("*")
         .order("created_at", { ascending: false })
         .limit(5);
-      
       if (error) throw error;
       return data as DecisionLog[];
     },
     enabled: !!user,
   });
 
-  // Fetch latest snapshots (today and yesterday for P&L)
   const snapshotsQuery = useQuery({
     queryKey: ["portfolio_snapshots", "latest", user?.id],
     queryFn: async () => {
@@ -117,7 +133,6 @@ export function useDashboardData() {
         .select("*")
         .order("created_at", { ascending: false })
         .limit(2);
-      
       if (error) throw error;
       return data as PortfolioSnapshot[];
     },
@@ -131,7 +146,6 @@ export function useDashboardData() {
         .from("alerts")
         .update({ resolved: true })
         .eq("id", alertId);
-
       if (error) throw error;
     },
     onSuccess: () => {
@@ -143,8 +157,6 @@ export function useDashboardData() {
   const updateCashMutation = useMutation({
     mutationFn: async (newCashBalance: number) => {
       if (!user) throw new Error("Not authenticated");
-
-      // Get or create today's snapshot
       const today = new Date().toISOString().split("T")[0];
       
       const { data: existingSnapshot } = await supabase
@@ -155,15 +167,12 @@ export function useDashboardData() {
         .maybeSingle();
 
       if (existingSnapshot) {
-        // Update existing snapshot
         const { error } = await supabase
           .from("portfolio_snapshots")
           .update({ cash_balance: newCashBalance })
           .eq("id", existingSnapshot.id);
-        
         if (error) throw error;
       } else {
-        // Create new snapshot with cash balance
         const { error } = await supabase
           .from("portfolio_snapshots")
           .insert({
@@ -174,7 +183,6 @@ export function useDashboardData() {
             stocks_percent: (positionsValue + newCashBalance) > 0 ? (stocksValue / (positionsValue + newCashBalance)) * 100 : 0,
             etfs_percent: (positionsValue + newCashBalance) > 0 ? (etfsValue / (positionsValue + newCashBalance)) * 100 : 0,
           });
-        
         if (error) throw error;
       }
     },
@@ -184,29 +192,52 @@ export function useDashboardData() {
     },
   });
 
-  // Calculate derived data
-  const positions = positionsQuery.data ?? [];
+  // Build merged positions from IB data + annotations
+  const ibPositions = ibPositionsQuery.data ?? [];
+  const annotations = annotationsQuery.data ?? {};
+  
+  const positions: Position[] = ibPositions.map((ib) => {
+    const ticker = ib.symbol || "";
+    const ann = annotations[ticker];
+    const posType = ann?.manually_classified ? (ann.position_type || derivePositionType(ib.asset_class, ib.sub_category)) : derivePositionType(ib.asset_class, ib.sub_category);
+
+    return {
+      id: ib.id,
+      ticker,
+      name: ann?.name || ib.description || null,
+      position_type: posType,
+      category: ann?.category || "equity",
+      shares: ib.quantity,
+      avg_cost: ib.cost_basis_price,
+      current_price: ib.mark_price,
+      market_value: ib.position_value,
+      weight_percent: ib.percent_of_nav,
+      thesis_notes: ann?.thesis_notes || null,
+      bet_type: ann?.bet_type || null,
+      confidence_level: ann?.confidence_level || null,
+      last_review_date: ann?.last_review_date || null,
+      updated_at: ib.synced_at || new Date().toISOString(),
+    };
+  });
+
   const alerts = alertsQuery.data ?? [];
   const decisionLogs = decisionLogsQuery.data ?? [];
   const snapshots = snapshotsQuery.data ?? [];
 
-  // Get cash balance from latest snapshot
   const latestSnapshot = snapshots[0];
   const previousSnapshot = snapshots[1];
   const cashBalance = latestSnapshot?.cash_balance ?? 0;
 
-  // Total portfolio value = sum of positions + cash
+  // Derive from IB positions
   const positionsValue = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
   const totalValue = positionsValue + cashBalance;
   
-  // Previous value for daily P&L
   const previousTotalValue = previousSnapshot?.total_value ?? totalValue;
   const dailyChange = totalValue - previousTotalValue;
   const dailyChangePercent = previousTotalValue > 0 
     ? ((dailyChange / previousTotalValue) * 100) 
     : 0;
 
-  // Calculate allocations based on total portfolio value (including cash)
   const stocksValue = positions
     .filter(p => p.position_type === "stock")
     .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
@@ -214,19 +245,16 @@ export function useDashboardData() {
     .filter(p => p.position_type === "etf")
     .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
   
-  // Calculate percentages based on total portfolio value (positions + cash)
   const stocksPercent = totalValue > 0 ? (stocksValue / totalValue) * 100 : 0;
   const etfsPercent = totalValue > 0 ? (etfsValue / totalValue) * 100 : 0;
   const cashPercent = totalValue > 0 ? (cashBalance / totalValue) * 100 : 0;
 
-  // Category breakdown
   const categoryBreakdown = positions.reduce((acc, p) => {
     const category = p.category ?? "other";
     acc[category] = (acc[category] ?? 0) + (p.market_value ?? 0);
     return acc;
   }, {} as Record<string, number>);
 
-  // Days since last update
   const lastUpdateDate = positions.length > 0
     ? Math.max(...positions.map(p => new Date(p.updated_at).getTime()))
     : null;
@@ -234,7 +262,6 @@ export function useDashboardData() {
     ? Math.floor((Date.now() - lastUpdateDate) / (1000 * 60 * 60 * 24))
     : null;
 
-  // Days since last price refresh
   const lastPriceRefresh = latestSnapshot?.data_json && typeof latestSnapshot.data_json === "object" && "price_refresh" in latestSnapshot.data_json
     ? new Date(latestSnapshot.data_json.price_refresh as string)
     : latestSnapshot?.snapshot_date 
@@ -245,19 +272,16 @@ export function useDashboardData() {
     ? Math.floor((Date.now() - lastPriceRefresh.getTime()) / (1000 * 60 * 60 * 24))
     : null;
 
-  // Top 5 positions by weight
   const topPositions = [...positions]
     .sort((a, b) => (b.weight_percent ?? 0) - (a.weight_percent ?? 0))
     .slice(0, 5);
 
   return {
-    // Raw data
     positions,
     alerts,
     decisionLogs,
     snapshots,
     
-    // Calculated values
     totalValue,
     positionsValue,
     cashBalance,
@@ -274,11 +298,9 @@ export function useDashboardData() {
     lastPriceRefresh,
     topPositions,
     
-    // Loading states
-    isLoading: positionsQuery.isLoading || alertsQuery.isLoading || 
+    isLoading: ibPositionsQuery.isLoading || alertsQuery.isLoading || 
                decisionLogsQuery.isLoading || snapshotsQuery.isLoading,
     
-    // Mutations
     dismissAlert: dismissAlertMutation.mutate,
     isDismissing: dismissAlertMutation.isPending,
     updateCashBalance: updateCashMutation.mutateAsync,
