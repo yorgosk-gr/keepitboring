@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { AlertCircle, DollarSign } from "lucide-react";
 import { PortfolioValue } from "@/components/dashboard/PortfolioValue";
 import { DonutChart } from "@/components/dashboard/DonutChart";
-import { QuickStats } from "@/components/dashboard/QuickStats";
+
 
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useAllETFMetadata } from "@/hooks/useAllETFMetadata";
@@ -22,7 +22,6 @@ export default function Dashboard() {
     stocksPercent,
     etfsPercent,
     cashPercent,
-    daysSinceUpdate,
     daysSincePriceRefresh,
     
     isLoading,
@@ -158,21 +157,18 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Portfolio Value */}
+      {/* Portfolio Value + Stats */}
       <PortfolioValue 
         totalValue={totalValue}
         dailyChange={dailyChange}
         dailyChangePercent={dailyChangePercent}
+        positionsCount={positions.length}
+        cashBalance={cashBalance}
         isLoading={isLoading}
       />
 
-      {/* Quick Stats */}
-      <QuickStats 
-        positionsCount={positions.length}
-        cashBalance={cashBalance}
-        daysSinceUpdate={daysSinceUpdate}
-        isLoading={isLoading}
-      />
+      {/* Performance Chart */}
+      <PerformanceChart />
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -195,9 +191,6 @@ export default function Dashboard() {
           showTargetIndicator
         />
       </div>
-
-      {/* Performance Chart */}
-      <PerformanceChart />
 
       {/* Risk Profile */}
       <RiskProfileCard
