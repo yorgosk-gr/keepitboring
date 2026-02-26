@@ -230,8 +230,11 @@ export function useDashboardData() {
 
   const previousSnapshot = snapshots[1];
 
-  // Cash balance from IB account (primary), fallback to snapshots
-  const cashBalance = Number(ibAccountQuery.data?.cash_balance) || snapshots[0]?.cash_balance || 0;
+  // Cash balance from IB account (primary), fallback to snapshots only when useful
+  const ibCashBalanceRaw = ibAccountQuery.data?.cash_balance;
+  const cashBalance = ibCashBalanceRaw != null
+    ? Number(ibCashBalanceRaw)
+    : (ibPositions.length > 0 ? (Number(snapshots[0]?.cash_balance) || 0) : 0);
 
   // Derive totals from IB positions
   const positionsValue = ibPositions.reduce((sum, p) => sum + (Number(p.position_value) || 0), 0);
