@@ -152,6 +152,12 @@ serve(async (req) => {
 
     const systemPrompt = `You are an investment research analyst. Synthesize newsletter insights into an actionable, portfolio-specific intelligence brief.
 
+RECENCY WEIGHTING:
+- Each insight has an "age_days" field indicating how many days old it is.
+- Insights from the last 14 days (age_days <= 14) should carry MORE weight than older ones. Treat recent insights as higher-confidence and more actionable.
+- Older insights (age_days > 14) should still be included for context and trend detection, but give them less influence when there is conflicting information between recent and older sources.
+- When ranking key_points, break ties in portfolio_alignment_score by recency (newer wins).
+
 RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose, no explanation outside the JSON. Do not wrap in \`\`\`json code blocks. Do not use unescaped double quotes inside string values — use single quotes instead (e.g., use 'crushed' not "crushed").
 
 CRITICAL RULES:
@@ -236,14 +242,19 @@ Previous market themes: ${JSON.stringify(previousThemeNames)}
 Flag any signals that appeared in the previous brief as persistent (weeks_active >= 2). If a signal is new, do not include it in persistent_signals.
 
 INSIGHTS (${insightsList.length} total):
-${JSON.stringify(insightsList.map(i => ({
-  type: i.insight_type,
-  content: i.content,
-  sentiment: i.sentiment,
-  tickers: i.tickers_mentioned,
-  confidence: i.confidence_words,
-  source: (i.newsletters as any)?.source_name,
-})), null, 2)}
+${JSON.stringify(insightsList.map(i => {
+  const ageDays = Math.floor((Date.now() - new Date(i.created_at).getTime()) / (1000 * 60 * 60 * 24));
+  return {
+    type: i.insight_type,
+    content: i.content,
+    sentiment: i.sentiment,
+    tickers: i.tickers_mentioned,
+    confidence: i.confidence_words,
+    source: (i.newsletters as any)?.source_name,
+    age_days: ageDays,
+    recent: ageDays <= 14,
+  };
+}), null, 2)}
 
 Synthesize these into an actionable intelligence brief. Focus on what matters for MY portfolio. Sort key_points by portfolio_alignment_score (highest first). For contrarian_signals, provide structured objects with named sources — not plain strings.`;
 
