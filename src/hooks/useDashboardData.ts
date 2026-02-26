@@ -103,7 +103,7 @@ export function useDashboardData() {
 
   // Fetch ETF metadata for classification
   const etfMetadataQuery = useQuery({
-    queryKey: ["etf_metadata", "all"],
+    queryKey: ["etf_metadata", "tickers-set"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("etf_metadata")
@@ -195,7 +195,7 @@ export function useDashboardData() {
   // Build merged positions from IB data + annotations
   const ibPositions = ibPositionsQuery.data ?? [];
   const annotations = annotationsQuery.data ?? {};
-  const etfTickers = etfMetadataQuery.data ?? new Set<string>();
+  const etfTickers = etfMetadataQuery.data instanceof Set ? etfMetadataQuery.data : new Set<string>(etfMetadataQuery.data ? Object.keys(etfMetadataQuery.data) : []);
 
   const positions: Position[] = ibPositions.map((ib) => {
     const ticker = ib.symbol || "";
