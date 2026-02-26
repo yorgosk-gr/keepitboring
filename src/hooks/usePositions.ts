@@ -67,7 +67,8 @@ function derivePositionType(
 
 function deriveCategory(
   assetClass: string | null,
-  etfCategory: string | null
+  etfCategory: string | null,
+  description?: string | null
 ): string {
   // If we have ETF metadata category, use it
   if (etfCategory) {
@@ -79,6 +80,9 @@ function deriveCategory(
   const ac = (assetClass || "").toUpperCase();
   if (ac === "BOND" || ac === "BILL" || ac === "FI") return "bond";
   if (ac === "CMDTY") return "commodity";
+  // Fallback: check description for bond keywords
+  const desc = (description || "").toUpperCase();
+  if (desc.includes("BND") || desc.includes("BOND") || desc.includes("TREASURY") || desc.includes("FIXED INCOME")) return "bond";
   return "equity";
 }
 
@@ -159,8 +163,8 @@ export function usePositions() {
 
     // Category: manual override > etf_metadata category > derive from asset_class
     const cat = ann?.manually_classified
-      ? (ann.category || deriveCategory(ib.asset_class, meta?.category ?? null))
-      : deriveCategory(ib.asset_class, meta?.category ?? null);
+      ? (ann.category || deriveCategory(ib.asset_class, meta?.category ?? null, ib.description))
+      : deriveCategory(ib.asset_class, meta?.category ?? null, ib.description);
 
     return {
       id: ib.id,
