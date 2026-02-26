@@ -27,18 +27,21 @@ async function requestFlexReport(token: string, queryId: string): Promise<string
 // Step 2: Poll for the report using the reference code
 async function fetchFlexReport(token: string, referenceCode: string): Promise<string> {
   const url = `https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement?t=${token}&q=${referenceCode}&v=3`;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
+  for (let attempt = 0; attempt < 10; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 3000));
     const res = await fetch(url);
     const text = await res.text();
-    if (text.includes("Statement generation in progress")) continue;
+    if (text.includes("Statement generation in progress")) {
+      console.log(`Attempt ${attempt + 1}: statement still generating...`);
+      continue;
+    }
     if (text.includes("<ErrorMessage>")) {
       const errorMatch = text.match(/<ErrorMessage>(.*?)<\/ErrorMessage>/);
       throw new Error(`IB fetch failed: ${errorMatch?.[1] ?? text}`);
     }
     if (text.includes("<FlexQueryResponse")) return text;
   }
-  throw new Error("IB report generation timed out after 5 attempts");
+  throw new Error("IB report generation timed out after 10 attempts");
 }
 
 function parseXMLAttributes(tag: string): Record<string, string> {
