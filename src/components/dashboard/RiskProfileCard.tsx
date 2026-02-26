@@ -41,7 +41,7 @@ export function RiskProfileCard({ positions, etfMetadata, totalValue, cashBalanc
       if (p.position_type === "stock") {
         individual.current += weight;
       } else if (p.position_type === "etf") {
-        // Use ETF metadata is_broad_market flag, fallback to bet_type
+        // Use ETF metadata is_broad_market flag
         const meta = etfMetadata[p.ticker];
         const isBroad = meta?.is_broad_market ?? true;
         if (!isBroad) {

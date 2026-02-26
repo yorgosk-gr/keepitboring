@@ -14,7 +14,6 @@ export interface Position {
   market_value: number | null;
   weight_percent: number | null;
   thesis_notes: string | null;
-  bet_type: string | null;
   confidence_level: number | null;
   last_review_date: string | null;
   updated_at: string;
@@ -86,13 +85,13 @@ export function useDashboardData() {
     enabled: !!user,
   });
 
-  // Fetch annotations for bet_type etc
+  // Fetch annotations
   const annotationsQuery = useQuery({
     queryKey: ["position-annotations", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("positions")
-        .select("ticker, thesis_notes, bet_type, confidence_level, last_review_date, category, position_type, name, manually_classified");
+        .select("ticker, thesis_notes, confidence_level, last_review_date, category, position_type, name, manually_classified");
       if (error) throw error;
       const map: Record<string, typeof data[number]> = {};
       for (const row of data) map[row.ticker] = row;
@@ -217,7 +216,6 @@ export function useDashboardData() {
       market_value: ib.position_value,
       weight_percent: ib.percent_of_nav,
       thesis_notes: ann?.thesis_notes || null,
-      bet_type: ann?.bet_type || null,
       confidence_level: ann?.confidence_level || null,
       last_review_date: ann?.last_review_date || null,
       updated_at: ib.synced_at || new Date().toISOString(),

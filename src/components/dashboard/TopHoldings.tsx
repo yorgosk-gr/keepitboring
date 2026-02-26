@@ -9,30 +9,6 @@ interface TopHoldingsProps {
   isLoading?: boolean;
 }
 
-function getBetTypeBadge(betType: string | null) {
-  switch (betType) {
-    case "active":
-      return (
-        <span className="px-2 py-0.5 text-xs font-medium bg-primary/20 text-primary rounded-full">
-          Active
-        </span>
-      );
-    case "passive_carry":
-      return (
-        <span className="px-2 py-0.5 text-xs font-medium bg-chart-3/20 text-chart-3 rounded-full">
-          Passive
-        </span>
-      );
-    case "legacy_hold":
-      return (
-        <span className="px-2 py-0.5 text-xs font-medium bg-muted text-muted-foreground rounded-full">
-          Legacy
-        </span>
-      );
-    default:
-      return null;
-  }
-}
 
 function calculatePnL(position: Position): { value: number; percent: number } {
   const avgCost = position.avg_cost ?? 0;
@@ -106,7 +82,6 @@ export function TopHoldings({ positions, isLoading }: TopHoldingsProps) {
                 <th className="text-left pb-3 font-medium">Ticker</th>
                 <th className="text-right pb-3 font-medium">Weight</th>
                 <th className="text-right pb-3 font-medium">P&L</th>
-                <th className="text-right pb-3 font-medium">Type</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -135,9 +110,6 @@ export function TopHoldings({ positions, isLoading }: TopHoldingsProps) {
                       <span className={`font-medium ${isPositive ? "text-primary" : "text-destructive"}`}>
                         {isPositive ? "+" : ""}{pnl.percent.toFixed(1)}%
                       </span>
-                    </td>
-                    <td className="py-3 text-right">
-                      {getBetTypeBadge(position.bet_type)}
                     </td>
                   </tr>
                 );

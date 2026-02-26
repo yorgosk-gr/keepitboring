@@ -105,30 +105,6 @@ function getTypeBadge(type: string | null) {
   );
 }
 
-function getTierBadge(tier: string | null) {
-  switch (tier) {
-    case "core":
-      return (
-        <span className="px-2 py-0.5 text-xs font-medium bg-primary/20 text-primary rounded-full">
-          Core
-        </span>
-      );
-    case "satellite":
-      return (
-        <span className="px-2 py-0.5 text-xs font-medium bg-chart-4/20 text-chart-4 rounded-full">
-          Satellite
-        </span>
-      );
-    case "explore":
-      return (
-        <span className="px-2 py-0.5 text-xs font-medium bg-warning/20 text-warning rounded-full">
-          Explore
-        </span>
-      );
-    default:
-      return null;
-  }
-}
 
 // Format numbers with US locale (commas as thousands separator)
 function formatNumber(value: number | null, decimals = 2): string {
