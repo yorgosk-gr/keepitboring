@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, TrendingUp, Trash2, Download } from "lucide-react";
+import { Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, TrendingUp, Trash2, Download, BarChart3, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -18,11 +18,23 @@ import { CashBalanceEditor } from "@/components/portfolio/CashBalanceEditor";
 import { DeleteConfirmModal } from "@/components/portfolio/DeleteConfirmModal";
 
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIBSync } from "@/hooks/useIBSync";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format, isWeekend, subDays, isSameDay, isAfter, startOfDay } from "date-fns";
+
+/** Count business days between two dates (exclusive of both endpoints) */
+function businessDaysBetween(from: Date, to: Date): number {
+  let count = 0;
+  const current = new Date(from);
+  current.setDate(current.getDate() + 1);
+  while (current < to) {
+    if (!isWeekend(current)) count++;
+    current.setDate(current.getDate() + 1);
+  }
+  return count;
+}
 
 export default function Portfolio() {
   const { user } = useAuth();
@@ -35,7 +47,48 @@ export default function Portfolio() {
 
   const { cashBalance, totalValue, updateCashBalance, isUpdatingCash } = useDashboardData();
   const { sync, isSyncing, isConnected, lastSynced } = useIBSync();
-  
+
+  // Fetch latest trade date for data freshness notice
+  const { data: latestTradeDate } = useQuery({
+    queryKey: ["latest-trade-date", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ib_trades")
+        .select("trade_date")
+        .eq("user_id", user!.id)
+        .order("trade_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.trade_date ? new Date(data.trade_date + "T00:00:00") : null;
+    },
+    enabled: !!user,
+  });
+
+  const dataFreshnessNotice = useMemo(() => {
+    if (!latestTradeDate) return null;
+    const today = startOfDay(new Date());
+    const tradeDay = startOfDay(latestTradeDate);
+
+    if (isSameDay(tradeDay, today) || isSameDay(tradeDay, subDays(today, 1))) {
+      return null; // fresh
+    }
+
+    const bizDays = businessDaysBetween(tradeDay, today);
+
+    if (bizDays <= 1) {
+      return {
+        level: "info" as const,
+        message: `Portfolio data is current as of ${format(tradeDay, "MMM d")}. Today's transactions will appear after market close.`,
+      };
+    }
+
+    return {
+      level: "warning" as const,
+      message: `Portfolio data is current as of ${format(tradeDay, "MMM d")}. Sync to update.`,
+    };
+  }, [latestTradeDate]);
+
   const { verifySinglePosition, verifyPositions, isVerifying, progress: verifyProgress } = useTickerVerification();
   
   const { fetchPrices, isFetching: isFetchingPrices, progress: priceProgress } = usePriceRefresh();
@@ -296,6 +349,38 @@ export default function Portfolio() {
 
   return (
     <div className="space-y-6">
+      {/* Data Freshness Notice */}
+      {dataFreshnessNotice && (
+        <div className={`flex items-center justify-between p-4 rounded-lg border ${
+          dataFreshnessNotice.level === "warning"
+            ? "bg-amber-500/10 border-amber-500/20"
+            : "bg-muted/50 border-border"
+        }`}>
+          <div className="flex items-center gap-3">
+            <BarChart3 className={`w-5 h-5 ${
+              dataFreshnessNotice.level === "warning" ? "text-amber-500" : "text-muted-foreground"
+            }`} />
+            <p className={`text-sm ${
+              dataFreshnessNotice.level === "warning" ? "text-amber-500" : "text-muted-foreground"
+            }`}>
+              📊 {dataFreshnessNotice.message}
+            </p>
+          </div>
+          {dataFreshnessNotice.level === "warning" && isConnected && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
+              onClick={sync}
+              disabled={isSyncing}
+            >
+              <Download className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
+              Sync Now
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div>
