@@ -291,6 +291,53 @@ serve(async (req) => {
       if (cashError) console.error("Cash transactions upsert error:", cashError);
     }
 
+    // Backfill listing_exchange from trades for positions that don't have it
+    if (positions.length > 0) {
+      // Preferred exchange mappings (filter out dark pools and internal venues)
+      const darkPools = new Set(["DARK", "EUDARK", "IBKRATS", "IBIS2"]);
+      const exchangeMap: Record<string, string> = {};
+      
+      // Get most common non-dark-pool exchange per symbol from trades
+      const { data: tradeExchanges } = await supabase
+        .from("ib_trades")
+        .select("symbol, exchange")
+        .eq("user_id", user.id)
+        .not("exchange", "is", null);
+      
+      if (tradeExchanges) {
+        // Count exchange occurrences per symbol, excluding dark pools
+        const counts: Record<string, Record<string, number>> = {};
+        for (const t of tradeExchanges) {
+          if (!t.symbol || !t.exchange || darkPools.has(t.exchange)) continue;
+          if (!counts[t.symbol]) counts[t.symbol] = {};
+          counts[t.symbol][t.exchange] = (counts[t.symbol][t.exchange] || 0) + 1;
+        }
+        for (const [sym, exMap] of Object.entries(counts)) {
+          const best = Object.entries(exMap).sort((a, b) => b[1] - a[1])[0];
+          if (best) exchangeMap[sym] = best[0];
+        }
+      }
+
+      // Standardize exchange names
+      const exchangeStandard: Record<string, string> = {
+        "LSEETF": "LSE", "ISLAND": "NASDAQ", "NASDAQ.NMS": "NASDAQ",
+        "NASDAQ.SCM": "NASDAQ", "TRWBUKETF": "LSE", "AEB": "AMS",
+      };
+
+      for (const pos of positions) {
+        if (pos.listing_exchange) continue;
+        const raw = exchangeMap[pos.symbol || ""];
+        if (raw) {
+          const standardized = exchangeStandard[raw] || raw;
+          await supabase
+            .from("ib_positions")
+            .update({ listing_exchange: standardized })
+            .eq("user_id", user.id)
+            .eq("symbol", pos.symbol);
+        }
+      }
+    }
+
     await supabase
       .from("ib_accounts")
       .update({ 
