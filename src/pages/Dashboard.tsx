@@ -6,7 +6,7 @@ import { QuickStats } from "@/components/dashboard/QuickStats";
 
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useAllETFMetadata } from "@/hooks/useAllETFMetadata";
-import { PortfolioXRay } from "@/components/dashboard/PortfolioXRay";
+
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { RiskProfileCard } from "@/components/dashboard/RiskProfileCard";
 import { Button } from "@/components/ui/button";
@@ -199,23 +199,14 @@ export default function Dashboard() {
       {/* Performance Chart */}
       <PerformanceChart />
 
-      {/* Risk Profile + X-Ray */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <RiskProfileCard
-          positions={positions}
-          etfMetadata={etfMetadata}
-          totalValue={totalValue}
-          cashBalance={cashBalance}
-          isLoading={isLoading}
-        />
-        <PortfolioXRay 
-          positions={positions}
-          etfMetadata={etfMetadata}
-          totalValue={totalValue}
-          cashBalance={cashBalance}
-          isLoading={isLoading}
-        />
-      </div>
+      {/* Risk Profile */}
+      <RiskProfileCard
+        positions={positions}
+        etfMetadata={etfMetadata}
+        totalValue={totalValue}
+        cashBalance={cashBalance}
+        isLoading={isLoading}
+      />
 
     </div>
   );
