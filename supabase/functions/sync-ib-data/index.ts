@@ -114,28 +114,52 @@ function parseTrades(xml: string, userId: string, accountId: string) {
 }
 
 function parsePositions(xml: string, userId: string, accountId: string) {
-  const positions = extractTags(xml, "OpenPosition");
-  return positions
-    .filter(p => p.levelOfDetail === "SUMMARY")
-    .map(p => ({
-      user_id: userId,
-      ib_account_id: accountId,
-      symbol: p.symbol || null,
-      description: p.description || null,
-      asset_class: p.assetCategory || null,
-      sub_category: p.subCategory || null,
-      quantity: safeNum(p.quantity),
-      mark_price: safeNum(p.markPrice),
-      position_value: safeNum(p.positionValue),
-      cost_basis_price: safeNum(p.costBasisPrice),
-      cost_basis_money: safeNum(p.costBasisMoney),
-      percent_of_nav: safeNum(p.percentOfNAV),
-      unrealized_pnl: safeNum(p.fifoPnlUnrealized),
-      side: p.side || null,
-      open_date_time: safeDate(p.openDateTime),
-      report_date: safeDate(p.reportDate),
-      synced_at: new Date().toISOString(),
-    }));
+  // Debug: log a snippet around OpenPosition tags
+  const idx = xml.indexOf("OpenPosition");
+  if (idx === -1) {
+    console.log("No OpenPosition tags found in XML at all");
+  } else {
+    console.log("OpenPosition sample (500 chars):", xml.substring(idx, idx + 500));
+  }
+
+  // Try self-closing tags first
+  let positions = extractTags(xml, "OpenPosition");
+  console.log(`extractTags OpenPosition (self-closing): ${positions.length} results`);
+
+  // Also try nested <OpenPosition ...>...</OpenPosition> tags
+  if (positions.length === 0) {
+    const nestedRegex = /<OpenPosition\s([^>]*?)>/g;
+    let match;
+    while ((match = nestedRegex.exec(xml)) !== null) {
+      positions.push(parseXMLAttributes(match[1]));
+    }
+    console.log(`Nested OpenPosition tags found: ${positions.length}`);
+  }
+
+  // Log all levelOfDetail values for debugging
+  const levels = [...new Set(positions.map(p => p.levelOfDetail || "undefined"))];
+  console.log(`OpenPosition levelOfDetail values: ${JSON.stringify(levels)}`);
+
+  // No filter — take all positions
+  return positions.map(p => ({
+    user_id: userId,
+    ib_account_id: accountId,
+    symbol: p.symbol || null,
+    description: p.description || null,
+    asset_class: p.assetCategory || null,
+    sub_category: p.subCategory || null,
+    quantity: safeNum(p.quantity),
+    mark_price: safeNum(p.markPrice),
+    position_value: safeNum(p.positionValue),
+    cost_basis_price: safeNum(p.costBasisPrice),
+    cost_basis_money: safeNum(p.costBasisMoney),
+    percent_of_nav: safeNum(p.percentOfNAV),
+    unrealized_pnl: safeNum(p.fifoPnlUnrealized),
+    side: p.side || null,
+    open_date_time: safeDate(p.openDateTime),
+    report_date: safeDate(p.reportDate),
+    synced_at: new Date().toISOString(),
+  }));
 }
 
 function parseCashTransactions(xml: string, userId: string, accountId: string) {
