@@ -352,6 +352,7 @@ export type Database = {
           description: string | null
           ib_account_id: string
           id: string
+          listing_exchange: string | null
           mark_price: number | null
           open_date_time: string | null
           percent_of_nav: number | null
@@ -373,6 +374,7 @@ export type Database = {
           description?: string | null
           ib_account_id: string
           id?: string
+          listing_exchange?: string | null
           mark_price?: number | null
           open_date_time?: string | null
           percent_of_nav?: number | null
@@ -394,6 +396,7 @@ export type Database = {
           description?: string | null
           ib_account_id?: string
           id?: string
+          listing_exchange?: string | null
           mark_price?: number | null
           open_date_time?: string | null
           percent_of_nav?: number | null

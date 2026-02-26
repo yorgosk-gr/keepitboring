@@ -169,7 +169,7 @@ export function usePositions() {
       name: ann?.name || meta?.full_name || ib.description || null,
       position_type: posType,
       category: cat,
-      exchange: ann?.exchange || null,
+      exchange: ann?.exchange || ib.listing_exchange || null,
       currency: ann?.currency || null,
       shares: ib.quantity,
       avg_cost: ib.cost_basis_price,
