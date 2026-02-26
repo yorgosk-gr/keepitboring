@@ -157,11 +157,11 @@ serve(async (req) => {
     }));
 
     if (twrRecords.length > 0) {
-      // Clear existing and insert fresh (TWR records don't have a natural unique key)
-      await supabase.from("ib_twr_history").delete().eq("user_id", user.id);
-      const { error: twrError } = await supabase.from("ib_twr_history").insert(twrRecords);
-      if (twrError) console.error("TWR insert error:", twrError);
-      else console.log(`Inserted ${twrRecords.length} TWR records`);
+      const { error: twrError } = await supabase
+        .from("ib_twr_history")
+        .upsert(twrRecords, { onConflict: "user_id,from_date,to_date" });
+      if (twrError) console.error("TWR upsert error:", twrError);
+      else console.log(`Upserted ${twrRecords.length} TWR records`);
     }
 
     // Parse MTDYTDPerformanceSummary (log for now)

@@ -1,0 +1,1 @@
+ALTER TABLE public.ib_twr_history ADD CONSTRAINT ib_twr_history_unique UNIQUE (user_id, from_date, to_date);
