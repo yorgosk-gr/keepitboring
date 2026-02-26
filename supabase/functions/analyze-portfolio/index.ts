@@ -299,6 +299,8 @@ serve(async (req) => {
       etf_classifications,
       stock_fundamentals,
       portfolio_mode,
+      risk_profile,
+      behavioral_alignment,
     } = await req.json();
 
     // ── Deterministic Rule Evaluation ─────────────────────────────────
@@ -332,6 +334,25 @@ Use it ONLY as an interpretation lens:
 - "balanced": neutral stance, use rules as-is.
 - "aggressive": tolerate higher equity, bonds closer to the lower bound.
 It NEVER overrides explicit numeric min/max in rules or rule_evaluation.
+
+RISK PROFILE (behavioral risk tolerance)
+The user may provide "risk_profile" with { profile, score, dimension_scores } and "behavioral_alignment" with { aligned_ratio, total_signals, aligned_count }.
+
+Risk profile calibrates POSITION-LEVEL sizing and CASH BUFFER recommendations:
+- "cautious": max individual stock position 3-5% of portfolio. Flag any single position above 10% as high risk. Suggest higher cash buffer (10-20%). Favor broad market ETFs over concentrated bets.
+- "balanced": standard recommendations. Flag positions above 15%. Moderate rebalancing. Cash buffer 5-15%.
+- "growth": accept higher concentration. Flag positions above 20%. Encourage deploying excess cash into targets. Cash buffer 3-10%.
+- "aggressive": accept concentrated positions. Focus on maximizing return vs targets. Minimal cash buffer nudges (1-5%). Higher position sizes acceptable.
+
+PORTFOLIO MODE + RISK PROFILE INTERACTION:
+- When they ALIGN (e.g. Aggressive mode + Aggressive profile): full conviction recommendations, lean into the style.
+- When they CONFLICT (e.g. Aggressive mode + Cautious profile): temper recommendations toward the more conservative of the two. Add a note in the summary highlighting the mismatch.
+- Risk profile NEVER overrides HARD rules. It adjusts the tone and sizing of SOFT recommendations only.
+
+BEHAVIORAL ALIGNMENT:
+If behavioral_alignment is provided and aligned_ratio < 0.5:
+- Add an observation in recommended_actions: "Note: your recent trading behavior suggests a more [cautious/aggressive] approach than your stated [profile] profile. Recommendations are based on your stated profile, but consider recalibrating via the Risk Profile questionnaire."
+- Determine direction: if the user's trades show more selling/hedging than expected for their profile, say "cautious". If more buying/concentrating, say "aggressive".
 
 RULES ENGINE
 You are given RULES_JSON (array of rules). Each rule has:
@@ -602,6 +623,16 @@ ${stock_fundamentals.map((f: any) => `${f.ticker}: ROIC=${f.roic ?? "N/A"}%, Ear
 
 RULE EVALUATION (precomputed — use as ground truth for ALL rule statuses and percentages):
 ${JSON.stringify(ruleEvaluation, null, 2)}
+
+${risk_profile ? `RISK PROFILE:
+- Profile: ${risk_profile.profile}
+- Score: ${risk_profile.score ?? "N/A"}
+- Dimension Scores: ${JSON.stringify(risk_profile.dimension_scores ?? {})}` : "No risk profile set."}
+
+${behavioral_alignment ? `BEHAVIORAL ALIGNMENT:
+- Aligned ratio: ${behavioral_alignment.aligned_ratio} (${behavioral_alignment.aligned_count}/${behavioral_alignment.total_signals} recent trades matched stated profile)` : "No behavioral signals available."}
+
+PORTFOLIO MODE: ${portfolio_mode ?? "balanced"}
 
 Analyze this portfolio and return the JSON response.`;
 
