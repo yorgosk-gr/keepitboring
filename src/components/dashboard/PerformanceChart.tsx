@@ -77,31 +77,37 @@ export function PerformanceChart() {
       }));
   }, [navData, rangeStart]);
 
-  // Find the TWR record whose date range best covers the selected period
+  // Find a TWR record that closely matches the selected period (within 7 days tolerance)
   const twrForRange = useMemo(() => {
     if (twrData.length === 0) return null;
-    const startStr = format(rangeStart, "yyyy-MM-dd");
-    const endStr = format(new Date(), "yyyy-MM-dd");
+    const tolerance = 7 * 24 * 60 * 60 * 1000; // 7 days
     
-    // Find closest match
-    let best = twrData[0];
-    let bestScore = Infinity;
     for (const t of twrData) {
       if (!t.from_date || !t.to_date) continue;
       const fromDiff = Math.abs(new Date(t.from_date).getTime() - rangeStart.getTime());
       const toDiff = Math.abs(new Date(t.to_date).getTime() - new Date().getTime());
-      const score = fromDiff + toDiff;
-      if (score < bestScore) {
-        bestScore = score;
-        best = t;
+      if (fromDiff <= tolerance && toDiff <= tolerance) {
+        return t;
       }
     }
-    return best;
+    return null;
   }, [twrData, rangeStart]);
 
-  const twrPercent = twrForRange?.twr !== null && twrForRange?.twr !== undefined
-    ? Number(twrForRange.twr)
-    : null;
+  // If we have a matching TWR record, use it. Otherwise compute simple return from NAV.
+  const periodReturn = useMemo(() => {
+    if (twrForRange?.twr !== null && twrForRange?.twr !== undefined) {
+      return { value: Number(twrForRange.twr), label: "TWR" };
+    }
+    // Simple return from first/last NAV in the filtered range
+    if (filteredNav.length >= 2) {
+      const first = filteredNav[0].nav;
+      const last = filteredNav[filteredNav.length - 1].nav;
+      if (first > 0) {
+        return { value: ((last - first) / first) * 100, label: "Return" };
+      }
+    }
+    return null;
+  }, [twrForRange, filteredNav]);
 
   if (navLoading) {
     return (
@@ -130,10 +136,10 @@ export function PerformanceChart() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-sm font-medium text-muted-foreground">Portfolio Performance</h3>
-          {twrPercent !== null && (
-            <p className={`text-2xl font-bold mt-1 ${twrPercent >= 0 ? "text-primary" : "text-destructive"}`}>
-              {twrPercent >= 0 ? "+" : ""}{twrPercent.toFixed(2)}%
-              <span className="text-xs text-muted-foreground ml-2 font-normal">TWR</span>
+          {periodReturn !== null && (
+            <p className={`text-2xl font-bold mt-1 ${periodReturn.value >= 0 ? "text-primary" : "text-destructive"}`}>
+              {periodReturn.value >= 0 ? "+" : ""}{periodReturn.value.toFixed(2)}%
+              <span className="text-xs text-muted-foreground ml-2 font-normal">{periodReturn.label}</span>
             </p>
           )}
         </div>
