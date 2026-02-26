@@ -1,9 +1,16 @@
-import { RefreshCw, Link2, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { RefreshCw, Link2, CheckCircle, AlertCircle, Clock, Plug } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useIBSync } from "@/hooks/useIBSync";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function IBConnectionSection() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const {
     sync,
     isSyncing,
@@ -13,6 +20,29 @@ export function IBConnectionSection() {
     lastSyncResult,
     error,
   } = useIBSync();
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const handleConnect = async () => {
+    if (!user) return;
+    setIsConnecting(true);
+    try {
+      const { error: insertError } = await supabase.from("ib_accounts").insert({
+        user_id: user.id,
+        ib_account_id: "U4594648",
+        flex_token: "205881144990191816757120",
+        flex_query_id: "1416087",
+      });
+      if (insertError) throw insertError;
+      toast.success("IB account connected!");
+      await queryClient.invalidateQueries({ queryKey: ["ib-account"] });
+      // Wait briefly for query to refetch, then trigger sync
+      setTimeout(() => sync(), 500);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to connect IB account");
+    } finally {
+      setIsConnecting(false);
+    }
+  };
 
   if (isLoadingAccount) {
     return (
@@ -97,10 +127,18 @@ export function IBConnectionSection() {
       )}
 
       {!isConnected && (
-        <p className="text-sm text-muted-foreground">
-          To connect your IB account, add your Flex Query credentials to the database. 
-          Contact support for setup assistance.
-        </p>
+        <Button
+          onClick={handleConnect}
+          disabled={isConnecting || isSyncing}
+          className="w-full gap-2"
+        >
+          {isConnecting || isSyncing ? (
+            <RefreshCw className="w-4 h-4 animate-spin" />
+          ) : (
+            <Plug className="w-4 h-4" />
+          )}
+          {isConnecting ? "Connecting..." : isSyncing ? "Syncing..." : "Connect IB Account"}
+        </Button>
       )}
     </div>
   );
