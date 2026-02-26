@@ -26,6 +26,7 @@ export interface Position {
   updated_at: string;
   manually_classified: boolean | null;
   unrealized_pnl: number | null;
+  cost_basis_money: number | null;
 }
 
 // Annotation-only form data (no shares/price/ticker editing)
@@ -45,18 +46,38 @@ export interface PositionFormData {
   exchange?: string;
 }
 
-function derivePositionType(assetClass: string | null, subCategory: string | null): string {
+function derivePositionType(
+  assetClass: string | null,
+  subCategory: string | null,
+  hasEtfMetadata: boolean
+): string {
+  if (hasEtfMetadata) return "etf";
   const ac = (assetClass || "").toUpperCase();
   const sc = (subCategory || "").toUpperCase();
-  if (ac === "STK") return "stock";
-  if (ac === "FND" || ac === "ETF" || sc.includes("ETF")) return "etf";
-  if (ac === "BOND" || ac === "BILL") return "bond";
+  if (ac === "STK") {
+    // STK can be stock or ETF — check sub_category
+    if (sc.includes("ETF") || sc.includes("ETC")) return "etf";
+    return "stock";
+  }
+  if (ac === "FND" || ac === "ETF") return "etf";
+  if (ac === "BOND" || ac === "BILL" || ac === "FI") return "bond";
+  if (ac === "CMDTY") return "commodity";
   return "stock";
 }
 
-function deriveCategory(assetClass: string | null): string {
+function deriveCategory(
+  assetClass: string | null,
+  etfCategory: string | null
+): string {
+  // If we have ETF metadata category, use it
+  if (etfCategory) {
+    const lower = etfCategory.toLowerCase();
+    if (lower.includes("bond") || lower.includes("fixed")) return "bond";
+    if (lower.includes("commodity") || lower.includes("gold")) return "commodity";
+    return "equity";
+  }
   const ac = (assetClass || "").toUpperCase();
-  if (ac === "BOND" || ac === "BILL") return "bond";
+  if (ac === "BOND" || ac === "BILL" || ac === "FI") return "bond";
   if (ac === "CMDTY") return "commodity";
   return "equity";
 }
@@ -87,7 +108,6 @@ export function usePositions() {
         .from("positions")
         .select("ticker, thesis_notes, bet_type, confidence_level, last_review_date, category, position_type, name, currency, exchange, manually_classified");
       if (error) throw error;
-      // Index by ticker
       const map: Record<string, typeof data[number]> = {};
       for (const row of data) {
         map[row.ticker] = row;
@@ -97,18 +117,45 @@ export function usePositions() {
     enabled: !!user,
   });
 
-  // Merge IB positions with annotations
+  // Fetch ETF metadata for cross-referencing classification
+  const etfMetadataQuery = useQuery({
+    queryKey: ["etf_metadata", "all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("etf_metadata")
+        .select("*");
+      if (error) throw error;
+      const map: Record<string, typeof data[number]> = {};
+      for (const item of data || []) {
+        map[item.ticker] = item;
+      }
+      return map;
+    },
+  });
+
+  // Merge IB positions with annotations + ETF metadata
+  const etfMeta = etfMetadataQuery.data ?? {};
   const positions: Position[] = (ibPositionsQuery.data ?? []).map((ib) => {
     const ticker = ib.symbol || "";
     const ann = annotationsQuery.data?.[ticker];
-    const posType = ann?.manually_classified ? (ann.position_type || derivePositionType(ib.asset_class, ib.sub_category)) : derivePositionType(ib.asset_class, ib.sub_category);
-    const cat = ann?.manually_classified ? (ann.category || deriveCategory(ib.asset_class)) : deriveCategory(ib.asset_class);
+    const meta = etfMeta[ticker];
+    const hasEtfMetadata = !!meta;
+
+    // Position type: manual override > etf_metadata > derive from IB fields
+    const posType = ann?.manually_classified
+      ? (ann.position_type || derivePositionType(ib.asset_class, ib.sub_category, hasEtfMetadata))
+      : derivePositionType(ib.asset_class, ib.sub_category, hasEtfMetadata);
+
+    // Category: manual override > etf_metadata category > derive from asset_class
+    const cat = ann?.manually_classified
+      ? (ann.category || deriveCategory(ib.asset_class, meta?.category ?? null))
+      : deriveCategory(ib.asset_class, meta?.category ?? null);
 
     return {
       id: ib.id,
       user_id: ib.user_id,
       ticker,
-      name: ann?.name || ib.description || null,
+      name: ann?.name || meta?.full_name || ib.description || null,
       position_type: posType,
       category: cat,
       exchange: ann?.exchange || null,
@@ -126,6 +173,7 @@ export function usePositions() {
       updated_at: ib.synced_at || new Date().toISOString(),
       manually_classified: ann?.manually_classified || null,
       unrealized_pnl: ib.unrealized_pnl,
+      cost_basis_money: ib.cost_basis_money,
     };
   });
 
@@ -134,7 +182,6 @@ export function usePositions() {
     mutationFn: async ({ ticker, formData }: { ticker: string; formData: Partial<PositionFormData> }) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Check if annotation row exists
       const { data: existing } = await supabase
         .from("positions")
         .select("id")
@@ -163,7 +210,6 @@ export function usePositions() {
           .eq("id", existing.id);
         if (error) throw error;
       } else {
-        // Create annotation row — need dummy values for required fields
         const ibPos = ibPositionsQuery.data?.find(p => p.symbol === ticker);
         const { error } = await supabase
           .from("positions")

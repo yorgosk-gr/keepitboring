@@ -32,6 +32,18 @@ interface PositionsTableProps {
 }
 
 function calculatePnL(position: Position) {
+  // Use unrealized_pnl directly from IB if available
+  const unrealizedPnl = (position as any).unrealized_pnl;
+  const costBasisMoney = (position as any).cost_basis_money;
+
+  if (unrealizedPnl != null && unrealizedPnl !== 0) {
+    const percent = costBasisMoney && costBasisMoney !== 0
+      ? (unrealizedPnl / Math.abs(costBasisMoney)) * 100
+      : 0;
+    return { value: Number(unrealizedPnl), percent };
+  }
+
+  // Fallback calculation
   const avgCost = position.avg_cost ?? 0;
   const currentPrice = position.current_price ?? 0;
   const shares = position.shares ?? 0;
@@ -369,6 +381,11 @@ export function PositionsTable({
                         return (
                           <span className={color}>
                             {sign}{formatWholeNumber(pnl.value)}
+                            {pnl.percent !== 0 && (
+                              <span className="text-[10px] ml-1 opacity-70">
+                                ({sign}{pnl.percent.toFixed(1)}%)
+                              </span>
+                            )}
                           </span>
                         );
                       })()}
