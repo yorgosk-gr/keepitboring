@@ -29,9 +29,10 @@ interface PositionModalProps {
   onSubmit: (data: PositionFormData) => Promise<void>;
   position?: Position | null;
   isLoading?: boolean;
+  annotationOnly?: boolean;
 }
 
-export function PositionModal({ open, onClose, onSubmit, position, isLoading }: PositionModalProps) {
+export function PositionModal({ open, onClose, onSubmit, position, isLoading, annotationOnly }: PositionModalProps) {
   const isEdit = !!position;
   
   // Parse existing thesis notes to extract invalidation triggers
@@ -88,6 +89,28 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+
+    if (annotationOnly) {
+      // Skip numeric validation for annotation-only mode
+      const validatedData: PositionFormData = {
+        ticker: formData.ticker.trim(),
+        name: formData.name.trim() || undefined,
+        position_type: formData.position_type,
+        category: formData.category,
+        shares: parseFloat(formData.shares) || 0,
+        avg_cost: parseFloat(formData.avg_cost) || 0,
+        current_price: parseFloat(formData.current_price) || 0,
+        bet_type: formData.bet_type,
+        confidence_level: formData.confidence_level,
+        thesis_notes: formData.thesis_notes.trim() || undefined,
+        invalidation_triggers: formData.invalidation_triggers.trim() || undefined,
+        currency: formData.currency || undefined,
+        exchange: formData.exchange || undefined,
+      };
+      await onSubmit(validatedData);
+      onClose();
+      return;
+    }
 
     const dataToValidate = {
       ticker: formData.ticker.trim(),
@@ -154,8 +177,8 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-card border-border">
         <DialogHeader>
-          <DialogTitle className="text-foreground">
-            {isEdit ? "Edit Position" : "Add New Position"}
+         <DialogTitle className="text-foreground">
+            {annotationOnly ? "Edit Position Annotations" : isEdit ? "Edit Position" : "Add New Position"}
           </DialogTitle>
         </DialogHeader>
 
@@ -170,6 +193,7 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
                 onChange={(e) => setFormData({ ...formData, ticker: e.target.value.toUpperCase() })}
                 placeholder="AAPL"
                 className="bg-secondary border-border"
+                disabled={annotationOnly}
               />
               {errors.ticker && <p className="text-xs text-destructive">{errors.ticker}</p>}
             </div>
@@ -252,52 +276,54 @@ export function PositionModal({ open, onClose, onSubmit, position, isLoading }: 
           </div>
 
           {/* Numbers Row */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="shares">Shares *</Label>
-              <Input
-                id="shares"
-                type="number"
-                step="0.0001"
-                value={formData.shares}
-                onChange={(e) => setFormData({ ...formData, shares: e.target.value })}
-                placeholder="100"
-                className="bg-secondary border-border"
-              />
-              {errors.shares && <p className="text-xs text-destructive">{errors.shares}</p>}
-            </div>
+          {!annotationOnly && (
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="shares">Shares *</Label>
+                <Input
+                  id="shares"
+                  type="number"
+                  step="0.0001"
+                  value={formData.shares}
+                  onChange={(e) => setFormData({ ...formData, shares: e.target.value })}
+                  placeholder="100"
+                  className="bg-secondary border-border"
+                />
+                {errors.shares && <p className="text-xs text-destructive">{errors.shares}</p>}
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="avg_cost">Avg Cost ({currencySymbol}) *</Label>
-              <Input
-                id="avg_cost"
-                type="number"
-                step="0.01"
-                value={formData.avg_cost}
-                onChange={(e) => setFormData({ ...formData, avg_cost: e.target.value })}
-                placeholder="150.00"
-                className="bg-secondary border-border"
-              />
-              {errors.avg_cost && <p className="text-xs text-destructive">{errors.avg_cost}</p>}
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="avg_cost">Avg Cost ({currencySymbol}) *</Label>
+                <Input
+                  id="avg_cost"
+                  type="number"
+                  step="0.01"
+                  value={formData.avg_cost}
+                  onChange={(e) => setFormData({ ...formData, avg_cost: e.target.value })}
+                  placeholder="150.00"
+                  className="bg-secondary border-border"
+                />
+                {errors.avg_cost && <p className="text-xs text-destructive">{errors.avg_cost}</p>}
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="current_price">Current Price ({currencySymbol}) *</Label>
-              <Input
-                id="current_price"
-                type="number"
-                step="0.01"
-                value={formData.current_price}
-                onChange={(e) => setFormData({ ...formData, current_price: e.target.value })}
-                placeholder="175.00"
-                className="bg-secondary border-border"
-              />
-              {errors.current_price && <p className="text-xs text-destructive">{errors.current_price}</p>}
+              <div className="space-y-2">
+                <Label htmlFor="current_price">Current Price ({currencySymbol}) *</Label>
+                <Input
+                  id="current_price"
+                  type="number"
+                  step="0.01"
+                  value={formData.current_price}
+                  onChange={(e) => setFormData({ ...formData, current_price: e.target.value })}
+                  placeholder="175.00"
+                  className="bg-secondary border-border"
+                />
+                {errors.current_price && <p className="text-xs text-destructive">{errors.current_price}</p>}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Calculated Values */}
-          {(formData.shares && formData.current_price) && (
+          {!annotationOnly && (formData.shares && formData.current_price) && (
             <div className="flex gap-6 p-3 rounded-lg bg-secondary/50">
               <div>
                 <span className="text-xs text-muted-foreground">Market Value</span>

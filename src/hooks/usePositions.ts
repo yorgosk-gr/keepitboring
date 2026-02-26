@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
+// Unified position type combining IB data + annotations
 export interface Position {
   id: string;
   user_id: string;
@@ -24,8 +25,10 @@ export interface Position {
   created_at: string;
   updated_at: string;
   manually_classified: boolean | null;
+  unrealized_pnl: number | null;
 }
 
+// Annotation-only form data (no shares/price/ticker editing)
 export interface PositionFormData {
   ticker: string;
   name?: string;
@@ -42,152 +45,154 @@ export interface PositionFormData {
   exchange?: string;
 }
 
+function derivePositionType(assetClass: string | null, subCategory: string | null): string {
+  const ac = (assetClass || "").toUpperCase();
+  const sc = (subCategory || "").toUpperCase();
+  if (ac === "STK") return "stock";
+  if (ac === "FND" || ac === "ETF" || sc.includes("ETF")) return "etf";
+  if (ac === "BOND" || ac === "BILL") return "bond";
+  return "stock";
+}
+
+function deriveCategory(assetClass: string | null): string {
+  const ac = (assetClass || "").toUpperCase();
+  if (ac === "BOND" || ac === "BILL") return "bond";
+  if (ac === "CMDTY") return "commodity";
+  return "equity";
+}
+
 export function usePositions() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const positionsQuery = useQuery({
-    queryKey: ["positions", user?.id],
+  // Fetch IB positions as primary source
+  const ibPositionsQuery = useQuery({
+    queryKey: ["ib-positions", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("positions")
+        .from("ib_positions")
         .select("*")
-        .order("market_value", { ascending: false });
-      
+        .order("position_value", { ascending: false });
       if (error) throw error;
-      return data as Position[];
+      return data;
     },
     enabled: !!user,
   });
 
-  const addPositionMutation = useMutation({
-    mutationFn: async (formData: PositionFormData) => {
-      const marketValue = formData.shares * formData.current_price;
-      
+  // Fetch annotations from positions table (keyed by ticker)
+  const annotationsQuery = useQuery({
+    queryKey: ["position-annotations", user?.id],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("positions")
-        .insert({
-          user_id: user!.id,
-          ticker: formData.ticker.toUpperCase(),
-          name: formData.name || null,
-          position_type: formData.position_type,
-          category: formData.category,
-          shares: formData.shares,
-          avg_cost: formData.avg_cost,
-          current_price: formData.current_price,
-          market_value: marketValue,
-          bet_type: formData.bet_type,
-          confidence_level: formData.confidence_level,
-          thesis_notes: formData.thesis_notes 
-            ? `${formData.thesis_notes}${formData.invalidation_triggers ? `\n\n**Invalidation Triggers:**\n${formData.invalidation_triggers}` : ""}`
-            : null,
-          currency: formData.currency || null,
-          exchange: formData.exchange || null,
-          manually_classified: true,
-        })
-        .select()
-        .single();
-      
+        .select("ticker, thesis_notes, bet_type, confidence_level, last_review_date, category, position_type, name, currency, exchange, manually_classified");
       if (error) throw error;
-      return data;
+      // Index by ticker
+      const map: Record<string, typeof data[number]> = {};
+      for (const row of data) {
+        map[row.ticker] = row;
+      }
+      return map;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["positions"] });
-      toast.success("Position added successfully");
-    },
-    onError: (error) => {
-      toast.error("Failed to add position: " + error.message);
-    },
+    enabled: !!user,
   });
 
-  const updatePositionMutation = useMutation({
-    mutationFn: async ({ id, formData }: { id: string; formData: PositionFormData }) => {
-      const marketValue = formData.shares * formData.current_price;
-      
-      const { data, error } = await supabase
-        .from("positions")
-        .update({
-          ticker: formData.ticker.toUpperCase(),
-          name: formData.name || null,
-          position_type: formData.position_type,
-          category: formData.category,
-          shares: formData.shares,
-          avg_cost: formData.avg_cost,
-          current_price: formData.current_price,
-          market_value: marketValue,
-          bet_type: formData.bet_type,
-          confidence_level: formData.confidence_level,
-          thesis_notes: formData.thesis_notes 
-            ? `${formData.thesis_notes}${formData.invalidation_triggers ? `\n\n**Invalidation Triggers:**\n${formData.invalidation_triggers}` : ""}`
-            : null,
-          currency: formData.currency || null,
-          exchange: formData.exchange || null,
-          manually_classified: true,
-        })
-        .eq("id", id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["positions"] });
-      toast.success("Position updated successfully");
-    },
-    onError: (error) => {
-      toast.error("Failed to update position: " + error.message);
-    },
+  // Merge IB positions with annotations
+  const positions: Position[] = (ibPositionsQuery.data ?? []).map((ib) => {
+    const ticker = ib.symbol || "";
+    const ann = annotationsQuery.data?.[ticker];
+    const posType = ann?.manually_classified ? (ann.position_type || derivePositionType(ib.asset_class, ib.sub_category)) : derivePositionType(ib.asset_class, ib.sub_category);
+    const cat = ann?.manually_classified ? (ann.category || deriveCategory(ib.asset_class)) : deriveCategory(ib.asset_class);
+
+    return {
+      id: ib.id,
+      user_id: ib.user_id,
+      ticker,
+      name: ann?.name || ib.description || null,
+      position_type: posType,
+      category: cat,
+      exchange: ann?.exchange || null,
+      currency: ann?.currency || null,
+      shares: ib.quantity,
+      avg_cost: ib.cost_basis_price,
+      current_price: ib.mark_price,
+      market_value: ib.position_value,
+      weight_percent: ib.percent_of_nav,
+      thesis_notes: ann?.thesis_notes || null,
+      bet_type: ann?.bet_type || null,
+      confidence_level: ann?.confidence_level || null,
+      last_review_date: ann?.last_review_date || null,
+      created_at: ib.created_at || new Date().toISOString(),
+      updated_at: ib.synced_at || new Date().toISOString(),
+      manually_classified: ann?.manually_classified || null,
+      unrealized_pnl: ib.unrealized_pnl,
+    };
   });
 
-  const deletePositionMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
+  // Save/update annotations only (upsert to positions table keyed by ticker)
+  const updateAnnotationMutation = useMutation({
+    mutationFn: async ({ ticker, formData }: { ticker: string; formData: Partial<PositionFormData> }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Check if annotation row exists
+      const { data: existing } = await supabase
         .from("positions")
-        .delete()
-        .eq("id", id);
-      
-      if (error) throw error;
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("ticker", ticker)
+        .maybeSingle();
+
+      const annotationData = {
+        thesis_notes: formData.thesis_notes
+          ? `${formData.thesis_notes}${formData.invalidation_triggers ? `\n\n**Invalidation Triggers:**\n${formData.invalidation_triggers}` : ""}`
+          : null,
+        bet_type: formData.bet_type || null,
+        confidence_level: formData.confidence_level || null,
+        category: formData.category || null,
+        position_type: formData.position_type || null,
+        name: formData.name || null,
+        currency: formData.currency || null,
+        exchange: formData.exchange || null,
+        manually_classified: true,
+      };
+
+      if (existing) {
+        const { error } = await supabase
+          .from("positions")
+          .update(annotationData)
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        // Create annotation row — need dummy values for required fields
+        const ibPos = ibPositionsQuery.data?.find(p => p.symbol === ticker);
+        const { error } = await supabase
+          .from("positions")
+          .insert({
+            user_id: user.id,
+            ticker,
+            shares: ibPos?.quantity || 0,
+            avg_cost: ibPos?.cost_basis_price || 0,
+            current_price: ibPos?.mark_price || 0,
+            market_value: ibPos?.position_value || 0,
+            ...annotationData,
+          });
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["position-annotations"] });
       queryClient.invalidateQueries({ queryKey: ["positions"] });
-      toast.success("Position deleted successfully");
+      toast.success("Position annotations updated");
     },
     onError: (error) => {
-      toast.error("Failed to delete position: " + error.message);
+      toast.error("Failed to update: " + error.message);
     },
   });
-
-  const recalculateWeights = async () => {
-    const positions = positionsQuery.data ?? [];
-    const totalValue = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
-    
-    if (totalValue === 0) return;
-
-    const updates = positions.map(p => ({
-      id: p.id,
-      weight_percent: ((p.market_value ?? 0) / totalValue) * 100,
-    }));
-
-    for (const update of updates) {
-      await supabase
-        .from("positions")
-        .update({ weight_percent: update.weight_percent })
-        .eq("id", update.id);
-    }
-
-    queryClient.invalidateQueries({ queryKey: ["positions"] });
-  };
 
   return {
-    positions: positionsQuery.data ?? [],
-    isLoading: positionsQuery.isLoading,
-    addPosition: addPositionMutation.mutateAsync,
-    isAdding: addPositionMutation.isPending,
-    updatePosition: updatePositionMutation.mutateAsync,
-    isUpdating: updatePositionMutation.isPending,
-    deletePosition: deletePositionMutation.mutateAsync,
-    isDeleting: deletePositionMutation.isPending,
-    recalculateWeights,
+    positions,
+    isLoading: ibPositionsQuery.isLoading || annotationsQuery.isLoading,
+    updateAnnotation: updateAnnotationMutation.mutateAsync,
+    isUpdating: updateAnnotationMutation.isPending,
   };
 }

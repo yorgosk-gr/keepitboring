@@ -1,17 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
-import { Upload, Plus, Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, Trash2, AlertTriangle, TrendingUp } from "lucide-react";
+import { Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { usePositions, type Position, type PositionFormData } from "@/hooks/usePositions";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useTickerVerification } from "@/hooks/useTickerVerification";
@@ -21,10 +11,7 @@ import { lookupTicker } from "@/lib/tickerReference";
 
 import { PositionsTable } from "@/components/portfolio/PositionsTable";
 import { PositionModal } from "@/components/portfolio/PositionModal";
-import { DeleteConfirmModal } from "@/components/portfolio/DeleteConfirmModal";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
-import { UploadScreenshotModal } from "@/components/portfolio/UploadScreenshotModal";
-import { UploadCSVModal } from "@/components/portfolio/UploadCSVModal";
 import { RefreshPricesModal } from "@/components/portfolio/RefreshPricesModal";
 import { CashBalanceEditor } from "@/components/portfolio/CashBalanceEditor";
 
@@ -39,23 +26,14 @@ export default function Portfolio() {
   const {
     positions,
     isLoading,
-    addPosition,
-    isAdding,
-    updatePosition,
+    updateAnnotation,
     isUpdating,
-    deletePosition,
-    isDeleting,
-    recalculateWeights,
   } = usePositions();
 
-  // Get cash balance and correct allocation percentages from dashboard data
   const { cashBalance, totalValue, updateCashBalance, isUpdatingCash } = useDashboardData();
   
-  // Ticker verification
   const { verifySinglePosition, verifyPositions, isVerifying, progress: verifyProgress } = useTickerVerification();
   
-  
-  // Price refresh
   const { fetchPrices, isFetching: isFetchingPrices, progress: priceProgress } = usePriceRefresh();
   const { fetchFundamentals, isFetching: isFetchingFundamentals } = useFundamentals();
   const [showPriceModal, setShowPriceModal] = useState(false);
@@ -67,19 +45,10 @@ export default function Portfolio() {
   const [verifyingPositionId, setVerifyingPositionId] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   
   // Modal states
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showCSVModal, setShowCSVModal] = useState(false);
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
-  const [deletingPosition, setDeletingPosition] = useState<Position | null>(null);
   const [loggingDecisionFor, setLoggingDecisionFor] = useState<Position | null>(null);
-  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
-  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-  const [showClearPortfolioModal, setShowClearPortfolioModal] = useState(false);
-  const [isClearingPortfolio, setIsClearingPortfolio] = useState(false);
 
   // Load last price refresh timestamp
   useEffect(() => {
@@ -114,61 +83,13 @@ export default function Portfolio() {
     );
   }, [positions, searchQuery]);
 
-  const handleAddPosition = async (data: PositionFormData) => {
-    await addPosition(data);
-    setShowAddModal(false);
-    // Recalculate weights after adding
-    setTimeout(() => recalculateWeights(), 500);
-  };
-
-  const handleUpdatePosition = async (data: PositionFormData) => {
+  const handleUpdateAnnotation = async (data: PositionFormData) => {
     if (!editingPosition) return;
-    await updatePosition({ id: editingPosition.id, formData: data });
+    await updateAnnotation({
+      ticker: editingPosition.ticker,
+      formData: data,
+    });
     setEditingPosition(null);
-    // Recalculate weights after updating
-    setTimeout(() => recalculateWeights(), 500);
-  };
-
-  const handleDeletePosition = async () => {
-    if (!deletingPosition) return;
-    await deletePosition(deletingPosition.id);
-    setDeletingPosition(null);
-    // Recalculate weights after deleting
-    setTimeout(() => recalculateWeights(), 500);
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedIds.length === 0) return;
-    
-    setIsBulkDeleting(true);
-    try {
-      for (const id of selectedIds) {
-        await deletePosition(id);
-      }
-      toast.success(`Deleted ${selectedIds.length} positions`);
-      setSelectedIds([]);
-      setShowBulkDeleteModal(false);
-      // Recalculate weights after deleting
-      setTimeout(() => recalculateWeights(), 500);
-    } catch (error) {
-      toast.error("Failed to delete some positions");
-    } finally {
-      setIsBulkDeleting(false);
-    }
-  };
-
-  const handleUploadScreenshot = () => {
-    setShowUploadModal(true);
-  };
-
-  const handleUploadComplete = () => {
-    // Recalculate weights after import
-    setTimeout(() => recalculateWeights(), 500);
-  };
-
-  const handleRecalculateWeights = async () => {
-    await recalculateWeights();
-    toast.success("Weights recalculated successfully");
   };
 
   // Handle position verification via web search
@@ -183,50 +104,28 @@ export default function Portfolio() {
     });
 
     if (result) {
-      // Update the position with verified data
-      const updates: Partial<Position> = {};
-      
-      if (result.current_price !== null) {
-        updates.current_price = result.current_price;
-        updates.market_value = (position.shares ?? 0) * result.current_price;
+      // Save corrections as annotations
+      if (result.name || result.category || result.asset_type) {
+        await updateAnnotation({
+          ticker: position.ticker,
+          formData: {
+            name: result.name || undefined,
+            category: result.category as any || undefined,
+            position_type: result.asset_type as any || undefined,
+          } as any,
+        });
       }
       
-      if (result.name) {
-        updates.name = result.name;
-      }
-      
-      if (result.category) {
-        updates.category = result.category;
-      }
-      
-      if (result.asset_type) {
-        updates.position_type = result.asset_type;
-      }
-
-      if (Object.keys(updates).length > 0) {
-        const { error } = await supabase
-          .from("positions")
-          .update(updates)
-          .eq("id", position.id);
-
-        if (error) {
-          toast.error("Failed to update position with verified data");
-        } else {
-          queryClient.invalidateQueries({ queryKey: ["positions"] });
-          
-          if (result.verification_status === "confirmed") {
-            toast.success(`${position.ticker} verified successfully`);
-          } else if (result.verification_status === "corrected") {
-            toast.info(`${position.ticker} may need attention: ${result.notes}`);
-          }
-        }
+      if (result.verification_status === "confirmed") {
+        toast.success(`${position.ticker} verified successfully`);
+      } else if (result.verification_status === "corrected") {
+        toast.info(`${position.ticker} may need attention: ${result.notes}`);
       }
     }
     
     setVerifyingPositionId(null);
   };
 
-  // Handle verifying all positions at once
   const handleVerifyAll = async () => {
     if (positions.length === 0) {
       toast.info("No positions to verify");
@@ -243,40 +142,19 @@ export default function Portfolio() {
     const results = await verifyPositions(positionsToVerify);
     
     if (results.length > 0) {
-      // Update positions with verified data
       for (const result of results) {
-        const position = positions.find(p => p.ticker === result.original_ticker);
-        if (!position) continue;
-
-        const updates: Record<string, unknown> = {};
-        
-        if (result.current_price !== null) {
-          updates.current_price = result.current_price;
-          updates.market_value = (position.shares ?? 0) * result.current_price;
-        }
-        
-        if (result.name) {
-          updates.name = result.name;
-        }
-        
-        if (result.category) {
-          updates.category = result.category;
-        }
-        
-        if (result.asset_type) {
-          updates.position_type = result.asset_type;
-        }
-
-        if (Object.keys(updates).length > 0) {
-          await supabase
-            .from("positions")
-            .update(updates)
-            .eq("id", position.id);
+        if (result.name || result.category || result.asset_type) {
+          await updateAnnotation({
+            ticker: result.original_ticker,
+            formData: {
+              name: result.name || undefined,
+              category: result.category as any || undefined,
+              position_type: result.asset_type as any || undefined,
+            } as any,
+          });
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ["positions"] });
-      
       const confirmedCount = results.filter(r => r.verification_status === "confirmed").length;
       const correctedCount = results.filter(r => r.verification_status === "corrected").length;
       
@@ -296,8 +174,8 @@ export default function Portfolio() {
     setShowPriceModal(true);
     const tickerInfos = positions.map(p => ({
       ticker: p.ticker,
-      currency: (p as any).currency || undefined,
-      exchange: (p as any).exchange || undefined,
+      currency: p.currency || undefined,
+      exchange: p.exchange || undefined,
       instrumentType: p.position_type === "stock" ? "Stock" : p.position_type === "etf" ? "ETF" : undefined,
     }));
     const { prices, notFound } = await fetchPrices(tickerInfos);
@@ -318,83 +196,41 @@ export default function Portfolio() {
       const lookup = lookupTicker(position.ticker);
       if (!lookup) continue;
 
-      const updates: Record<string, unknown> = {};
+      const updates: Partial<PositionFormData> = {};
 
-      // Fix type (stock vs etf)
       if (lookup.type === "etf" && position.position_type !== "etf") {
         updates.position_type = "etf";
       }
       if (lookup.type === "stock" && position.position_type !== "stock") {
         updates.position_type = "stock";
       }
-
-      // Fix category from reference data
       if (lookup.category && position.category !== lookup.category) {
-        updates.category = lookup.category;
+        updates.category = lookup.category as any;
       }
-
-      // Fix name if it looks wrong (current name doesn't match reference)
       if (lookup.name) {
-        const currentName = (position.name || "").toLowerCase();
-        const refWords = lookup.name.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-        const hasMatch = refWords.some(w => currentName.includes(w));
-        if (!hasMatch || !position.name || position.name === "Company name") {
-          updates.name = lookup.name;
-        }
+        updates.name = lookup.name;
       }
 
       if (Object.keys(updates).length > 0) {
-        const { error } = await supabase
-          .from("positions")
-          .update(updates)
-          .eq("id", position.id);
-        if (!error) updatedCount++;
+        await updateAnnotation({ ticker: position.ticker, formData: updates as any });
+        updatedCount++;
       }
     }
 
     if (updatedCount > 0) {
-      queryClient.invalidateQueries({ queryKey: ["positions"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      await recalculateWeights();
       toast.success(`Updated ${updatedCount} positions from ticker reference`);
     } else {
       toast.info("All positions already correctly classified");
     }
   };
 
-  // Apply price updates
+  // Apply price updates — note: IB is source of truth for prices,
+  // but we can still create snapshots for tracking
   const handleApplyPriceUpdates = async (updates: { id: string; current_price: number }[]) => {
     if (!user) return;
 
     try {
-      // Update each position
-      for (const update of updates) {
-        const position = positions.find(p => p.id === update.id);
-        if (!position) continue;
-
-        const newMarketValue = (position.shares ?? 0) * update.current_price;
-        
-        await supabase
-          .from("positions")
-          .update({
-            current_price: update.current_price,
-            market_value: newMarketValue,
-          })
-          .eq("id", update.id);
-      }
-
-      // Recalculate weights
-      await recalculateWeights();
-
-      // Create snapshot with price refresh timestamp
-      const totalMV = positions.reduce((sum, p) => {
-        const update = updates.find(u => u.id === p.id);
-        if (update) {
-          return sum + (p.shares ?? 0) * update.current_price;
-        }
-        return sum + (p.market_value ?? 0);
-      }, 0);
-
+      const totalMV = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
       const stocksValue = positions
         .filter(p => p.position_type === "stock")
         .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
@@ -415,10 +251,10 @@ export default function Portfolio() {
       });
 
       setLastPriceRefresh(new Date());
-      queryClient.invalidateQueries({ queryKey: ["positions"] });
+      queryClient.invalidateQueries({ queryKey: ["ib-positions"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       
-      toast.success(`Prices updated for ${updates.length} positions`);
+      toast.success(`Price snapshot recorded for ${updates.length} positions`);
     } catch (error) {
       console.error("Failed to apply price updates:", error);
       toast.error("Failed to update prices. Please try again.");
@@ -456,15 +292,6 @@ export default function Portfolio() {
           </Button>
           <Button 
             variant="outline" 
-            className="gap-2 text-destructive hover:text-destructive"
-            onClick={() => setShowClearPortfolioModal(true)}
-            disabled={positions.length === 0}
-          >
-            <Trash2 className="w-4 h-4" />
-            Clear Portfolio
-          </Button>
-          <Button 
-            variant="outline" 
             className="gap-2"
             onClick={handleRefreshPrices}
             disabled={positions.length === 0 || isFetchingPrices}
@@ -480,29 +307,6 @@ export default function Portfolio() {
           >
             <TrendingUp className="w-4 h-4" />
             {isFetchingFundamentals ? "Fetching..." : "Fetch Fundamentals"}
-          </Button>
-          <Button 
-            variant="outline" 
-            className="gap-2"
-            onClick={handleUploadScreenshot}
-          >
-            <Upload className="w-4 h-4" />
-            Upload Screenshot
-          </Button>
-          <Button 
-            variant="outline" 
-            className="gap-2"
-            onClick={() => setShowCSVModal(true)}
-          >
-            <Upload className="w-4 h-4" />
-            Import CSV
-          </Button>
-          <Button 
-            className="gap-2"
-            onClick={() => setShowAddModal(true)}
-          >
-            <Plus className="w-4 h-4" />
-            Add Position
           </Button>
         </div>
       </div>
@@ -535,22 +339,6 @@ export default function Portfolio() {
               <span>Verifying {verifyProgress.current}-{Math.min(verifyProgress.current + 4, verifyProgress.total)} of {verifyProgress.total}...</span>
             </div>
           )}
-          {selectedIds.length > 0 && (
-            <>
-              <span className="text-sm text-muted-foreground self-center mr-2">
-                {selectedIds.length} selected
-              </span>
-              <Button
-                variant="destructive"
-                size="sm"
-                className="gap-2"
-                onClick={() => setShowBulkDeleteModal(true)}
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete Selected
-              </Button>
-            </>
-          )}
           <Button
             variant="outline"
             size="sm"
@@ -561,19 +349,8 @@ export default function Portfolio() {
             <CheckCircle className="w-4 h-4" />
             {isVerifying ? "Verifying..." : "Verify All Tickers"}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={handleRecalculateWeights}
-            disabled={positions.length === 0}
-          >
-            <RefreshCw className="w-4 h-4" />
-            Recalculate Weights
-          </Button>
         </div>
       </div>
-
 
       {/* Positions Table or Empty State */}
       {!isLoading && positions.length === 0 ? (
@@ -581,75 +358,35 @@ export default function Portfolio() {
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <Briefcase className="w-8 h-8 text-primary" />
           </div>
-          <h2 className="text-xl font-semibold text-foreground mb-2">No positions yet</h2>
+          <h2 className="text-xl font-semibold text-foreground mb-2">No IB positions synced</h2>
           <p className="text-muted-foreground text-center max-w-md mb-6">
-            Start building your portfolio by adding your first position or uploading a screenshot from your broker.
+            Connect your Interactive Brokers account in Settings and sync to see your positions here.
           </p>
-          <div className="flex gap-3">
-            <Button 
-              variant="outline" 
-              className="gap-2"
-              onClick={handleUploadScreenshot}
-            >
-              <Upload className="w-4 h-4" />
-              Upload Screenshot
-            </Button>
-            <Button 
-              variant="outline" 
-              className="gap-2"
-              onClick={() => setShowCSVModal(true)}
-            >
-              <Upload className="w-4 h-4" />
-              Import CSV
-            </Button>
-            <Button 
-              className="gap-2"
-              onClick={() => setShowAddModal(true)}
-            >
-              <Plus className="w-4 h-4" />
-              Add First Position
-            </Button>
-          </div>
         </div>
       ) : (
         <PositionsTable
           positions={filteredPositions}
           isLoading={isLoading}
           onEdit={setEditingPosition}
-          onDelete={setDeletingPosition}
+          onDelete={() => {}} // No-op: IB is source of truth
           onLogDecision={setLoggingDecisionFor}
           onVerify={handleVerifyPosition}
           isVerifying={isVerifying}
           verifyingId={verifyingPositionId}
-          selectedIds={selectedIds}
-          onSelectionChange={setSelectedIds}
+          selectedIds={[]}
+          onSelectionChange={() => {}}
+          hideDeleteActions
         />
       )}
 
-      {/* Add Position Modal */}
-      <PositionModal
-        open={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onSubmit={handleAddPosition}
-        isLoading={isAdding}
-      />
-
-      {/* Edit Position Modal */}
+      {/* Edit Position Modal (annotations only) */}
       <PositionModal
         open={!!editingPosition}
         onClose={() => setEditingPosition(null)}
-        onSubmit={handleUpdatePosition}
+        onSubmit={handleUpdateAnnotation}
         position={editingPosition}
         isLoading={isUpdating}
-      />
-
-      {/* Delete Confirmation Modal */}
-      <DeleteConfirmModal
-        open={!!deletingPosition}
-        onClose={() => setDeletingPosition(null)}
-        onConfirm={handleDeletePosition}
-        ticker={deletingPosition?.ticker ?? ""}
-        isLoading={isDeleting}
+        annotationOnly
       />
 
       {/* Log Decision Modal */}
@@ -657,20 +394,6 @@ export default function Portfolio() {
         open={!!loggingDecisionFor}
         onClose={() => setLoggingDecisionFor(null)}
         position={loggingDecisionFor}
-      />
-
-      {/* Upload Screenshot Modal */}
-      <UploadScreenshotModal
-        open={showUploadModal}
-        onClose={() => setShowUploadModal(false)}
-        onImportComplete={handleUploadComplete}
-      />
-
-      {/* Upload CSV Modal */}
-      <UploadCSVModal
-        open={showCSVModal}
-        onClose={() => setShowCSVModal(false)}
-        onImportComplete={handleUploadComplete}
       />
 
       {/* Refresh Prices Modal */}
@@ -688,61 +411,6 @@ export default function Portfolio() {
         progress={priceProgress}
         onApply={handleApplyPriceUpdates}
       />
-
-      {/* Bulk Delete Confirmation Modal */}
-      <DeleteConfirmModal
-        open={showBulkDeleteModal}
-        onClose={() => setShowBulkDeleteModal(false)}
-        onConfirm={handleBulkDelete}
-        ticker={`${selectedIds.length} position${selectedIds.length !== 1 ? "s" : ""}`}
-        isLoading={isBulkDeleting}
-      />
-
-      {/* Clear Portfolio Confirmation */}
-      <AlertDialog open={showClearPortfolioModal} onOpenChange={setShowClearPortfolioModal}>
-        <AlertDialogContent className="bg-card border-border">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-foreground">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
-              Clear Entire Portfolio
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-muted-foreground">
-              This will permanently delete all {positions.length} position{positions.length !== 1 ? "s" : ""} from your portfolio. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isClearingPortfolio}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={isClearingPortfolio}
-              onClick={async (e) => {
-                e.preventDefault();
-                setIsClearingPortfolio(true);
-                try {
-                  const { error } = await supabase
-                    .from("positions")
-                    .delete()
-                    .eq("user_id", user!.id);
-                  if (error) throw error;
-                  // Reset cash balance to 0
-                  await updateCashBalance(0);
-                  queryClient.invalidateQueries({ queryKey: ["positions"] });
-                  queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-                  setSelectedIds([]);
-                  toast.success("Portfolio cleared successfully");
-                  setShowClearPortfolioModal(false);
-                } catch (err) {
-                  toast.error("Failed to clear portfolio");
-                } finally {
-                  setIsClearingPortfolio(false);
-                }
-              }}
-            >
-              {isClearingPortfolio ? "Clearing..." : "Delete All Positions"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
