@@ -45,7 +45,8 @@ function computeRuleEvaluation(
   rules: any[],
   etfClassifications: any[],
   cashBalance: number,
-  totalPortfolioValue: number
+  totalPortfolioValue: number,
+  riskProfile?: { profile: string; score?: number; dimension_scores?: any } | null
 ): RuleEvaluation {
   const safePositions = positions ?? [];
   const safeRules = (rules ?? []).filter((r: any) => r.is_active !== false);
@@ -138,6 +139,16 @@ function computeRuleEvaluation(
   const issues: string[] = [];
   const softIssues: string[] = [];
 
+  // Override Cash Limit rule thresholds with risk-profile-based cash guidance
+  const riskCashRanges: Record<string, { min: number; max: number }> = {
+    cautious: { min: 10, max: 20 },
+    balanced: { min: 10, max: 20 },
+    growth: { min: 3, max: 10 },
+    aggressive: { min: 1, max: 5 },
+  };
+  const profileKey = (riskProfile?.profile ?? "").toLowerCase();
+  const cashOverride = riskCashRanges[profileKey] ?? null;
+
   for (const rule of safeRules) {
     // Match allocation rules by rule_type OR category
     const isAllocationRule = rule.rule_type === "allocation" || rule.category === "allocation";
@@ -164,8 +175,13 @@ function computeRuleEvaluation(
       continue;
     }
 
-    const min = rule.threshold_min;
-    const max = rule.threshold_max;
+    // Override cash limit thresholds from risk profile if available
+    let min = rule.threshold_min;
+    let max = rule.threshold_max;
+    if (metric === "cash_percent" && cashOverride) {
+      min = cashOverride.min;
+      max = cashOverride.max;
+    }
     let status: RuleStatus = "within_range";
     let message = "";
 
@@ -280,6 +296,14 @@ serve(async (req) => {
       });
     }
 
+    // Risk-profile-based cash guidance ranges
+    const riskCashRanges: Record<string, { min: number; max: number }> = {
+      cautious: { min: 10, max: 20 },
+      balanced: { min: 10, max: 20 },
+      growth: { min: 3, max: 10 },
+      aggressive: { min: 1, max: 5 },
+    };
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       return new Response(
@@ -305,7 +329,7 @@ serve(async (req) => {
 
     // ── Deterministic Rule Evaluation ─────────────────────────────────
     const ruleEvaluation = computeRuleEvaluation(
-      positions, rules, etf_classifications, cash_balance ?? 0, total_portfolio_value ?? 0
+      positions, rules, etf_classifications, cash_balance ?? 0, total_portfolio_value ?? 0, risk_profile
     );
     console.log("Rule evaluation computed:", JSON.stringify({
       main: ruleEvaluation.main_allocation_issues,
@@ -337,6 +361,15 @@ It NEVER overrides explicit numeric min/max in rules or rule_evaluation.
 
 RISK PROFILE (behavioral risk tolerance)
 The user may provide "risk_profile" with { profile, score, dimension_scores } and "behavioral_alignment" with { aligned_ratio, total_signals, aligned_count }.
+
+RISK PROFILE ALLOCATION TARGETS:
+When a risk profile is active, the user has specific allocation targets as a percentage of TOTAL PORTFOLIO VALUE (including cash):
+- Cautious: Broad Market ETFs 80%, Industry/Theme ETFs 10%, Individual Stocks 5%, Cash 10-20%
+- Balanced: Broad Market ETFs 70%, Industry/Theme ETFs 20%, Individual Stocks 10%, Cash 10-20%
+- Growth: Broad Market ETFs 60%, Industry/Theme ETFs 25%, Individual Stocks 15%, Cash 3-10%
+- Aggressive: Broad Market ETFs 50%, Industry/Theme ETFs 30%, Individual Stocks 20%, Cash 1-5%
+
+CRITICAL: ALL allocation percentages are calculated as a share of TOTAL PORTFOLIO VALUE including cash. Individual stocks at 10% means 10% of the entire portfolio, NOT 10% of equities. Evaluate the portfolio against these profile-based targets FIRST, then apply philosophy rules as secondary constraints.
 
 Risk profile calibrates POSITION-LEVEL sizing and CASH BUFFER recommendations:
 - "cautious": max individual stock position 3-5% of portfolio. Flag any single position above 10% as high risk. Suggest higher cash buffer (10-20%). Favor broad market ETFs over concentrated bets.
@@ -625,9 +658,21 @@ RULE EVALUATION (precomputed — use as ground truth for ALL rule statuses and p
 ${JSON.stringify(ruleEvaluation, null, 2)}
 
 ${risk_profile ? `RISK PROFILE:
-- Profile: ${risk_profile.profile}
+- Profile: ${(risk_profile.profile ?? 'balanced')}
 - Score: ${risk_profile.score ?? "N/A"}
-- Dimension Scores: ${JSON.stringify(risk_profile.dimension_scores ?? {})}` : "No risk profile set."}
+- Dimension Scores: ${JSON.stringify(risk_profile.dimension_scores ?? {})}
+- ALLOCATION TARGETS (as % of total portfolio including cash):
+${(() => {
+  const targets: Record<string, { broad: number; theme: number; stocks: number; cashRange: string }> = {
+    cautious: { broad: 80, theme: 10, stocks: 5, cashRange: "10-20%" },
+    balanced: { broad: 70, theme: 20, stocks: 10, cashRange: "10-20%" },
+    growth: { broad: 60, theme: 25, stocks: 15, cashRange: "3-10%" },
+    aggressive: { broad: 50, theme: 30, stocks: 20, cashRange: "1-5%" },
+  };
+  const t = targets[(risk_profile.profile ?? 'balanced').toLowerCase()] ?? targets.balanced;
+  return `  Broad Market ETFs: ${t.broad}%, Industry/Theme ETFs: ${t.theme}%, Individual Stocks: ${t.stocks}%, Cash: ${t.cashRange}`;
+})()}
+- IMPORTANT: Evaluate portfolio against these targets first. All percentages are of TOTAL portfolio value including cash.` : "No risk profile set — use default balanced targets."}
 
 ${behavioral_alignment ? `BEHAVIORAL ALIGNMENT:
 - Aligned ratio: ${behavioral_alignment.aligned_ratio} (${behavioral_alignment.aligned_count}/${behavioral_alignment.total_signals} recent trades matched stated profile)` : "No behavioral signals available."}
