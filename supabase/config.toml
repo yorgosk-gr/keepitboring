@@ -20,3 +20,9 @@ verify_jwt = false
 
 [functions.classify-etf]
 verify_jwt = false
+
+[functions.sync-ib-data]
+verify_jwt = false
+
+[functions.correlate-signals]
+verify_jwt = false

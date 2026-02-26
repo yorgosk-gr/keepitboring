@@ -5,6 +5,7 @@ import { PhilosophyModeSection } from "@/components/settings/PhilosophyModeSecti
 import { NotificationSection } from "@/components/settings/NotificationSection";
 import { DataManagementSection } from "@/components/settings/DataManagementSection";
 import { StorageDashboardSection } from "@/components/settings/StorageDashboardSection";
+import { IBConnectionSection } from "@/components/settings/IBConnectionSection";
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -56,6 +57,8 @@ export default function Settings() {
       </div>
 
       <div className="space-y-6">
+        <IBConnectionSection />
+
         <ApiConfigSection />
 
         <PhilosophyModeSection
