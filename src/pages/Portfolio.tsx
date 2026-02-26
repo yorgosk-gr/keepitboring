@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, TrendingUp, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePositions, type Position, type PositionFormData } from "@/hooks/usePositions";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useTickerVerification } from "@/hooks/useTickerVerification";
@@ -305,42 +306,96 @@ export default function Portfolio() {
         </div>
         
         <div className="flex flex-wrap gap-2">
-          <Button 
-            variant="outline" 
-            className="gap-2"
-            onClick={handleReclassifyETFs}
-            disabled={positions.length === 0}
-          >
-            <Tags className="w-4 h-4" />
-            Reclassify ETFs
-          </Button>
-          <Button 
-            variant="outline" 
-            className="gap-2"
-            onClick={handleRefreshPrices}
-            disabled={positions.length === 0 || isFetchingPrices}
-          >
-            <DollarSign className="w-4 h-4" />
-            Refresh Prices
-          </Button>
-          <Button 
-            variant="outline" 
-            className="gap-2"
-            onClick={() => fetchFundamentals(positions)}
-            disabled={positions.length === 0 || isFetchingFundamentals}
-          >
-            <TrendingUp className="w-4 h-4" />
-            {isFetchingFundamentals ? "Fetching..." : "Fetch Fundamentals"}
-          </Button>
-          <Button 
-            variant="outline" 
-            className="gap-2 text-destructive hover:bg-destructive/10"
-            onClick={() => setShowClearConfirm(true)}
-            disabled={positions.length === 0}
-          >
-            <Trash2 className="w-4 h-4" />
-            Clear All
-          </Button>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="gap-2"
+                  onClick={handleReclassifyETFs}
+                  disabled={positions.length === 0}
+                >
+                  <Tags className="w-4 h-4" />
+                  <span className="hidden sm:inline">①</span> Reclassify
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                <p className="font-medium">Step 1: Reclassify ETFs</p>
+                <p className="text-xs text-muted-foreground">Instantly correct types &amp; categories using local reference. Fast &amp; free.</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={handleVerifyAll}
+                  disabled={positions.length === 0 || isVerifying}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  <span className="hidden sm:inline">②</span> {isVerifying ? "Verifying..." : "Verify"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                <p className="font-medium">Step 2: Verify Tickers</p>
+                <p className="text-xs text-muted-foreground">AI web search to confirm tickers, correct mismatches, fill metadata. Cached 24h.</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="gap-2"
+                  onClick={handleRefreshPrices}
+                  disabled={positions.length === 0 || isFetchingPrices}
+                >
+                  <DollarSign className="w-4 h-4" />
+                  <span className="hidden sm:inline">③</span> Prices
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                <p className="font-medium">Step 3: Refresh Prices</p>
+                <p className="text-xs text-muted-foreground">Live prices from Yahoo Finance, FX-converted to USD, with preview before applying.</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="gap-2"
+                  onClick={() => fetchFundamentals(positions)}
+                  disabled={positions.length === 0 || isFetchingFundamentals}
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  <span className="hidden sm:inline">④</span> {isFetchingFundamentals ? "Fetching..." : "Fundamentals"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                <p className="font-medium">Step 4: Fetch Fundamentals</p>
+                <p className="text-xs text-muted-foreground">Pull ROIC, Earnings Yield etc. for stocks. Powers portfolio analysis quality checks.</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="gap-2 text-destructive hover:bg-destructive/10"
+                  onClick={() => setShowClearConfirm(true)}
+                  disabled={positions.length === 0}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Clear All
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p className="text-xs">Delete all positions from the database</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
 
@@ -354,7 +409,7 @@ export default function Portfolio() {
         />
       </div>
 
-      {/* Search and Actions Bar */}
+      {/* Search Bar */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -365,24 +420,11 @@ export default function Portfolio() {
             className="pl-10 bg-secondary border-border"
           />
         </div>
-        
-        <div className="flex gap-2 items-center">
-          {isVerifying && verifyProgress.total > 0 && (
-            <div className="flex items-center gap-2 mr-2 text-sm text-muted-foreground">
-              <span>Verifying {verifyProgress.current}-{Math.min(verifyProgress.current + 4, verifyProgress.total)} of {verifyProgress.total}...</span>
-            </div>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={handleVerifyAll}
-            disabled={positions.length === 0 || isVerifying}
-          >
-            <CheckCircle className="w-4 h-4" />
-            {isVerifying ? "Verifying..." : "Verify All Tickers"}
-          </Button>
-        </div>
+        {isVerifying && verifyProgress.total > 0 && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Verifying {verifyProgress.current}-{Math.min(verifyProgress.current + 4, verifyProgress.total)} of {verifyProgress.total}...</span>
+          </div>
+        )}
       </div>
 
       {/* Positions Table or Empty State */}
