@@ -56,10 +56,9 @@ Deno.serve(async (req) => {
     }
 
     // Create Supabase client with service role key to bypass RLS
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // Get user_id from ib_accounts (single-user setup)
     const { data: account, error: accountError } = await supabase
@@ -79,25 +78,58 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { error: insertError } = await supabase.from("newsletters").insert({
-      user_id: account.user_id,
-      source_name: subject,
-      raw_text: rawText,
-      upload_date: new Date().toISOString().split("T")[0],
-      processed: false,
-    });
+    // Insert newsletter row and get the ID back
+    const { data: newsletter, error: insertError } = await supabase
+      .from("newsletters")
+      .insert({
+        user_id: account.user_id,
+        source_name: subject,
+        raw_text: rawText,
+        upload_date: new Date().toISOString().split("T")[0],
+        processed: false,
+      })
+      .select("id")
+      .single();
 
-    if (insertError) {
+    if (insertError || !newsletter) {
       console.error("Insert error:", insertError);
-      return new Response(JSON.stringify({ error: insertError.message }), {
+      return new Response(JSON.stringify({ error: insertError?.message ?? "Insert failed" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    console.log(`Newsletter ingested: "${subject}"`);
+    console.log(`Newsletter ingested: "${subject}" (${newsletter.id})`);
+
+    // Auto-process: call process-newsletter edge function with service role key
+    try {
+      const processUrl = `${supabaseUrl}/functions/v1/process-newsletter`;
+      const processResponse = await fetch(processUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({
+          newsletterId: newsletter.id,
+          rawText,
+        }),
+      });
+
+      const processResult = await processResponse.json();
+
+      if (processResponse.ok) {
+        console.log(`Auto-processed newsletter: ${processResult.insights_count} insights extracted`);
+      } else {
+        console.error("Auto-process failed (newsletter saved, user can retry manually):", processResult);
+      }
+    } catch (processErr) {
+      // Non-fatal: newsletter is saved, user can process manually
+      console.error("Auto-process error (non-fatal):", processErr);
+    }
+
     return new Response(
-      JSON.stringify({ success: true, source_name: subject }),
+      JSON.stringify({ success: true, source_name: subject, id: newsletter.id }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
