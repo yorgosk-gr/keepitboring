@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, TrendingUp } from "lucide-react";
+import { Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, TrendingUp, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePositions, type Position, type PositionFormData } from "@/hooks/usePositions";
@@ -14,6 +14,7 @@ import { PositionModal } from "@/components/portfolio/PositionModal";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import { RefreshPricesModal } from "@/components/portfolio/RefreshPricesModal";
 import { CashBalanceEditor } from "@/components/portfolio/CashBalanceEditor";
+import { DeleteConfirmModal } from "@/components/portfolio/DeleteConfirmModal";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -49,6 +50,8 @@ export default function Portfolio() {
   // Modal states
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [loggingDecisionFor, setLoggingDecisionFor] = useState<Position | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   // Load last price refresh timestamp
   useEffect(() => {
@@ -224,7 +227,28 @@ export default function Portfolio() {
     }
   };
 
-  // Apply price updates — note: IB is source of truth for prices,
+  // Handle clearing all positions
+  const handleClearAllPositions = async () => {
+    if (!user) return;
+    setIsClearing(true);
+    try {
+      const { error } = await supabase
+        .from("positions")
+        .delete()
+        .eq("user_id", user.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["positions"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("All positions cleared");
+    } catch (err: any) {
+      toast.error("Failed to clear positions: " + err.message);
+    } finally {
+      setIsClearing(false);
+      setShowClearConfirm(false);
+    }
+  };
+
+
   // but we can still create snapshots for tracking
   const handleApplyPriceUpdates = async (updates: { id: string; current_price: number }[]) => {
     if (!user) return;
@@ -307,6 +331,15 @@ export default function Portfolio() {
           >
             <TrendingUp className="w-4 h-4" />
             {isFetchingFundamentals ? "Fetching..." : "Fetch Fundamentals"}
+          </Button>
+          <Button 
+            variant="outline" 
+            className="gap-2 text-destructive hover:bg-destructive/10"
+            onClick={() => setShowClearConfirm(true)}
+            disabled={positions.length === 0}
+          >
+            <Trash2 className="w-4 h-4" />
+            Clear All
           </Button>
         </div>
       </div>
@@ -412,6 +445,15 @@ export default function Portfolio() {
         isFetching={isFetchingPrices}
         progress={priceProgress}
         onApply={handleApplyPriceUpdates}
+      />
+
+      {/* Clear All Positions Confirmation */}
+      <DeleteConfirmModal
+        open={showClearConfirm}
+        onClose={() => setShowClearConfirm(false)}
+        onConfirm={handleClearAllPositions}
+        ticker="ALL POSITIONS"
+        isLoading={isClearing}
       />
     </div>
   );
