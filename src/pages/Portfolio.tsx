@@ -228,17 +228,20 @@ export default function Portfolio() {
     }
   };
 
-  // Handle clearing all positions
+  // Handle clearing all positions (IB source + annotations)
   const handleClearAllPositions = async () => {
     if (!user) return;
     setIsClearing(true);
     try {
-      const { error } = await supabase
-        .from("positions")
-        .delete()
-        .eq("user_id", user.id);
-      if (error) throw error;
+      // Delete from both tables in parallel
+      const [ibResult, posResult] = await Promise.all([
+        supabase.from("ib_positions").delete().eq("user_id", user.id),
+        supabase.from("positions").delete().eq("user_id", user.id),
+      ]);
+      if (ibResult.error) throw ibResult.error;
+      if (posResult.error) throw posResult.error;
       queryClient.invalidateQueries({ queryKey: ["positions"] });
+      queryClient.invalidateQueries({ queryKey: ["ib-positions"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success("All positions cleared");
     } catch (err: any) {
