@@ -7,6 +7,7 @@ import { QuickStats } from "@/components/dashboard/QuickStats";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useAllETFMetadata } from "@/hooks/useAllETFMetadata";
 import { PortfolioXRay } from "@/components/dashboard/PortfolioXRay";
+import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { RiskProfileCard } from "@/components/dashboard/RiskProfileCard";
 import { Button } from "@/components/ui/button";
 import { useMemo } from "react";
@@ -194,6 +195,9 @@ export default function Dashboard() {
           showTargetIndicator
         />
       </div>
+
+      {/* Performance Chart */}
+      <PerformanceChart />
 
       {/* Risk Profile + X-Ray */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

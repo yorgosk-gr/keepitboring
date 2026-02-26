@@ -67,6 +67,18 @@ export function useIBSync() {
         toast.warning("Behavioral mismatch detected — consider recalibrating your risk profile");
       }
 
+      // Step 3: Sync performance data
+      try {
+        const { data: perfData, error: perfError } = await supabase.functions.invoke("sync-ib-performance");
+        if (perfError) console.error("Performance sync error:", perfError.message);
+        else if (perfData?.error) console.error("Performance sync error:", perfData.error);
+        else toast.success(`Synced ${perfData.synced.nav_records} NAV records, ${perfData.synced.twr_records} TWR records`);
+        queryClient.invalidateQueries({ queryKey: ["nav-history"] });
+        queryClient.invalidateQueries({ queryKey: ["twr-history"] });
+      } catch (perfErr: any) {
+        console.error("Performance sync failed:", perfErr.message);
+      }
+
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ["ib-account"] });
       queryClient.invalidateQueries({ queryKey: ["risk-profile"] });
