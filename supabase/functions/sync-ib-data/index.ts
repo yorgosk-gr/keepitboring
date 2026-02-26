@@ -162,11 +162,10 @@ function parsePositions(xml: string, userId: string, accountId: string) {
   }));
 }
 
-function parseCashBalance(xml: string): number | null {
+function parseCashBalance(xml: string, positions: { position_value: number | null; percent_of_nav: number | null }[]): number | null {
   // Try CashReportCurrency tags first (most common in Flex reports)
   const cashTags = extractTags(xml, "CashReportCurrency");
   if (cashTags.length > 0) {
-    // Find the BASE_SUMMARY or total row, fallback to first row
     const baseSummary = cashTags.find(t => t.currency === "BASE_SUMMARY") || cashTags[0];
     const ending = safeNum(baseSummary.endingCash) ?? safeNum(baseSummary.endingSettledCash);
     if (ending !== null) {
@@ -175,7 +174,7 @@ function parseCashBalance(xml: string): number | null {
     }
   }
 
-  // Try EquitySummaryInBase (has endingCash attribute)
+  // Try EquitySummaryInBase (has cash attribute)
   const equitySummary = extractTags(xml, "EquitySummaryInBase");
   if (equitySummary.length > 0) {
     const cash = safeNum(equitySummary[0].cash);
@@ -192,6 +191,19 @@ function parseCashBalance(xml: string): number | null {
     if (val !== null) {
       console.log(`Parsed cash balance from endingCash attribute: ${val}`);
       return val;
+    }
+  }
+
+  // Fallback: derive cash from NAV minus total position values
+  // NAV = positionValue / (percentOfNAV / 100) for any position with both values
+  if (positions.length > 0) {
+    const posWithNav = positions.find(p => p.position_value && p.percent_of_nav && p.percent_of_nav > 0);
+    if (posWithNav) {
+      const nav = (posWithNav.position_value! / posWithNav.percent_of_nav!) * 100;
+      const totalPositionValue = positions.reduce((sum, p) => sum + (p.position_value || 0), 0);
+      const cash = Math.round((nav - totalPositionValue) * 100) / 100;
+      console.log(`Derived cash balance from NAV: NAV=${nav.toFixed(2)}, positions=${totalPositionValue.toFixed(2)}, cash=${cash}`);
+      return cash;
     }
   }
 
@@ -254,7 +266,7 @@ serve(async (req) => {
     const trades = parseTrades(xml, user.id, ib_account_id);
     const positions = parsePositions(xml, user.id, ib_account_id);
     const cashTxns = parseCashTransactions(xml, user.id, ib_account_id);
-    const cashBalance = parseCashBalance(xml);
+    const cashBalance = parseCashBalance(xml, positions);
 
     console.log(`Parsed: ${trades.length} trades, ${positions.length} positions, ${cashTxns.length} cash transactions, cash: ${cashBalance}`);
 
