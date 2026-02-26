@@ -7,9 +7,11 @@ import { useRiskProfile, type RiskProfileType } from "@/hooks/useRiskProfile";
 import { RiskProfileOnboarding } from "@/components/onboarding/RiskProfileOnboarding";
 import { RiskProfileUpdate } from "@/components/settings/RiskProfileUpdate";
 import type { Position } from "@/hooks/useDashboardData";
+import type { ETFMetadataItem } from "@/hooks/useAllETFMetadata";
 
 interface RiskProfileCardProps {
   positions: Position[];
+  etfMetadata: Record<string, ETFMetadataItem>;
   totalValue: number;
   cashBalance: number;
   isLoading?: boolean;
@@ -22,7 +24,7 @@ const PROFILE_CONFIG: Record<RiskProfileType, { label: string; color: string; ic
   aggressive: { label: "Aggressive", color: "text-destructive", icon: Target },
 };
 
-export function RiskProfileCard({ positions, totalValue, cashBalance, isLoading: positionsLoading }: RiskProfileCardProps) {
+export function RiskProfileCard({ positions, etfMetadata, totalValue, cashBalance, isLoading: positionsLoading }: RiskProfileCardProps) {
   const { activeProfile, isLoading: profileLoading, hasProfile } = useRiskProfile();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showUpdate, setShowUpdate] = useState(false);
@@ -39,9 +41,10 @@ export function RiskProfileCard({ positions, totalValue, cashBalance, isLoading:
       if (p.position_type === "stock") {
         individual.current += weight;
       } else if (p.position_type === "etf") {
-        // Use bet_type to distinguish broad from thematic
-        const betType = p.bet_type?.toLowerCase();
-        if (betType === "satellite" || betType === "explore") {
+        // Use ETF metadata is_broad_market flag, fallback to bet_type
+        const meta = etfMetadata[p.ticker];
+        const isBroad = meta?.is_broad_market ?? true;
+        if (!isBroad) {
           thematic.current += weight;
         } else {
           broad.current += weight;
