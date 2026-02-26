@@ -79,7 +79,6 @@ const DEFAULT_RULES: Omit<PhilosophyRule, "id" | "user_id" | "created_at">[] = [
   { name: "Earnings Yield Floor", rule_type: "quality", threshold_min: 5, threshold_max: null, description: "Prefer stocks with >5% earnings yield", source_books: ["Greenblatt"], is_active: true, rule_enforcement: "diagnostic", scope: "position", category: "quality", metric: "earnings_yield", operator: ">=", tags: ["fundamentals", "valuation"], message_on_breach: "Earnings yield below floor", scoring_weight: null },
   { name: "ROIC Floor", rule_type: "quality", threshold_min: 15, threshold_max: null, description: "Prefer stocks with >15% ROIC", source_books: ["Greenblatt", "Thorndike"], is_active: true, rule_enforcement: "diagnostic", scope: "position", category: "quality", metric: "roic", operator: ">=", tags: ["fundamentals", "quality"], message_on_breach: "ROIC below floor", scoring_weight: null },
   // Behavior Rules
-  { name: "Bet Type Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "Positions >3% must have declared bet type", source_books: ["Duke"], is_active: true, rule_enforcement: "soft", scope: "position", category: "behavior", metric: "has_bet_type", operator: ">=", tags: ["discipline", "process"], message_on_breach: "Large position missing bet type classification", scoring_weight: null },
   { name: "Confidence Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "All positions need confidence rating", source_books: ["Duke"], is_active: true, rule_enforcement: "soft", scope: "position", category: "behavior", metric: "has_confidence", operator: ">=", tags: ["discipline", "process"], message_on_breach: "Position missing confidence rating", scoring_weight: null },
   { name: "Thesis Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "Stock positions need written thesis", source_books: ["Duke", "Marks"], is_active: true, rule_enforcement: "soft", scope: "position", category: "behavior", metric: "has_thesis", operator: ">=", tags: ["discipline", "process"], message_on_breach: "Stock missing investment thesis", scoring_weight: null },
   { name: "Invalidation Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "Must define what would invalidate thesis", source_books: ["Duke"], is_active: true, rule_enforcement: "soft", scope: "position", category: "behavior", metric: "has_invalidation", operator: ">=", tags: ["discipline", "process"], message_on_breach: "Position missing invalidation criteria", scoring_weight: null },
@@ -374,8 +373,8 @@ export function usePhilosophyRules() {
   const resolveBehaviorMetric = (metric: string): { passing: boolean; violators: string[] } => {
     switch (metric) {
       case "has_bet_type": {
-        const v = positions.filter(p => getPositionWeight(p) > 3 && !p.bet_type);
-        return { passing: v.length === 0, violators: v.map(p => p.ticker) };
+        // bet_type removed — always passing
+        return { passing: true, violators: [] };
       }
       case "has_confidence": {
         const v = positions.filter(p => p.confidence_level === null);

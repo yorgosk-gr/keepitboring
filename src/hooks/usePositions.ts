@@ -19,7 +19,6 @@ export interface Position {
   market_value: number | null;
   weight_percent: number | null;
   thesis_notes: string | null;
-  bet_type: string | null;
   confidence_level: number | null;
   last_review_date: string | null;
   created_at: string;
@@ -38,7 +37,6 @@ export interface PositionFormData {
   shares: number;
   avg_cost: number;
   current_price: number;
-  bet_type: "core" | "satellite" | "explore";
   confidence_level: number;
   thesis_notes?: string;
   invalidation_triggers?: string;
@@ -110,7 +108,7 @@ export function usePositions() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("positions")
-        .select("ticker, thesis_notes, bet_type, confidence_level, last_review_date, category, position_type, name, currency, exchange, manually_classified");
+        .select("ticker, thesis_notes, confidence_level, last_review_date, category, position_type, name, currency, exchange, manually_classified");
       if (error) throw error;
       const map: Record<string, typeof data[number]> = {};
       for (const row of data) {
@@ -181,7 +179,6 @@ export function usePositions() {
       market_value: ib.position_value,
       weight_percent: ib.percent_of_nav,
       thesis_notes: ann?.thesis_notes || null,
-      bet_type: ann?.bet_type || null,
       confidence_level: ann?.confidence_level || null,
       last_review_date: ann?.last_review_date || null,
       created_at: ib.created_at || new Date().toISOString(),
@@ -208,7 +205,6 @@ export function usePositions() {
         thesis_notes: formData.thesis_notes
           ? `${formData.thesis_notes}${formData.invalidation_triggers ? `\n\n**Invalidation Triggers:**\n${formData.invalidation_triggers}` : ""}`
           : null,
-        bet_type: formData.bet_type || null,
         confidence_level: formData.confidence_level || null,
         category: formData.category || null,
         position_type: formData.position_type || null,

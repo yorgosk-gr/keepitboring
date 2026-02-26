@@ -330,7 +330,6 @@ export function ScreenshotPreviewTable({
         current_price: p.current_price,
         market_value: p.market_value,
         weight_percent: totalMV > 0 ? ((p.market_value ?? 0) / totalMV) * 100 : 0,
-        bet_type: "core",
       }));
 
       // Insert all new positions in one batch
