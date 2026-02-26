@@ -196,14 +196,30 @@ function PersistentSignalItem({ signal }: { signal: PersistentSignal }) {
 }
 
 function isStructuredContrarian(signal: string | ContrarianSignal): signal is ContrarianSignal {
-  return typeof signal === "object" && "topic" in signal;
+  return typeof signal === "object" && signal !== null && "topic" in signal;
+}
+
+function tryParseContrarian(signal: string | ContrarianSignal): ContrarianSignal | null {
+  if (isStructuredContrarian(signal)) return signal;
+  if (typeof signal === "string") {
+    try {
+      const parsed = JSON.parse(signal);
+      if (parsed && typeof parsed === "object" && "topic" in parsed) return parsed;
+    } catch {
+      // not JSON
+    }
+  }
+  return null;
 }
 
 function SummaryContent({ summary }: { summary: InsightsSummary }) {
   const [expanded, setExpanded] = useState(true);
 
-  const structuredContrarians = summary.contrarian_signals?.filter(isStructuredContrarian) ?? [];
-  const stringContrarians = summary.contrarian_signals?.filter((s): s is string => typeof s === "string") ?? [];
+  const parsedContrarians = (summary.contrarian_signals ?? []).map(tryParseContrarian);
+  const structuredContrarians = parsedContrarians.filter((s): s is ContrarianSignal => s !== null);
+  const stringContrarians = (summary.contrarian_signals ?? []).filter(
+    (s, i) => parsedContrarians[i] === null && typeof s === "string"
+  ) as string[];
 
   return (
     <Card className="border-primary/30 bg-card">
