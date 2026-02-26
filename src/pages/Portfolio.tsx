@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, TrendingUp, Trash2 } from "lucide-react";
+import { Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, TrendingUp, Trash2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -20,6 +20,7 @@ import { DeleteConfirmModal } from "@/components/portfolio/DeleteConfirmModal";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIBSync } from "@/hooks/useIBSync";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
@@ -33,6 +34,7 @@ export default function Portfolio() {
   } = usePositions();
 
   const { cashBalance, totalValue, updateCashBalance, isUpdatingCash } = useDashboardData();
+  const { sync, isSyncing, isConnected, lastSynced } = useIBSync();
   
   const { verifySinglePosition, verifyPositions, isVerifying, progress: verifyProgress } = useTickerVerification();
   
@@ -313,6 +315,31 @@ export default function Portfolio() {
         
         <div className="flex flex-wrap gap-2">
           <TooltipProvider delayDuration={300}>
+            {isConnected && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="default"
+                    className="gap-2"
+                    onClick={sync}
+                    disabled={isSyncing}
+                  >
+                    <Download className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
+                    {isSyncing ? "Syncing..." : "Sync IB"}
+                    {lastSynced && (
+                      <span className="text-xs opacity-70 hidden lg:inline">
+                        ({formatDistanceToNow(new Date(lastSynced), { addSuffix: true })})
+                      </span>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  <p className="font-medium">Sync from Interactive Brokers</p>
+                  <p className="text-xs text-muted-foreground">Pull latest positions, trades & cash from your IB Flex Query.</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
