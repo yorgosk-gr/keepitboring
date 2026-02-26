@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ClipboardPaste, Mail, Copy, Check } from "lucide-react";
+import { ClipboardPaste, Mail, Copy, Check, RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNewsletters, type Newsletter } from "@/hooks/useNewsletters";
 import { NewsletterUploadZone } from "@/components/newsletters/NewsletterUploadZone";
@@ -21,6 +22,8 @@ export default function Newsletters() {
     processNewsletter,
     isProcessing,
     deleteNewsletter,
+    refetch: refetchNewsletters,
+    isRefetching,
   } = useNewsletters();
 
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -109,9 +112,21 @@ export default function Newsletters() {
 
       {/* Newsletter List */}
       <div>
-        <h2 className="text-lg font-semibold text-foreground mb-4">
-          Uploaded Newsletters
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-foreground">
+            Uploaded Newsletters
+          </h2>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => refetchNewsletters()}
+            disabled={isRefetching}
+          >
+            <RefreshCw className={cn("w-4 h-4", isRefetching && "animate-spin")} />
+            Refresh
+          </Button>
+        </div>
         <NewsletterList
           newsletters={newsletters}
           isLoading={isLoading}
