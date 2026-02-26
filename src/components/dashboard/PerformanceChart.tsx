@@ -56,9 +56,24 @@ export function PerformanceChart() {
       if (!user) return [];
       const { data, error } = await supabase
         .from("ib_twr_history")
-        .select("from_date, to_date, twr, starting_value, ending_value, dividends, interest, commissions")
+        .select("from_date, to_date, twr")
         .eq("user_id", user.id)
         .order("to_date", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!user,
+  });
+
+  const { data: cashTxData = [] } = useQuery({
+    queryKey: ["cash-transactions", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("ib_cash_transactions")
+        .select("date_time, type, amount")
+        .eq("user_id", user.id)
+        .order("date_time", { ascending: true });
       if (error) throw error;
       return data ?? [];
     },
@@ -104,33 +119,45 @@ export function PerformanceChart() {
     return (chained - 1) * 100;
   }, [twrData, rangeStart]);
 
-  // Sum dividends, interest, commissions for the period (cash impact excluding deposits)
+  // Sum cash impact from actual transactions (excluding deposits/withdrawals)
   const cashImpact = useMemo(() => {
-    if (twrData.length === 0) return null;
+    if (cashTxData.length === 0) return null;
     const startStr = format(rangeStart, "yyyy-MM-dd");
-    const todayStr = format(new Date(), "yyyy-MM-dd");
 
-    const periodRecords = twrData.filter(t =>
-      t.from_date && t.to_date &&
-      t.from_date >= startStr && t.to_date <= todayStr
-    );
+    const periodTxs = cashTxData.filter(t => {
+      if (!t.date_time) return false;
+      const txDate = t.date_time.slice(0, 10);
+      return txDate >= startStr;
+    });
 
-    if (periodRecords.length === 0) return null;
+    if (periodTxs.length === 0) return null;
 
-    const totals = periodRecords.reduce(
-      (acc, t) => ({
-        dividends: acc.dividends + (Number(t.dividends) || 0),
-        interest: acc.interest + (Number(t.interest) || 0),
-        commissions: acc.commissions + (Number(t.commissions) || 0),
-      }),
-      { dividends: 0, interest: 0, commissions: 0 }
-    );
-
-    return {
-      net: totals.dividends + totals.interest + totals.commissions,
-      ...totals,
+    const classify = (type: string | null) => {
+      if (!type) return "other";
+      const t = type.toLowerCase();
+      if (t.includes("dividend") || t.includes("payment in lieu")) return "dividends";
+      if (t.includes("interest")) return "interest";
+      if (t.includes("commission")) return "commissions";
+      if (t.includes("withholding")) return "tax";
+      return "other";
     };
-  }, [twrData, rangeStart]);
+
+    const totals = periodTxs.reduce(
+      (acc, tx) => {
+        const cat = classify(tx.type);
+        const amt = Number(tx.amount) || 0;
+        if (cat === "dividends") acc.dividends += amt;
+        else if (cat === "interest") acc.interest += amt;
+        else if (cat === "commissions") acc.commissions += amt;
+        else if (cat === "tax") acc.tax += amt;
+        return acc;
+      },
+      { dividends: 0, interest: 0, commissions: 0, tax: 0 }
+    );
+
+    const net = totals.dividends + totals.interest + totals.commissions + totals.tax;
+    return { net, ...totals };
+  }, [cashTxData, rangeStart]);
 
   // Use chained TWR if available, otherwise fall back to simple NAV return
   const periodReturn = useMemo(() => {
@@ -181,13 +208,16 @@ export function PerformanceChart() {
             </p>
           )}
           {cashImpact !== null && (
-            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
               <span className={cashImpact.net >= 0 ? "text-primary" : "text-destructive"}>
                 Cash: {cashImpact.net >= 0 ? "+" : ""}${Math.abs(cashImpact.net).toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
               <span>Div ${cashImpact.dividends.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
               <span>Int ${cashImpact.interest.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
               <span>Comm ${cashImpact.commissions.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              {cashImpact.tax !== 0 && (
+                <span>Tax ${cashImpact.tax.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              )}
             </div>
           )}
         </div>
