@@ -143,43 +143,62 @@ function parsePositions(xml: string, userId: string, accountId: string) {
   const levels = [...new Set(positions.map(p => p.levelOfDetail || "undefined"))];
   console.log(`OpenPosition levelOfDetail values: ${JSON.stringify(levels)}`);
 
-  // No filter — take all positions
-  return positions.map(p => {
-    const currency = p.currency || null;
-    const fxRate = safeNum(p.fxRateToBase) ?? 1;
-    const isUSD = !currency || currency === "USD";
-    const fx = isUSD ? 1 : fxRate;
+  // No filter — take all positions (raw, before FX conversion)
+  const rawPositions = positions.map(p => ({
+    user_id: userId,
+    ib_account_id: accountId,
+    symbol: p.symbol || null,
+    description: p.description || null,
+    asset_class: p.assetCategory || null,
+    sub_category: p.subCategory || null,
+    quantity: safeNum(p.position) ?? safeNum(p.quantity),
+    mark_price: safeNum(p.markPrice),
+    position_value: safeNum(p.positionValue),
+    cost_basis_price: safeNum(p.costBasisPrice),
+    cost_basis_money: safeNum(p.costBasisMoney),
+    percent_of_nav: safeNum(p.percentOfNAV),
+    unrealized_pnl: safeNum(p.fifoPnlUnrealized),
+    side: p.side || null,
+    listing_exchange: p.listingExchange || p.primaryExch || null,
+    open_date_time: safeDate(p.openDateTime),
+    report_date: safeDate(p.reportDate),
+    synced_at: new Date().toISOString(),
+    currency: p.currency || null,
+  }));
 
-    // Convert monetary values to base (USD) currency
-    const positionValue = safeNum(p.positionValue);
-    const costBasisMoney = safeNum(p.costBasisMoney);
-    const unrealizedPnl = safeNum(p.fifoPnlUnrealized);
-
-    if (!isUSD && fx !== 1) {
-      console.log(`FX converting ${p.symbol}: ${currency} -> USD at rate ${fx}`);
+  // Derive total NAV in USD from USD-denominated positions
+  // NAV = position_value / (percent_of_nav / 100) for any USD position with both values
+  let totalNavUsd: number | null = null;
+  for (const pos of rawPositions) {
+    const isUSD = !pos.currency || pos.currency === "USD";
+    if (isUSD && pos.position_value && pos.percent_of_nav && pos.percent_of_nav > 0) {
+      totalNavUsd = (pos.position_value / pos.percent_of_nav) * 100;
+      break;
     }
+  }
 
-    return {
-      user_id: userId,
-      ib_account_id: accountId,
-      symbol: p.symbol || null,
-      description: p.description || null,
-      asset_class: p.assetCategory || null,
-      sub_category: p.subCategory || null,
-      quantity: safeNum(p.position) ?? safeNum(p.quantity),
-      mark_price: safeNum(p.markPrice),
-      position_value: positionValue !== null ? Math.round(positionValue * fx * 100) / 100 : null,
-      cost_basis_price: safeNum(p.costBasisPrice),
-      cost_basis_money: costBasisMoney !== null ? Math.round(costBasisMoney * fx * 100) / 100 : null,
-      percent_of_nav: safeNum(p.percentOfNAV),
-      unrealized_pnl: unrealizedPnl !== null ? Math.round(unrealizedPnl * fx * 100) / 100 : null,
-      side: p.side || null,
-      listing_exchange: p.listingExchange || p.primaryExch || null,
-      open_date_time: safeDate(p.openDateTime),
-      report_date: safeDate(p.reportDate),
-      synced_at: new Date().toISOString(),
-      currency: currency,
-    };
+  if (totalNavUsd) {
+    console.log(`Derived total NAV (USD): ${totalNavUsd.toFixed(2)}`);
+  }
+
+  // Convert non-USD positions to USD using NAV-derived values
+  return rawPositions.map(pos => {
+    const isUSD = !pos.currency || pos.currency === "USD";
+    if (!isUSD && totalNavUsd && pos.percent_of_nav) {
+      const usdValue = Math.round((pos.percent_of_nav / 100) * totalNavUsd * 100) / 100;
+      // Derive FX rate from the conversion for cost basis and PnL
+      const fxRate = pos.position_value && pos.position_value !== 0
+        ? usdValue / pos.position_value
+        : 1;
+      console.log(`FX converting ${pos.symbol}: ${pos.currency} -> USD (NAV-derived rate ~${fxRate.toFixed(4)}, value ${pos.position_value} -> ${usdValue})`);
+      return {
+        ...pos,
+        position_value: usdValue,
+        cost_basis_money: pos.cost_basis_money !== null ? Math.round(pos.cost_basis_money * fxRate * 100) / 100 : null,
+        unrealized_pnl: pos.unrealized_pnl !== null ? Math.round(pos.unrealized_pnl * fxRate * 100) / 100 : null,
+      };
+    }
+    return pos;
   });
 }
 
