@@ -144,26 +144,43 @@ function parsePositions(xml: string, userId: string, accountId: string) {
   console.log(`OpenPosition levelOfDetail values: ${JSON.stringify(levels)}`);
 
   // No filter — take all positions
-  return positions.map(p => ({
-    user_id: userId,
-    ib_account_id: accountId,
-    symbol: p.symbol || null,
-    description: p.description || null,
-    asset_class: p.assetCategory || null,
-    sub_category: p.subCategory || null,
-    quantity: safeNum(p.position) ?? safeNum(p.quantity),
-    mark_price: safeNum(p.markPrice),
-    position_value: safeNum(p.positionValue),
-    cost_basis_price: safeNum(p.costBasisPrice),
-    cost_basis_money: safeNum(p.costBasisMoney),
-    percent_of_nav: safeNum(p.percentOfNAV),
-    unrealized_pnl: safeNum(p.fifoPnlUnrealized),
-    side: p.side || null,
-    listing_exchange: p.listingExchange || p.primaryExch || null,
-    open_date_time: safeDate(p.openDateTime),
-    report_date: safeDate(p.reportDate),
-    synced_at: new Date().toISOString(),
-  }));
+  return positions.map(p => {
+    const currency = p.currency || null;
+    const fxRate = safeNum(p.fxRateToBase) ?? 1;
+    const isUSD = !currency || currency === "USD";
+    const fx = isUSD ? 1 : fxRate;
+
+    // Convert monetary values to base (USD) currency
+    const positionValue = safeNum(p.positionValue);
+    const costBasisMoney = safeNum(p.costBasisMoney);
+    const unrealizedPnl = safeNum(p.fifoPnlUnrealized);
+
+    if (!isUSD && fx !== 1) {
+      console.log(`FX converting ${p.symbol}: ${currency} -> USD at rate ${fx}`);
+    }
+
+    return {
+      user_id: userId,
+      ib_account_id: accountId,
+      symbol: p.symbol || null,
+      description: p.description || null,
+      asset_class: p.assetCategory || null,
+      sub_category: p.subCategory || null,
+      quantity: safeNum(p.position) ?? safeNum(p.quantity),
+      mark_price: safeNum(p.markPrice),
+      position_value: positionValue !== null ? Math.round(positionValue * fx * 100) / 100 : null,
+      cost_basis_price: safeNum(p.costBasisPrice),
+      cost_basis_money: costBasisMoney !== null ? Math.round(costBasisMoney * fx * 100) / 100 : null,
+      percent_of_nav: safeNum(p.percentOfNAV),
+      unrealized_pnl: unrealizedPnl !== null ? Math.round(unrealizedPnl * fx * 100) / 100 : null,
+      side: p.side || null,
+      listing_exchange: p.listingExchange || p.primaryExch || null,
+      open_date_time: safeDate(p.openDateTime),
+      report_date: safeDate(p.reportDate),
+      synced_at: new Date().toISOString(),
+      currency: currency,
+    };
+  });
 }
 
 function parseCashBalance(xml: string, positions: { position_value: number | null; percent_of_nav: number | null }[]): number | null {

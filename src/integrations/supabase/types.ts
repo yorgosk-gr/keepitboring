@@ -349,6 +349,7 @@ export type Database = {
           cost_basis_money: number | null
           cost_basis_price: number | null
           created_at: string | null
+          currency: string | null
           description: string | null
           ib_account_id: string
           id: string
@@ -371,6 +372,7 @@ export type Database = {
           cost_basis_money?: number | null
           cost_basis_price?: number | null
           created_at?: string | null
+          currency?: string | null
           description?: string | null
           ib_account_id: string
           id?: string
@@ -393,6 +395,7 @@ export type Database = {
           cost_basis_money?: number | null
           cost_basis_price?: number | null
           created_at?: string | null
+          currency?: string | null
           description?: string | null
           ib_account_id?: string
           id?: string
