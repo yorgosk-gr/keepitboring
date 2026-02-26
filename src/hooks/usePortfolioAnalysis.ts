@@ -8,6 +8,7 @@ import { usePhilosophyRules } from "./usePhilosophyRules";
 import { useDecisionLogs } from "./useDecisionLogs";
 import { useAllETFMetadata } from "./useAllETFMetadata";
 import { useSettings } from "./useSettings";
+import { useRiskProfile } from "./useRiskProfile";
 import { selectSmartInsights } from "./useSmartInsightSelection";
 import { toast } from "sonner";
 
@@ -133,6 +134,7 @@ export function usePortfolioAnalysis() {
   const { decisions } = useDecisionLogs();
   const { data: etfMetadata = {} } = useAllETFMetadata();
   const { settings } = useSettings();
+  const { activeProfile, behavioralSignals } = useRiskProfile();
   const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisResult | null>(null);
 
   // Fetch analysis history
@@ -263,6 +265,21 @@ export function usePortfolioAnalysis() {
           intelligence_brief: intelligenceBrief,
           stock_fundamentals: stockFundamentals,
           portfolio_mode: settings.portfolioMode ?? "balanced",
+          risk_profile: activeProfile ? {
+            profile: activeProfile.profile,
+            score: activeProfile.score,
+            dimension_scores: activeProfile.dimension_scores,
+          } : null,
+          behavioral_alignment: (() => {
+            if (!behavioralSignals || behavioralSignals.length === 0) return null;
+            const aligned = behavioralSignals.filter(s => s.aligned).length;
+            const total = behavioralSignals.length;
+            return {
+              aligned_ratio: parseFloat((aligned / total).toFixed(2)),
+              total_signals: total,
+              aligned_count: aligned,
+            };
+          })(),
         },
       });
 
