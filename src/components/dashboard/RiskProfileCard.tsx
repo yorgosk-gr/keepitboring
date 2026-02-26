@@ -24,7 +24,6 @@ const PROFILE_CONFIG: Record<RiskProfileType, { label: string; color: string; ic
   aggressive: { label: "Aggressive", color: "text-destructive", icon: Target },
 };
 
-// Target allocations per profile: [broad, theme, stocks, cash]
 const PROFILE_TARGETS: Record<RiskProfileType, { broad: number; theme: number; stocks: number; cash: number }> = {
   cautious:   { broad: 55, theme: 10, stocks: 5,  cash: 30 },
   balanced:   { broad: 50, theme: 15, stocks: 15, cash: 20 },
@@ -103,10 +102,10 @@ export function RiskProfileCard({ positions, etfMetadata, totalValue, cashBalanc
   const ProfileIcon = config.icon;
 
   const categories = [
-    { label: "Broad", current: buckets.broad, target: targets.broad, desc: "Index ETFs" },
-    { label: "Theme", current: buckets.theme, target: targets.theme, desc: "Country & sector" },
-    { label: "Stocks", current: buckets.stocks, target: targets.stocks, desc: "Individual picks" },
-    { label: "Cash", current: buckets.cash, target: targets.cash, desc: "Reserve" },
+    { key: "broad", label: "Broad Market", current: buckets.broad, target: targets.broad },
+    { key: "theme", label: "Theme / Country", current: buckets.theme, target: targets.theme },
+    { key: "stocks", label: "Individual Stocks", current: buckets.stocks, target: targets.stocks },
+    { key: "cash", label: "Cash", current: buckets.cash, target: targets.cash },
   ];
 
   return (
@@ -117,6 +116,13 @@ export function RiskProfileCard({ positions, etfMetadata, totalValue, cashBalanc
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-primary" />
             <h3 className="font-semibold text-foreground">Risk Profile</h3>
+            <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full",
+              profileType === "cautious" ? "bg-blue-400/15 text-blue-400" :
+              profileType === "balanced" ? "bg-primary/15 text-primary" :
+              profileType === "growth" ? "bg-amber-400/15 text-amber-400" : "bg-destructive/15 text-destructive"
+            )}>
+              {config.label}
+            </span>
           </div>
           <Button variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={() => setShowUpdate(true)}>
             <RefreshCw className="w-3.5 h-3.5" />
@@ -124,47 +130,43 @@ export function RiskProfileCard({ positions, etfMetadata, totalValue, cashBalanc
           </Button>
         </div>
 
-        {/* Profile badge */}
-        <div className="flex items-center gap-3 mb-5 p-2.5 rounded-lg bg-secondary/50">
-          <div className={cn("w-8 h-8 rounded-md flex items-center justify-center",
-            profileType === "cautious" ? "bg-blue-400/10" :
-            profileType === "balanced" ? "bg-primary/10" :
-            profileType === "growth" ? "bg-amber-400/10" : "bg-destructive/10"
-          )}>
-            <ProfileIcon className={cn("w-4 h-4", config.color)} />
-          </div>
-          <div>
-            <p className={cn("font-semibold text-sm", config.color)}>{config.label}</p>
-            <p className="text-[11px] text-muted-foreground">
-              {activeProfile?.applied_at && new Date(activeProfile.applied_at).toLocaleDateString()}
-            </p>
-          </div>
+        {/* Table header */}
+        <div className="grid grid-cols-[1fr_80px_80px_40px] gap-2 px-1 mb-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+          <span>Category</span>
+          <span className="text-right">Current</span>
+          <span className="text-right">Ideal</span>
+          <span />
         </div>
 
-        {/* 4 allocation buckets in a 2x2 grid */}
-        <div className="grid grid-cols-2 gap-2.5">
+        {/* Rows */}
+        <div className="space-y-1">
           {categories.map((cat) => {
             const diff = cat.current - cat.target;
             const isOff = Math.abs(diff) > 5;
-            const statusColor = !isOff
-              ? "border-primary/30 bg-primary/5"
-              : diff > 0
-              ? "border-amber-500/30 bg-amber-500/5"
-              : "border-blue-400/30 bg-blue-400/5";
+            const isOver = diff > 5;
+            const isUnder = diff < -5;
 
             return (
-              <div key={cat.label} className={cn("rounded-lg border p-3 space-y-1", statusColor)}>
-                <p className="text-xs text-muted-foreground">{cat.label}</p>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-xl font-bold font-mono text-foreground">{cat.current.toFixed(0)}%</span>
-                  <span className={cn(
-                    "text-xs font-mono",
-                    !isOff ? "text-primary" : diff > 0 ? "text-amber-500" : "text-blue-400"
-                  )}>
-                    / {cat.target}%
-                  </span>
+              <div key={cat.key} className="grid grid-cols-[1fr_80px_80px_40px] gap-2 items-center px-1 py-2 rounded-md hover:bg-secondary/30 transition-colors">
+                <span className="text-sm text-foreground">{cat.label}</span>
+                <span className="text-right text-sm font-mono font-semibold text-foreground">
+                  {cat.current.toFixed(0)}%
+                </span>
+                <span className="text-right text-sm font-mono text-muted-foreground">
+                  {cat.target}%
+                </span>
+                <div className="flex justify-end">
+                  {isOff ? (
+                    <span className={cn(
+                      "text-[10px] font-mono font-medium px-1.5 py-0.5 rounded",
+                      isOver ? "bg-amber-500/15 text-amber-500" : "bg-blue-400/15 text-blue-400"
+                    )}>
+                      {isOver ? "+" : ""}{diff.toFixed(0)}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-primary">✓</span>
+                  )}
                 </div>
-                <p className="text-[10px] text-muted-foreground leading-tight">{cat.desc}</p>
               </div>
             );
           })}
