@@ -24,11 +24,18 @@ const PROFILE_CONFIG: Record<RiskProfileType, { label: string; color: string; ic
   aggressive: { label: "Aggressive", color: "text-destructive", icon: Target },
 };
 
-const PROFILE_TARGETS: Record<RiskProfileType, { broad: number; theme: number; stocks: number; cash: number }> = {
-  cautious:   { broad: 55, theme: 10, stocks: 5,  cash: 30 },
-  balanced:   { broad: 50, theme: 15, stocks: 15, cash: 20 },
-  growth:     { broad: 40, theme: 20, stocks: 25, cash: 15 },
-  aggressive: { broad: 30, theme: 25, stocks: 35, cash: 10 },
+const PROFILE_TARGETS: Record<RiskProfileType, { broad: number; theme: number; stocks: number }> = {
+  cautious:   { broad: 55, theme: 10, stocks: 5 },
+  balanced:   { broad: 50, theme: 15, stocks: 15 },
+  growth:     { broad: 40, theme: 20, stocks: 25 },
+  aggressive: { broad: 30, theme: 25, stocks: 35 },
+};
+
+const CASH_GUIDANCE: Record<RiskProfileType, { min: number; ideal: number; max: number }> = {
+  cautious:   { min: 0.15, ideal: 0.20, max: 0.30 },
+  balanced:   { min: 0.10, ideal: 0.15, max: 0.20 },
+  growth:     { min: 0.05, ideal: 0.10, max: 0.15 },
+  aggressive: { min: 0.03, ideal: 0.05, max: 0.10 },
 };
 
 export function RiskProfileCard({ positions, etfMetadata, totalValue, cashBalance, isLoading: positionsLoading }: RiskProfileCardProps) {
@@ -105,9 +112,31 @@ export function RiskProfileCard({ positions, etfMetadata, totalValue, cashBalanc
     { key: "broad", label: "Broad Market", current: buckets.broad, target: targets.broad },
     { key: "theme", label: "Theme / Country", current: buckets.theme, target: targets.theme },
     { key: "stocks", label: "Individual Stocks", current: buckets.stocks, target: targets.stocks },
-    { key: "cash", label: "Cash", current: buckets.cash, target: targets.cash },
   ];
 
+  const cashGuidance = CASH_GUIDANCE[profileType];
+  const cashPct = buckets.cash / 100;
+  const cashAmount = cashBalance;
+  const cashLabel = `$${(cashAmount / 1000).toFixed(0)}K`;
+  const cashPctLabel = `${buckets.cash.toFixed(1)}%`;
+
+  let cashStatus: "low" | "healthy" | "elevated";
+  let cashMessage: string;
+
+  if (cashPct < cashGuidance.min) {
+    cashStatus = "low";
+    cashMessage = `Cash reserve is low (${cashLabel}). A ${config.label} portfolio benefits from keeping at least ${(cashGuidance.min * 100).toFixed(0)}% as dry powder for opportunities.`;
+  } else if (cashPct > cashGuidance.max) {
+    cashStatus = "elevated";
+    cashMessage = `Cash reserve is elevated (${cashLabel}, ${cashPctLabel}). Consider deploying excess into your target allocations — idle cash is a drag on long-term returns.`;
+  } else if (cashPct > cashGuidance.max - 0.02) {
+    // Near the top of range
+    cashStatus = "healthy";
+    cashMessage = `Cash is at the high end of your range (${cashLabel}, ${cashPctLabel}). Consider gradual deployment into broad market positions.`;
+  } else {
+    cashStatus = "healthy";
+    cashMessage = `Cash reserve is healthy (${cashLabel}, ${cashPctLabel}). Well positioned to act on opportunities.`;
+  }
   return (
     <>
       <div className="stat-card">
@@ -138,13 +167,12 @@ export function RiskProfileCard({ positions, etfMetadata, totalValue, cashBalanc
           <span />
         </div>
 
-        {/* Rows */}
+        {/* Allocation rows */}
         <div className="space-y-1">
           {categories.map((cat) => {
             const diff = cat.current - cat.target;
             const isOff = Math.abs(diff) > 5;
             const isOver = diff > 5;
-            const isUnder = diff < -5;
 
             return (
               <div key={cat.key} className="grid grid-cols-[1fr_80px_80px_40px] gap-2 items-center px-1 py-2 rounded-md hover:bg-secondary/30 transition-colors">
@@ -170,6 +198,16 @@ export function RiskProfileCard({ positions, etfMetadata, totalValue, cashBalanc
               </div>
             );
           })}
+        </div>
+
+        {/* Cash guidance */}
+        <div className={cn(
+          "mt-4 px-3 py-2.5 rounded-lg text-sm border",
+          cashStatus === "low" ? "bg-amber-500/10 border-amber-500/20 text-amber-400" :
+          cashStatus === "elevated" ? "bg-blue-400/10 border-blue-400/20 text-blue-400" :
+          "bg-primary/5 border-primary/20 text-primary"
+        )}>
+          <span>{cashStatus === "healthy" ? "✓" : "💡"} {cashMessage}</span>
         </div>
       </div>
 
