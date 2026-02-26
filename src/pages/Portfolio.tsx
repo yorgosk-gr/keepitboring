@@ -376,6 +376,8 @@ export default function Portfolio() {
           selectedIds={[]}
           onSelectionChange={() => {}}
           hideDeleteActions
+          cashBalance={cashBalance}
+          totalValue={totalValue}
         />
       )}
 
