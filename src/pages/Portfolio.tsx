@@ -228,20 +228,23 @@ export default function Portfolio() {
     }
   };
 
-  // Handle clearing all positions (IB source + annotations)
+  // Handle clearing all positions (IB source + annotations) and reset cash
   const handleClearAllPositions = async () => {
     if (!user) return;
     setIsClearing(true);
     try {
-      // Delete from both tables in parallel
-      const [ibResult, posResult] = await Promise.all([
+      // Delete positions/annotations and reset cash in parallel
+      const [ibResult, posResult, cashResult] = await Promise.all([
         supabase.from("ib_positions").delete().eq("user_id", user.id),
         supabase.from("positions").delete().eq("user_id", user.id),
+        supabase.from("ib_accounts").update({ cash_balance: 0 }).eq("user_id", user.id),
       ]);
       if (ibResult.error) throw ibResult.error;
       if (posResult.error) throw posResult.error;
+      if (cashResult.error) throw cashResult.error;
       queryClient.invalidateQueries({ queryKey: ["positions"] });
       queryClient.invalidateQueries({ queryKey: ["ib-positions"] });
+      queryClient.invalidateQueries({ queryKey: ["ib-account"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success("All positions cleared");
     } catch (err: any) {
@@ -388,14 +391,14 @@ export default function Portfolio() {
                   variant="outline" 
                   className="gap-2 text-destructive hover:bg-destructive/10"
                   onClick={() => setShowClearConfirm(true)}
-                  disabled={positions.length === 0}
+                  disabled={positions.length === 0 && cashBalance <= 0}
                 >
                   <Trash2 className="w-4 h-4" />
                   Clear All
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p className="text-xs">Delete all positions from the database</p>
+                <p className="text-xs">Delete all positions and reset cash balance</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
