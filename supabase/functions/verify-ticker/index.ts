@@ -252,22 +252,12 @@ Return ONLY valid JSON, no markdown or explanation.`,
     // Parse the JSON response
     let verificationResult;
     try {
-      // Try to extract JSON from the response
-      let jsonStr = fullResponse.trim();
-      
-      // Remove markdown code blocks if present
-      if (jsonStr.startsWith("```json")) {
-        jsonStr = jsonStr.slice(7);
+      // Extract JSON from anywhere in the response (Claude often adds prose around it)
+      const jsonMatch = fullResponse.match(/\{[\s\S]*"verified_positions"[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("No JSON object found in response");
       }
-      if (jsonStr.startsWith("```")) {
-        jsonStr = jsonStr.slice(3);
-      }
-      if (jsonStr.endsWith("```")) {
-        jsonStr = jsonStr.slice(0, -3);
-      }
-      jsonStr = jsonStr.trim();
-
-      verificationResult = JSON.parse(jsonStr);
+      verificationResult = JSON.parse(jsonMatch[0]);
     } catch (parseError) {
       console.error("Failed to parse verification response:", fullResponse);
       return new Response(
