@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.correlate-signals]
 verify_jwt = false
+
+[functions.ingest-email]
+verify_jwt = false
