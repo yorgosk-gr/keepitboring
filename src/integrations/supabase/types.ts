@@ -110,6 +110,63 @@ export type Database = {
         }
         Relationships: []
       }
+      behavioral_signals: {
+        Row: {
+          action: string | null
+          aligned: boolean | null
+          created_at: string | null
+          id: string
+          market_event_id: string | null
+          notes: string | null
+          profile_at_time: string | null
+          signal_date: string | null
+          symbol: string | null
+          trade_id: string | null
+          user_id: string
+        }
+        Insert: {
+          action?: string | null
+          aligned?: boolean | null
+          created_at?: string | null
+          id?: string
+          market_event_id?: string | null
+          notes?: string | null
+          profile_at_time?: string | null
+          signal_date?: string | null
+          symbol?: string | null
+          trade_id?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string | null
+          aligned?: boolean | null
+          created_at?: string | null
+          id?: string
+          market_event_id?: string | null
+          notes?: string | null
+          profile_at_time?: string | null
+          signal_date?: string | null
+          symbol?: string | null
+          trade_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "behavioral_signals_market_event_id_fkey"
+            columns: ["market_event_id"]
+            isOneToOne: false
+            referencedRelation: "market_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "behavioral_signals_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "ib_trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       decision_log: {
         Row: {
           action_type: string | null
@@ -202,6 +259,249 @@ export type Database = {
         }
         Relationships: []
       }
+      ib_accounts: {
+        Row: {
+          created_at: string | null
+          flex_query_id: string
+          flex_token: string
+          ib_account_id: string
+          id: string
+          last_synced_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          flex_query_id: string
+          flex_token: string
+          ib_account_id: string
+          id?: string
+          last_synced_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          flex_query_id?: string
+          flex_token?: string
+          ib_account_id?: string
+          id?: string
+          last_synced_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ib_cash_transactions: {
+        Row: {
+          amount: number | null
+          asset_class: string | null
+          created_at: string | null
+          currency: string | null
+          date_time: string | null
+          description: string | null
+          ib_account_id: string
+          id: string
+          report_date: string | null
+          settle_date: string | null
+          symbol: string | null
+          transaction_id: string | null
+          type: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number | null
+          asset_class?: string | null
+          created_at?: string | null
+          currency?: string | null
+          date_time?: string | null
+          description?: string | null
+          ib_account_id: string
+          id?: string
+          report_date?: string | null
+          settle_date?: string | null
+          symbol?: string | null
+          transaction_id?: string | null
+          type?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number | null
+          asset_class?: string | null
+          created_at?: string | null
+          currency?: string | null
+          date_time?: string | null
+          description?: string | null
+          ib_account_id?: string
+          id?: string
+          report_date?: string | null
+          settle_date?: string | null
+          symbol?: string | null
+          transaction_id?: string | null
+          type?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ib_positions: {
+        Row: {
+          asset_class: string | null
+          cost_basis_money: number | null
+          cost_basis_price: number | null
+          created_at: string | null
+          description: string | null
+          ib_account_id: string
+          id: string
+          mark_price: number | null
+          open_date_time: string | null
+          percent_of_nav: number | null
+          position_value: number | null
+          quantity: number | null
+          report_date: string | null
+          side: string | null
+          sub_category: string | null
+          symbol: string | null
+          synced_at: string | null
+          unrealized_pnl: number | null
+          user_id: string
+        }
+        Insert: {
+          asset_class?: string | null
+          cost_basis_money?: number | null
+          cost_basis_price?: number | null
+          created_at?: string | null
+          description?: string | null
+          ib_account_id: string
+          id?: string
+          mark_price?: number | null
+          open_date_time?: string | null
+          percent_of_nav?: number | null
+          position_value?: number | null
+          quantity?: number | null
+          report_date?: string | null
+          side?: string | null
+          sub_category?: string | null
+          symbol?: string | null
+          synced_at?: string | null
+          unrealized_pnl?: number | null
+          user_id: string
+        }
+        Update: {
+          asset_class?: string | null
+          cost_basis_money?: number | null
+          cost_basis_price?: number | null
+          created_at?: string | null
+          description?: string | null
+          ib_account_id?: string
+          id?: string
+          mark_price?: number | null
+          open_date_time?: string | null
+          percent_of_nav?: number | null
+          position_value?: number | null
+          quantity?: number | null
+          report_date?: string | null
+          side?: string | null
+          sub_category?: string | null
+          symbol?: string | null
+          synced_at?: string | null
+          unrealized_pnl?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ib_trades: {
+        Row: {
+          asset_class: string | null
+          buy_sell: string | null
+          cost_basis: number | null
+          created_at: string | null
+          date_time: string | null
+          description: string | null
+          exchange: string | null
+          ib_account_id: string
+          ib_commission: number | null
+          id: string
+          level_of_detail: string | null
+          net_cash: number | null
+          notes: string | null
+          open_close: string | null
+          order_type: string | null
+          proceeds: number | null
+          quantity: number | null
+          raw_xml: Json | null
+          realized_pnl: number | null
+          report_date: string | null
+          settle_date: string | null
+          sub_category: string | null
+          symbol: string | null
+          trade_date: string | null
+          trade_id: string | null
+          trade_money: number | null
+          trade_price: number | null
+          transaction_id: string | null
+          user_id: string
+        }
+        Insert: {
+          asset_class?: string | null
+          buy_sell?: string | null
+          cost_basis?: number | null
+          created_at?: string | null
+          date_time?: string | null
+          description?: string | null
+          exchange?: string | null
+          ib_account_id: string
+          ib_commission?: number | null
+          id?: string
+          level_of_detail?: string | null
+          net_cash?: number | null
+          notes?: string | null
+          open_close?: string | null
+          order_type?: string | null
+          proceeds?: number | null
+          quantity?: number | null
+          raw_xml?: Json | null
+          realized_pnl?: number | null
+          report_date?: string | null
+          settle_date?: string | null
+          sub_category?: string | null
+          symbol?: string | null
+          trade_date?: string | null
+          trade_id?: string | null
+          trade_money?: number | null
+          trade_price?: number | null
+          transaction_id?: string | null
+          user_id: string
+        }
+        Update: {
+          asset_class?: string | null
+          buy_sell?: string | null
+          cost_basis?: number | null
+          created_at?: string | null
+          date_time?: string | null
+          description?: string | null
+          exchange?: string | null
+          ib_account_id?: string
+          ib_commission?: number | null
+          id?: string
+          level_of_detail?: string | null
+          net_cash?: number | null
+          notes?: string | null
+          open_close?: string | null
+          order_type?: string | null
+          proceeds?: number | null
+          quantity?: number | null
+          raw_xml?: Json | null
+          realized_pnl?: number | null
+          report_date?: string | null
+          settle_date?: string | null
+          sub_category?: string | null
+          symbol?: string | null
+          trade_date?: string | null
+          trade_id?: string | null
+          trade_money?: number | null
+          trade_price?: number | null
+          transaction_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       insights: {
         Row: {
           confidence_words: string[] | null
@@ -291,6 +591,42 @@ export type Database = {
           market_themes?: Json | null
           newsletters_analyzed?: number | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      market_events: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          event_date: string
+          event_type: string | null
+          id: string
+          index_move_pct: number | null
+          severity: number | null
+          source: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          event_date: string
+          event_type?: string | null
+          id?: string
+          index_move_pct?: number | null
+          severity?: number | null
+          source?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          event_date?: string
+          event_type?: string | null
+          id?: string
+          index_move_pct?: number | null
+          severity?: number | null
+          source?: string | null
+          title?: string
         }
         Relationships: []
       }
@@ -566,6 +902,42 @@ export type Database = {
           report_month?: string
           summary?: string | null
           title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      risk_profiles: {
+        Row: {
+          applied_at: string | null
+          created_at: string | null
+          dimension_scores: Json | null
+          id: string
+          is_active: boolean | null
+          profile: string
+          score: number | null
+          source: string | null
+          user_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          created_at?: string | null
+          dimension_scores?: Json | null
+          id?: string
+          is_active?: boolean | null
+          profile: string
+          score?: number | null
+          source?: string | null
+          user_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          created_at?: string | null
+          dimension_scores?: Json | null
+          id?: string
+          is_active?: boolean | null
+          profile?: string
+          score?: number | null
+          source?: string | null
           user_id?: string
         }
         Relationships: []
