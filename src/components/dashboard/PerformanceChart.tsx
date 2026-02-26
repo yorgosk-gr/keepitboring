@@ -56,7 +56,7 @@ export function PerformanceChart() {
       if (!user) return [];
       const { data, error } = await supabase
         .from("ib_twr_history")
-        .select("from_date, to_date, twr, starting_value, ending_value")
+        .select("from_date, to_date, twr, starting_value, ending_value, dividends, interest, commissions")
         .eq("user_id", user.id)
         .order("to_date", { ascending: false });
       if (error) throw error;
@@ -102,6 +102,34 @@ export function PerformanceChart() {
     }, 1);
 
     return (chained - 1) * 100;
+  }, [twrData, rangeStart]);
+
+  // Sum dividends, interest, commissions for the period (cash impact excluding deposits)
+  const cashImpact = useMemo(() => {
+    if (twrData.length === 0) return null;
+    const startStr = format(rangeStart, "yyyy-MM-dd");
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+
+    const periodRecords = twrData.filter(t =>
+      t.from_date && t.to_date &&
+      t.from_date >= startStr && t.to_date <= todayStr
+    );
+
+    if (periodRecords.length === 0) return null;
+
+    const totals = periodRecords.reduce(
+      (acc, t) => ({
+        dividends: acc.dividends + (Number(t.dividends) || 0),
+        interest: acc.interest + (Number(t.interest) || 0),
+        commissions: acc.commissions + (Number(t.commissions) || 0),
+      }),
+      { dividends: 0, interest: 0, commissions: 0 }
+    );
+
+    return {
+      net: totals.dividends + totals.interest + totals.commissions,
+      ...totals,
+    };
   }, [twrData, rangeStart]);
 
   // Use chained TWR if available, otherwise fall back to simple NAV return
@@ -151,6 +179,16 @@ export function PerformanceChart() {
               {periodReturn.value >= 0 ? "+" : ""}{periodReturn.value.toFixed(2)}%
               <span className="text-xs text-muted-foreground ml-2 font-normal">{periodReturn.label}</span>
             </p>
+          )}
+          {cashImpact !== null && (
+            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+              <span className={cashImpact.net >= 0 ? "text-primary" : "text-destructive"}>
+                Cash: {cashImpact.net >= 0 ? "+" : ""}${Math.abs(cashImpact.net).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </span>
+              <span>Div ${cashImpact.dividends.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              <span>Int ${cashImpact.interest.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              <span>Comm ${cashImpact.commissions.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+            </div>
           )}
         </div>
         <div className="flex gap-1">
