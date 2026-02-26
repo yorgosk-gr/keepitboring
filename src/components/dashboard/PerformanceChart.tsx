@@ -123,14 +123,20 @@ export function PerformanceChart() {
   const navBreakdown = useMemo(() => {
     const startStr = format(rangeStart, "yyyy-MM-dd");
 
-    // Market gains from TWR daily records (sum of ending - starting per day)
+    // Market gains derived from TWR (excludes deposits by definition)
+    // Use the first day's starting_value as the period's starting NAV
     const periodTwrRecords = twrData.filter(t =>
       t.from_date && t.to_date &&
       t.from_date >= startStr && t.twr !== null
     );
-    const marketGains = periodTwrRecords.reduce((acc, t) => {
-      return acc + ((Number(t.ending_value) || 0) - (Number(t.starting_value) || 0));
-    }, 0);
+
+    let marketGains = 0;
+    if (periodTwrRecords.length > 0 && chainedTWR !== null) {
+      // Sort to find the earliest record's starting value
+      const sorted = [...periodTwrRecords].sort((a, b) => (a.from_date! > b.from_date! ? 1 : -1));
+      const startingNav = Number(sorted[0].starting_value) || 0;
+      marketGains = startingNav * (chainedTWR / 100);
+    }
 
     // Cash impact from transactions
     const periodTxs = cashTxData.filter(t => {
