@@ -268,6 +268,7 @@ export type Database = {
           ib_account_id: string
           id: string
           last_synced_at: string | null
+          performance_query_id: string | null
           user_id: string
         }
         Insert: {
@@ -278,6 +279,7 @@ export type Database = {
           ib_account_id: string
           id?: string
           last_synced_at?: string | null
+          performance_query_id?: string | null
           user_id: string
         }
         Update: {
@@ -288,6 +290,7 @@ export type Database = {
           ib_account_id?: string
           id?: string
           last_synced_at?: string | null
+          performance_query_id?: string | null
           user_id?: string
         }
         Relationships: []
@@ -339,6 +342,42 @@ export type Database = {
           symbol?: string | null
           transaction_id?: string | null
           type?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ib_nav_history: {
+        Row: {
+          bonds: number | null
+          cash: number | null
+          created_at: string | null
+          funds: number | null
+          id: string
+          report_date: string
+          stock: number | null
+          total_nav: number | null
+          user_id: string
+        }
+        Insert: {
+          bonds?: number | null
+          cash?: number | null
+          created_at?: string | null
+          funds?: number | null
+          id?: string
+          report_date: string
+          stock?: number | null
+          total_nav?: number | null
+          user_id: string
+        }
+        Update: {
+          bonds?: number | null
+          cash?: number | null
+          created_at?: string | null
+          funds?: number | null
+          id?: string
+          report_date?: string
+          stock?: number | null
+          total_nav?: number | null
           user_id?: string
         }
         Relationships: []
@@ -507,6 +546,54 @@ export type Database = {
           trade_money?: number | null
           trade_price?: number | null
           transaction_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ib_twr_history: {
+        Row: {
+          commissions: number | null
+          created_at: string | null
+          deposits_withdrawals: number | null
+          dividends: number | null
+          ending_value: number | null
+          from_date: string | null
+          id: string
+          interest: number | null
+          mark_to_market: number | null
+          starting_value: number | null
+          to_date: string | null
+          twr: number | null
+          user_id: string
+        }
+        Insert: {
+          commissions?: number | null
+          created_at?: string | null
+          deposits_withdrawals?: number | null
+          dividends?: number | null
+          ending_value?: number | null
+          from_date?: string | null
+          id?: string
+          interest?: number | null
+          mark_to_market?: number | null
+          starting_value?: number | null
+          to_date?: string | null
+          twr?: number | null
+          user_id: string
+        }
+        Update: {
+          commissions?: number | null
+          created_at?: string | null
+          deposits_withdrawals?: number | null
+          dividends?: number | null
+          ending_value?: number | null
+          from_date?: string | null
+          id?: string
+          interest?: number | null
+          mark_to_market?: number | null
+          starting_value?: number | null
+          to_date?: string | null
+          twr?: number | null
           user_id?: string
         }
         Relationships: []
