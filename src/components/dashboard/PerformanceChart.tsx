@@ -56,7 +56,7 @@ export function PerformanceChart() {
       if (!user) return [];
       const { data, error } = await supabase
         .from("ib_twr_history")
-        .select("from_date, to_date, twr")
+        .select("from_date, to_date, twr, starting_value, ending_value")
         .eq("user_id", user.id)
         .order("to_date", { ascending: false });
       if (error) throw error;
@@ -119,18 +119,24 @@ export function PerformanceChart() {
     return (chained - 1) * 100;
   }, [twrData, rangeStart]);
 
-  // Sum cash impact from actual transactions (excluding deposits/withdrawals)
-  const cashImpact = useMemo(() => {
-    if (cashTxData.length === 0) return null;
+  // Compute full NAV change breakdown for the period
+  const navBreakdown = useMemo(() => {
     const startStr = format(rangeStart, "yyyy-MM-dd");
 
+    // Market gains from TWR daily records (sum of ending - starting per day)
+    const periodTwrRecords = twrData.filter(t =>
+      t.from_date && t.to_date &&
+      t.from_date >= startStr && t.twr !== null
+    );
+    const marketGains = periodTwrRecords.reduce((acc, t) => {
+      return acc + ((Number(t.ending_value) || 0) - (Number(t.starting_value) || 0));
+    }, 0);
+
+    // Cash impact from transactions
     const periodTxs = cashTxData.filter(t => {
       if (!t.date_time) return false;
-      const txDate = t.date_time.slice(0, 10);
-      return txDate >= startStr;
+      return t.date_time.slice(0, 10) >= startStr;
     });
-
-    if (periodTxs.length === 0) return null;
 
     const classify = (type: string | null) => {
       if (!type) return "other";
@@ -142,7 +148,7 @@ export function PerformanceChart() {
       return "other";
     };
 
-    const totals = periodTxs.reduce(
+    const cashTotals = periodTxs.reduce(
       (acc, tx) => {
         const cat = classify(tx.type);
         const amt = Number(tx.amount) || 0;
@@ -155,9 +161,13 @@ export function PerformanceChart() {
       { dividends: 0, interest: 0, commissions: 0, tax: 0 }
     );
 
-    const net = totals.dividends + totals.interest + totals.commissions + totals.tax;
-    return { net, ...totals };
-  }, [cashTxData, rangeStart]);
+    const hasData = periodTwrRecords.length > 0 || periodTxs.length > 0;
+    if (!hasData) return null;
+
+    const cashNet = cashTotals.dividends + cashTotals.interest + cashTotals.commissions + cashTotals.tax;
+
+    return { marketGains, cashNet, ...cashTotals };
+  }, [twrData, cashTxData, rangeStart]);
 
   // Use chained TWR if available, otherwise fall back to simple NAV return
   const periodReturn = useMemo(() => {
@@ -207,16 +217,16 @@ export function PerformanceChart() {
               <span className="text-xs text-muted-foreground ml-2 font-normal">{periodReturn.label}</span>
             </p>
           )}
-          {cashImpact !== null && (
+          {navBreakdown !== null && (
             <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-              <span className={cashImpact.net >= 0 ? "text-primary" : "text-destructive"}>
-                Cash: {cashImpact.net >= 0 ? "+" : ""}${Math.abs(cashImpact.net).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              <span className={navBreakdown.marketGains >= 0 ? "text-primary" : "text-destructive"}>
+                Mkt {navBreakdown.marketGains >= 0 ? "+" : ""}${Math.abs(navBreakdown.marketGains).toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
-              <span>Div ${cashImpact.dividends.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-              <span>Int ${cashImpact.interest.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-              <span>Comm ${cashImpact.commissions.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-              {cashImpact.tax !== 0 && (
-                <span>Tax ${cashImpact.tax.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              <span>Div ${navBreakdown.dividends.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              <span>Int ${navBreakdown.interest.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              <span>Comm ${navBreakdown.commissions.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              {navBreakdown.tax !== 0 && (
+                <span>Tax ${navBreakdown.tax.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
               )}
             </div>
           )}
