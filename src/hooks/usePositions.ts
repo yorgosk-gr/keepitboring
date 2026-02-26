@@ -170,7 +170,7 @@ export function usePositions() {
       position_type: posType,
       category: cat,
       exchange: ann?.exchange || ib.listing_exchange || null,
-      currency: ann?.currency || null,
+      currency: ann?.currency || (ib as any).currency || null,
       shares: ib.quantity,
       avg_cost: ib.cost_basis_price,
       current_price: ib.mark_price,
