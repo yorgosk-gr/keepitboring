@@ -204,6 +204,8 @@ export function useNewsletters() {
   return {
     newsletters: newslettersQuery.data ?? [],
     isLoading: newslettersQuery.isLoading,
+    refetch: newslettersQuery.refetch,
+    isRefetching: newslettersQuery.isRefetching,
     uploadNewsletter: uploadNewsletterMutation.mutateAsync,
     isUploading: uploadNewsletterMutation.isPending,
     updateSourceName: updateSourceNameMutation.mutate,
