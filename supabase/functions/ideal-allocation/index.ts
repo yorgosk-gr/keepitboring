@@ -38,32 +38,9 @@ serve(async (req) => {
       });
     }
 
-    const { rules, intelligence_brief, mode, positions, analysis, portfolio_value } = await req.json();
+    const { rules, intelligence_brief, portfolio_value } = await req.json();
     const budget = portfolio_value && portfolio_value > 0 ? Math.round(portfolio_value) : 100000;
     const budgetFormatted = "$" + budget.toLocaleString("en-US");
-    const isAdjustMode = mode === "adjust" && positions && positions.length > 0;
-
-    // ── Build system prompt ──────────────────────────────────────────
-    const modeSection = isAdjustMode
-      ? `MODE: ADJUST CURRENT PORTFOLIO
-The investor already holds positions. Recommend an IDEAL TARGET that:
-- Accounts for existing holdings (skip ETFs already at target weight)
-- Identifies GAPS (missing asset classes, geographies)
-- Highlights OVERLAPS
-- Suggests what to ADD, not rebuild from scratch
-- strategy_summary explains how this complements existing portfolio
-
-CURRENT POSITIONS:
-${JSON.stringify(positions, null, 2)}
-
-${analysis ? `LATEST ANALYSIS (reuse detected breaches and allocation data):
-Health Score: ${analysis.portfolio_health_score ?? "N/A"}/100
-Summary: ${analysis.summary ?? "N/A"}
-Allocation: Equities ${analysis.allocation_check?.equities_percent ?? "?"}%, Bonds ${analysis.allocation_check?.bonds_percent ?? "?"}%, Commodities ${analysis.allocation_check?.commodities_percent ?? "?"}%, Cash ${analysis.allocation_check?.cash_percent ?? "?"}%
-Issues: ${(analysis.allocation_check?.issues ?? []).join("; ") || "None"}
-Active trades: ${(analysis.trade_recommendations ?? []).filter((t: any) => t.action !== "HOLD").map((t: any) => t.action + " " + t.ticker).join(", ") || "None"}` : ""}`
-      : `MODE: CLEAN SLATE
-Build an ideal portfolio from scratch, ignoring any existing holdings.`;
 
     const briefSection = intelligence_brief
       ? `INTELLIGENCE BRIEF (use to inform tactical tilts):
@@ -85,6 +62,7 @@ CONTEXT:
 - UAE tax resident (0% income/capital gains tax)
 - Prefer Ireland-domiciled UCITS ETFs (15% US dividend treaty rate vs 30%)
 - Budget: ${budgetFormatted}
+- MODE: CLEAN SLATE — Build an ideal portfolio from scratch, ignoring any existing holdings.
 
 RULES ENGINE:
 You are given a RULES_JSON array. Each rule has: scope, category, metric, operator, threshold_min, threshold_max, rule_enforcement, message_on_breach.
@@ -99,8 +77,6 @@ ASSET CLASS RESERVES:
 - Commodities (gold, broad): 5-8%
 - Cash reserve: 5-10%
 - Remaining ~72-80% split between equity and bond ETFs per rules
-
-${modeSection}
 
 ${briefSection}
 
@@ -135,9 +111,7 @@ JSON OUTPUT:
   "tax_note": "1-2 sentences on tax efficiency for UAE resident."
 }`;
 
-    const userMessage = isAdjustMode
-      ? "Generate the ideal " + budgetFormatted + " ETF portfolio that complements my current holdings. Return only the JSON object."
-      : "Generate the ideal " + budgetFormatted + " portfolio using Ireland-domiciled UCITS ETFs. Return only the JSON object.";
+    const userMessage = "Generate the ideal " + budgetFormatted + " portfolio using Ireland-domiciled UCITS ETFs. Return only the JSON object.";
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

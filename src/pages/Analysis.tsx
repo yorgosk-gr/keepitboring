@@ -5,7 +5,7 @@ import { DecisionLogView } from "@/components/decisions/DecisionLogView";
 import { BarChart3, BookOpen, Play, Loader2, AlertCircle, Sparkles } from "lucide-react";
 import { usePortfolioAnalysis, type AnalysisResult } from "@/hooks/usePortfolioAnalysis";
 import { usePositions, type Position } from "@/hooks/usePositions";
-import { useIdealAllocation, type IdealETF, type IdealAllocationMode } from "@/hooks/useIdealAllocation";
+import { useIdealAllocation, type IdealETF } from "@/hooks/useIdealAllocation";
 import { format } from "date-fns";
 
 export default function Analysis() {
@@ -19,7 +19,7 @@ export default function Analysis() {
     hasData,
   } = usePortfolioAnalysis();
   const { positions } = usePositions();
-  const { result: idealAllocation, generate: generateIdealAllocation, isGenerating: isGeneratingIdeal, mode: idealMode, setMode: setIdealMode } = useIdealAllocation();
+  const { result: idealAllocation, generate: generateIdealAllocation, isGenerating: isGeneratingIdeal } = useIdealAllocation();
 
   // Auto-load latest analysis on mount
   useEffect(() => {
@@ -162,60 +162,28 @@ export default function Analysis() {
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Ideal Portfolio Allocation</h2>
                 <p className="text-sm text-muted-foreground">
-                  AI-recommended $100k allocation using Ireland-domiciled UCITS ETFs
+                  AI-recommended allocation using Ireland-domiciled UCITS ETFs
                 </p>
               </div>
-              <div className="flex items-center gap-3">
-                {/* Mode Toggle */}
-                <div className="flex rounded-lg border border-border overflow-hidden text-xs">
-                  <button
-                    onClick={() => setIdealMode("clean_slate")}
-                    className={`px-3 py-1.5 transition-colors ${
-                      idealMode === "clean_slate"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-secondary text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Clean Slate
-                  </button>
-                  <button
-                    onClick={() => setIdealMode("adjust")}
-                    className={`px-3 py-1.5 transition-colors ${
-                      idealMode === "adjust"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-secondary text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Adjust Portfolio
-                  </button>
-                </div>
-                <Button
-                  onClick={() => generateIdealAllocation(currentAnalysis)}
-                  disabled={isGeneratingIdeal}
-                  variant="outline"
-                  className="gap-2"
-                >
-                  {isGeneratingIdeal ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      Generate
-                    </>
-                  )}
-                </Button>
-              </div>
+              <Button
+                onClick={() => generateIdealAllocation()}
+                disabled={isGeneratingIdeal}
+                variant="outline"
+                className="gap-2"
+              >
+                {isGeneratingIdeal ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Generate
+                  </>
+                )}
+              </Button>
             </div>
-
-            {idealMode === "adjust" && !hasData && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-sm mb-4">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>Add portfolio positions first to use Adjust Portfolio mode</span>
-              </div>
-            )}
 
             {idealAllocation && <IdealAllocationView data={idealAllocation} />}
           </section>
