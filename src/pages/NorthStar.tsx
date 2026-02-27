@@ -300,6 +300,7 @@ export default function NorthStar() {
                         { key: "ticker", label: "Ticker", align: "text-left" },
                         { key: "current", label: "Current", align: "text-right" },
                         { key: "ideal", label: "Ideal", align: "text-right" },
+                        { key: "idealUsd", label: "Ideal $", align: "text-right" },
                         { key: "range", label: "Range", align: "text-right" },
                         { key: "status", label: "Status", align: "text-center" },
                         { key: "rationale", label: "Rationale", align: "text-left" },
@@ -338,6 +339,9 @@ export default function NorthStar() {
                             ) : (
                               <span className="text-foreground">{pos.target_weight_ideal?.toFixed(1) ?? "-"}%</span>
                             )}
+                          </td>
+                          <td className="px-3 py-2 text-right text-muted-foreground">
+                            ${((pos.target_weight_ideal ?? 0) / 100 * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </td>
                           <td className="px-3 py-2 text-right text-xs text-muted-foreground">
                             {isEditing ? (
@@ -402,6 +406,9 @@ export default function NorthStar() {
                         ) : (
                           <span className="text-foreground">{parseFloat(cashTarget.ideal).toFixed(1)}%</span>
                         )}
+                      </td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">
+                        ${((parseFloat(cashTarget.ideal) || 0) / 100 * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </td>
                       <td className="px-3 py-2 text-right text-xs text-muted-foreground">
                         {editingCash ? (
