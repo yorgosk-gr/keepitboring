@@ -9,6 +9,7 @@ import { useAllETFMetadata } from "@/hooks/useAllETFMetadata";
 
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { RiskProfileCard } from "@/components/dashboard/RiskProfileCard";
+import { NorthStarWidget } from "@/components/dashboard/NorthStarWidget";
 import { Button } from "@/components/ui/button";
 import { useMemo } from "react";
 
@@ -191,6 +192,9 @@ export default function Dashboard() {
           showTargetIndicator
         />
       </div>
+
+      {/* North Star Widget */}
+      <NorthStarWidget />
 
       {/* Risk Profile */}
       <RiskProfileCard
