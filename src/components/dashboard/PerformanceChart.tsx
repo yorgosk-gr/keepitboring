@@ -105,14 +105,9 @@ export function PerformanceChart() {
 
     if (periodRecords.length === 0) return null;
 
-    // IB TWR values may be in percent (3.5) or decimal (0.035)
-    const firstTwr = Math.abs(Number(periodRecords[0].twr));
-    const isPercent = firstTwr > 0.5;
-
+    // IB TWR values are always in percent (e.g. 0.69 means 0.69%)
     const chained = periodRecords.reduce((acc, t) => {
-      const dailyReturn = isPercent
-        ? Number(t.twr) / 100
-        : Number(t.twr);
+      const dailyReturn = Number(t.twr) / 100;
       return acc * (1 + dailyReturn);
     }, 1);
 
