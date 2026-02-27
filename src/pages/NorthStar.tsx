@@ -7,14 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+
+
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useNorthStar, type NorthStarPosition } from "@/hooks/useNorthStar";
 import { useIBCurrentWeights, deriveStatus, statusTooltip } from "@/hooks/useIBCurrentWeights";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 const statusConfig = {
@@ -25,7 +23,6 @@ const statusConfig = {
 };
 export default function NorthStar() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
   const {
     portfolio, positions: nsPositions, isLoading, isLoadingPositions,
     createPortfolio, addPosition, updatePosition, deletePosition,
@@ -33,26 +30,9 @@ export default function NorthStar() {
   } = useNorthStar();
   const { weights: ibWeights, cashWeight, totalValue, isLoading: ibLoading } = useIBCurrentWeights();
 
-  // Fetch thesis data from positions table
-  const { data: thesisMap = {} } = useQuery({
-    queryKey: ["ns-thesis-map", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("positions")
-        .select("ticker, thesis_notes, invalidation_trigger")
-        .eq("user_id", user!.id);
-      if (error) throw error;
-      const map: Record<string, { thesis_notes: string | null; invalidation_trigger: string | null }> = {};
-      for (const row of data || []) {
-        map[row.ticker] = { thesis_notes: row.thesis_notes, invalidation_trigger: row.invalidation_trigger };
-      }
-      return map;
-    },
-    enabled: !!user,
-  });
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<Partial<NorthStarPosition> & { thesis_notes?: string; invalidation_trigger?: string }>({});
+  const [editForm, setEditForm] = useState<Partial<NorthStarPosition>>({});
   const [showAdd, setShowAdd] = useState(false);
   const [cashTarget, setCashTarget] = useState<{ ideal: string; min: string; max: string }>({ ideal: "10", min: "8", max: "15" });
   const [cashTargetLoaded, setCashTargetLoaded] = useState(false);
@@ -82,10 +62,9 @@ export default function NorthStar() {
       const derived = deriveStatus(currentWeight, pos.target_weight_min, pos.target_weight_max, pos.status);
       const tooltip = statusTooltip(currentWeight, pos.target_weight_min, pos.target_weight_max, derived);
       const inIB = pos.ticker in ibWeights;
-      const thesis = thesisMap[pos.ticker];
-      return { ...pos, currentWeight, derivedStatus: derived, statusTooltip: tooltip, inIB, thesis_notes: thesis?.thesis_notes ?? null, invalidation_trigger: thesis?.invalidation_trigger ?? null };
+      return { ...pos, currentWeight, derivedStatus: derived, statusTooltip: tooltip, inIB };
     });
-  }, [nsPositions, ibWeights, thesisMap]);
+  }, [nsPositions, ibWeights]);
 
   const toggleSort = useCallback((key: string) => {
     if (sortKey === key) {
@@ -204,8 +183,6 @@ export default function NorthStar() {
       status: pos.status,
       priority: pos.priority,
       rationale: pos.rationale,
-      thesis_notes: pos.thesis_notes ?? "",
-      invalidation_trigger: pos.invalidation_trigger ?? "",
     });
   };
 
@@ -216,40 +193,7 @@ export default function NorthStar() {
       const editingPos = enrichedPositions.find(p => p.id === editingId);
       if (!editingPos) return;
 
-      // Save weights/range/status to north_star_positions
-      const { thesis_notes, invalidation_trigger, ...nsFields } = editForm;
-      await updatePosition({ id: editingId, ...nsFields });
-
-      // Upsert thesis/invalidation to positions table
-      const { data: existing } = await supabase
-        .from("positions")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("ticker", editingPos.ticker)
-        .maybeSingle();
-
-      if (existing) {
-        await supabase
-          .from("positions")
-          .update({ thesis_notes: thesis_notes || null, invalidation_trigger: invalidation_trigger || null })
-          .eq("id", existing.id);
-      } else {
-        await supabase
-          .from("positions")
-          .insert({
-            user_id: user.id,
-            ticker: editingPos.ticker,
-            shares: 0,
-            avg_cost: 0,
-            current_price: 0,
-            market_value: 0,
-            thesis_notes: thesis_notes || null,
-            invalidation_trigger: invalidation_trigger || null,
-          });
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["ns-thesis-map"] });
-      queryClient.invalidateQueries({ queryKey: ["position-annotations"] });
+      await updatePosition({ id: editingId, ...editForm });
       setEditingId(null);
     } catch (e: any) {
       toast.error(e.message);
@@ -382,25 +326,11 @@ export default function NorthStar() {
                     {sortedPositions.map((pos) => {
                       const isEditing = editingId === pos.id;
                       const sc = statusConfig[pos.derivedStatus];
-                      const hasThesis = !!(pos.thesis_notes);
                       return (
                         <>
                           <tr key={pos.id} className="border-t border-border hover:bg-secondary/20 transition-colors">
                             <td className="px-3 py-2 font-mono font-medium text-foreground">
-                              <div className="flex items-center gap-1.5">
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button
-                                      className="cursor-pointer hover:scale-110 transition-transform text-sm"
-                                      onClick={() => startEdit(pos)}
-                                    >
-                                      {hasThesis ? "📝" : "⚠️"}
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>{hasThesis ? "View thesis" : "Add thesis"}</TooltipContent>
-                                </Tooltip>
-                                {pos.ticker}
-                              </div>
+                              {pos.ticker}
                             </td>
                             <td className={`px-3 py-2 text-right ${!pos.inIB || pos.status === "exit" ? "text-destructive" : "text-muted-foreground"}`}>
                               {pos.currentWeight.toFixed(1)}%
@@ -482,33 +412,6 @@ export default function NorthStar() {
                               )}
                             </td>
                           </tr>
-                          {/* Expanded thesis edit row */}
-                          {isEditing && (
-                            <tr key={`${pos.id}-thesis`} className="bg-secondary/20 border-t border-border/50">
-                              <td colSpan={10} className="px-4 py-3">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  <div className="space-y-1.5">
-                                    <Label className="text-xs">Thesis — Why hold this?</Label>
-                                    <Textarea
-                                      placeholder="What's your rationale?"
-                                      value={editForm.thesis_notes ?? ""}
-                                      onChange={(e) => setEditForm({ ...editForm, thesis_notes: e.target.value })}
-                                      className="min-h-[70px] text-xs"
-                                    />
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <Label className="text-xs">What would invalidate this?</Label>
-                                    <Textarea
-                                      placeholder="Price drops below X, revenue declines..."
-                                      value={editForm.invalidation_trigger ?? ""}
-                                      onChange={(e) => setEditForm({ ...editForm, invalidation_trigger: e.target.value })}
-                                      className="min-h-[70px] text-xs"
-                                    />
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
                         </>
                       );
                     })}
