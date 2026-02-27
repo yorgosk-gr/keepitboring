@@ -291,7 +291,11 @@ export default function NorthStar() {
 
             {isLoadingPositions || ibLoading ? (
               <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-16" />)}</div>
-            ) : (
+            ) : (() => {
+              // Normalize Ideal $ so total matches actual portfolio value
+              const rawIdealSum = enrichedPositions.reduce((s, p) => s + (p.target_weight_ideal ?? 0), 0) + (parseFloat(cashTarget.ideal) || 0);
+              const idealNormFactor = rawIdealSum > 0 ? 100 / rawIdealSum : 1;
+              return (
               <div className="rounded-lg border border-border overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
@@ -341,7 +345,7 @@ export default function NorthStar() {
                             )}
                           </td>
                           <td className="px-3 py-2 text-right text-muted-foreground">
-                            ${((pos.target_weight_ideal ?? 0) / 100 * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            ${((pos.target_weight_ideal ?? 0) * idealNormFactor / 100 * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </td>
                           <td className="px-3 py-2 text-right text-xs text-muted-foreground">
                             {isEditing ? (
@@ -408,7 +412,7 @@ export default function NorthStar() {
                         )}
                       </td>
                       <td className="px-3 py-2 text-right text-muted-foreground">
-                        ${((parseFloat(cashTarget.ideal) || 0) / 100 * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        ${((parseFloat(cashTarget.ideal) || 0) * idealNormFactor / 100 * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </td>
                       <td className="px-3 py-2 text-right text-xs text-muted-foreground">
                         {editingCash ? (
@@ -446,7 +450,7 @@ export default function NorthStar() {
                         {(enrichedPositions.reduce((s, p) => s + (p.target_weight_ideal ?? 0), 0) + (parseFloat(cashTarget.ideal) || 0)).toFixed(1)}%
                       </td>
                       <td className="px-3 py-2 text-right text-foreground">
-                        ${(enrichedPositions.reduce((s, p) => s + ((p.target_weight_ideal ?? 0) / 100) * totalValue, 0) + ((parseFloat(cashTarget.ideal) || 0) / 100) * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        ${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </td>
                       <td className="px-3 py-2" colSpan={4}></td>
                     </tr>
@@ -458,7 +462,8 @@ export default function NorthStar() {
                   </div>
                 )}
               </div>
-            )}
+              );
+            })()}
 
             {/* Buy / Sell Action Tables */}
             {enrichedPositions.length > 0 && (
