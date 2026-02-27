@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Compass, Plus, Trash2, Pencil, Check, X, Loader2, Import } from "lucide-react";
+import { useState, useMemo, useCallback } from "react";
+import { Compass, Plus, Trash2, Pencil, Check, X, Loader2, Import, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +63,8 @@ export default function NorthStar() {
   const [showAdd, setShowAdd] = useState(false);
   const [cashTarget, setCashTarget] = useState<{ ideal: string; min: string; max: string }>({ ideal: "10", min: "8", max: "15" });
   const [editingCash, setEditingCash] = useState(false);
+  const [sortKey, setSortKey] = useState<string>("ticker");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [newPos, setNewPos] = useState({
     ticker: "", name: "", target_weight_ideal: "", target_weight_min: "", target_weight_max: "",
     status: "hold" as const, priority: 2, rationale: "",
@@ -78,6 +80,33 @@ export default function NorthStar() {
       return { ...pos, currentWeight, derivedStatus: derived, statusTooltip: tooltip, inIB };
     });
   }, [nsPositions, ibWeights]);
+
+  const toggleSort = useCallback((key: string) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }, [sortKey]);
+
+  const sortedPositions = useMemo(() => {
+    const sorted = [...enrichedPositions];
+    const dir = sortDir === "asc" ? 1 : -1;
+    sorted.sort((a, b) => {
+      let av: number | string = 0, bv: number | string = 0;
+      switch (sortKey) {
+        case "ticker": av = a.ticker; bv = b.ticker; return dir * av.localeCompare(bv);
+        case "current": av = a.currentWeight; bv = b.currentWeight; break;
+        case "ideal": av = a.target_weight_ideal ?? 0; bv = b.target_weight_ideal ?? 0; break;
+        case "range": av = a.target_weight_min ?? 0; bv = b.target_weight_min ?? 0; break;
+        case "status": av = a.derivedStatus; bv = b.derivedStatus; return dir * av.localeCompare(bv);
+        case "rationale": av = a.rationale ?? ""; bv = b.rationale ?? ""; return dir * (av as string).localeCompare(bv as string);
+      }
+      return dir * ((av as number) - (bv as number));
+    });
+    return sorted;
+  }, [enrichedPositions, sortKey, sortDir]);
 
   // Alignment: % of non-exit positions that are within range (Hold)
   const alignmentData = useMemo(() => {
@@ -267,17 +296,34 @@ export default function NorthStar() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-secondary/50 text-muted-foreground text-xs uppercase">
-                      <th className="px-3 py-2 text-left">Ticker</th>
-                      <th className="px-3 py-2 text-right">Current</th>
-                      <th className="px-3 py-2 text-right">Ideal</th>
-                      <th className="px-3 py-2 text-right">Range</th>
-                      <th className="px-3 py-2 text-center">Status</th>
-                      <th className="px-3 py-2 text-left">Rationale</th>
+                      {[
+                        { key: "ticker", label: "Ticker", align: "text-left" },
+                        { key: "current", label: "Current", align: "text-right" },
+                        { key: "ideal", label: "Ideal", align: "text-right" },
+                        { key: "range", label: "Range", align: "text-right" },
+                        { key: "status", label: "Status", align: "text-center" },
+                        { key: "rationale", label: "Rationale", align: "text-left" },
+                      ].map((col) => (
+                        <th
+                          key={col.key}
+                          className={`px-3 py-2 ${col.align} cursor-pointer hover:text-foreground transition-colors select-none`}
+                          onClick={() => toggleSort(col.key)}
+                        >
+                          <span className="inline-flex items-center gap-1">
+                            {col.label}
+                            {sortKey === col.key ? (
+                              sortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 opacity-30" />
+                            )}
+                          </span>
+                        </th>
+                      ))}
                       <th className="px-3 py-2 text-right w-20"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {enrichedPositions.map((pos) => {
+                    {sortedPositions.map((pos) => {
                       const isEditing = editingId === pos.id;
                       const sc = statusConfig[pos.derivedStatus];
                       return (
