@@ -453,31 +453,48 @@ export default function NorthStar() {
                       </tr>
                     </thead>
                     <tbody>
-                      {enrichedPositions
-                        .filter((p) => p.derivedStatus === "build" && p.currentWeight < (p.target_weight_ideal ?? 0))
-                        .sort((a, b) => ((b.target_weight_ideal ?? 0) - b.currentWeight) - ((a.target_weight_ideal ?? 0) - a.currentWeight))
-                        .map((p) => {
-                          const usd = (((p.target_weight_ideal ?? 0) - p.currentWeight) / 100) * totalValue;
-                          return (
-                            <tr key={p.ticker} className="border-t border-border/50">
-                              <td className="px-3 py-1.5 font-mono text-foreground">{p.ticker}</td>
-                              <td className="px-3 py-1.5 text-right text-emerald-400">${usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                            </tr>
-                          );
-                        })}
-                      {enrichedPositions.filter((p) => p.derivedStatus === "build" && p.currentWeight < (p.target_weight_ideal ?? 0)).length === 0 && (
-                        <tr><td colSpan={2} className="px-3 py-3 text-center text-xs text-muted-foreground">No buys needed</td></tr>
-                      )}
                       {(() => {
-                        const total = enrichedPositions
+                        // Calculate sell total first to cap buy amounts
+                        const cashIdeal = parseFloat(cashTarget.ideal) || 0;
+                        const cashExcess = Math.max(0, cashWeight - cashIdeal);
+                        const cashReduceUsd = (cashExcess / 100) * totalValue;
+                        const sellTotal = enrichedPositions
+                          .filter((p) => (p.derivedStatus === "reduce" || p.status === "exit") && p.currentWeight > 0)
+                          .reduce((s, p) => {
+                            const targetIdeal = p.status === "exit" ? 0 : (p.target_weight_ideal ?? 0);
+                            return s + ((p.currentWeight - targetIdeal) / 100) * totalValue;
+                          }, 0) + cashReduceUsd;
+
+                        const buyPositions = enrichedPositions
                           .filter((p) => p.derivedStatus === "build" && p.currentWeight < (p.target_weight_ideal ?? 0))
-                          .reduce((s, p) => s + (((p.target_weight_ideal ?? 0) - p.currentWeight) / 100) * totalValue, 0);
-                        return total > 0 ? (
-                          <tr className="border-t-2 border-emerald-500/30 font-semibold">
-                            <td className="px-3 py-1.5 text-foreground">Total</td>
-                            <td className="px-3 py-1.5 text-right text-emerald-400">${total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                          </tr>
-                        ) : null;
+                          .sort((a, b) => ((b.target_weight_ideal ?? 0) - b.currentWeight) - ((a.target_weight_ideal ?? 0) - a.currentWeight));
+
+                        const rawBuyTotal = buyPositions.reduce((s, p) => s + (((p.target_weight_ideal ?? 0) - p.currentWeight) / 100) * totalValue, 0);
+                        const scaleFactor = rawBuyTotal > 0 && sellTotal > 0 ? sellTotal / rawBuyTotal : 1;
+
+                        return (
+                          <>
+                            {buyPositions.map((p) => {
+                              const rawUsd = (((p.target_weight_ideal ?? 0) - p.currentWeight) / 100) * totalValue;
+                              const usd = rawUsd * scaleFactor;
+                              return (
+                                <tr key={p.ticker} className="border-t border-border/50">
+                                  <td className="px-3 py-1.5 font-mono text-foreground">{p.ticker}</td>
+                                  <td className="px-3 py-1.5 text-right text-emerald-400">${usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                </tr>
+                              );
+                            })}
+                            {buyPositions.length === 0 && (
+                              <tr><td colSpan={2} className="px-3 py-3 text-center text-xs text-muted-foreground">No buys needed</td></tr>
+                            )}
+                            {sellTotal > 0 && buyPositions.length > 0 ? (
+                              <tr className="border-t-2 border-emerald-500/30 font-semibold">
+                                <td className="px-3 py-1.5 text-foreground">Total</td>
+                                <td className="px-3 py-1.5 text-right text-emerald-400">${sellTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                              </tr>
+                            ) : null}
+                          </>
+                        );
                       })()}
                     </tbody>
                   </table>
