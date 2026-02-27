@@ -260,9 +260,87 @@ export default function NorthStar() {
           <p className="text-sm text-muted-foreground mt-1">Your target portfolio — where you want to be.</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Target positions */}
-          <div className="lg:col-span-2 space-y-4">
+        {/* Summary cards row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Alignment Score</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-end gap-2 mb-3">
+                <span className="text-4xl font-bold text-primary">{rebalancingData.score}%</span>
+                <span className="text-sm text-muted-foreground mb-1">aligned</span>
+              </div>
+              <Progress value={rebalancingData.score} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-2">
+                Positions within target range / total positions
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-primary" />
+                Rebalancing Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Sell proceeds</span>
+                  <span className="font-mono text-foreground">${rebalancingData.totalSells.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Available cash (above min)</span>
+                  <span className="font-mono text-foreground">${rebalancingData.availableCash.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                </div>
+                <div className="flex justify-between border-t border-border pt-1.5">
+                  <span className="text-muted-foreground font-medium">Total funding</span>
+                  <span className="font-mono font-medium text-foreground">${rebalancingData.totalFunding.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                </div>
+              </div>
+
+              {rebalancingData.gap <= 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span className="text-sm text-emerald-500 font-medium">Fully funded — rebalancing covers all buys</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    ~${rebalancingData.cashRemaining.toLocaleString(undefined, { maximumFractionDigits: 0 })} cash remaining
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    <span className="text-sm text-amber-500 font-medium">
+                      ${rebalancingData.gap.toLocaleString(undefined, { maximumFractionDigits: 0 })} shortfall
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Buys scaled to {Math.round(rebalancingData.buyScale * 100)}%. Reduce targets or sell more.
+                  </p>
+                  {rebalancingData.scaleBackPositions.length > 0 && (
+                    <div className="text-xs space-y-0.5">
+                      <span className="text-muted-foreground font-medium">Scale back:</span>
+                      {rebalancingData.scaleBackPositions.map((p) => (
+                        <div key={p.ticker} className="flex justify-between pl-2">
+                          <span className="font-mono">{p.ticker}</span>
+                          <span className="text-amber-500">-${p.cut.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Target positions - full width */}
+        <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-foreground">Target Positions</h2>
               <Button size="sm" className="gap-1" onClick={() => setShowAdd(true)}>
@@ -532,88 +610,6 @@ export default function NorthStar() {
             })()}
 
           </div>
-
-          {/* Right: Progress */}
-          <div className="space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Alignment Score</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-end gap-2 mb-3">
-                  <span className="text-4xl font-bold text-primary">{rebalancingData.score}%</span>
-                  <span className="text-sm text-muted-foreground mb-1">aligned</span>
-                </div>
-                <Progress value={rebalancingData.score} className="h-2" />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Positions within target range / total positions
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Rebalancing Summary */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-primary" />
-                  Rebalancing Summary
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Sell proceeds</span>
-                    <span className="font-mono text-foreground">${rebalancingData.totalSells.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Available cash (above min)</span>
-                    <span className="font-mono text-foreground">${rebalancingData.availableCash.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-border pt-1.5">
-                    <span className="text-muted-foreground font-medium">Total funding</span>
-                    <span className="font-mono font-medium text-foreground">${rebalancingData.totalFunding.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                  </div>
-                </div>
-
-                {rebalancingData.gap <= 0 ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      <span className="text-sm text-emerald-500 font-medium">Fully funded — rebalancing covers all buys</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      ~${rebalancingData.cashRemaining.toLocaleString(undefined, { maximumFractionDigits: 0 })} cash remaining after rebalancing
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-500" />
-                      <span className="text-sm text-amber-500 font-medium">
-                        ${rebalancingData.gap.toLocaleString(undefined, { maximumFractionDigits: 0 })} shortfall
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Buys scaled to {Math.round(rebalancingData.buyScale * 100)}%. Reduce targets or sell more.
-                    </p>
-                    {rebalancingData.scaleBackPositions.length > 0 && (
-                      <div className="text-xs space-y-0.5">
-                        <span className="text-muted-foreground font-medium">Scale back:</span>
-                        {rebalancingData.scaleBackPositions.map((p) => (
-                          <div key={p.ticker} className="flex justify-between pl-2">
-                            <span className="font-mono">{p.ticker}</span>
-                            <span className="text-amber-500">-${p.cut.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-          </div>
-        </div>
       </div>
     </TooltipProvider>
   );
