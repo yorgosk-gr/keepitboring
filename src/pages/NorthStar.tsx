@@ -23,39 +23,6 @@ const statusConfig = {
   reduce: { label: "Reduce", color: "bg-amber-500/20 text-amber-400 border-amber-500/30" },
   exit: { label: "Exit", color: "bg-destructive/20 text-destructive border-destructive/30" },
 };
-
-function AlignmentBar({ ticker, current, ideal, usdAmount }: { ticker: string; current: number; ideal: number; usdAmount: number }) {
-  const maxBar = Math.max(current, ideal, 1);
-  const isBuy = ideal > current;
-  const actionLabel = usdAmount === 0 ? "—" : isBuy
-    ? `Buy $${Math.abs(usdAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-    : `Sell $${Math.abs(usdAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-xs">
-        <span className="font-mono">{ticker}</span>
-        <span className={usdAmount === 0 ? "text-muted-foreground" : isBuy ? "text-emerald-400" : "text-amber-400"}>
-          {actionLabel}
-        </span>
-      </div>
-      <div className="flex justify-between text-xs text-muted-foreground">
-        <span>{current.toFixed(1)}%</span>
-        <span>→ {ideal.toFixed(1)}%</span>
-      </div>
-      <div className="relative h-3 bg-secondary rounded-full overflow-hidden">
-        <div
-          className="absolute top-0 left-0 h-full bg-primary/40 rounded-full"
-          style={{ width: `${(current / maxBar) * 100}%` }}
-        />
-        <div
-          className="absolute top-0 left-0 h-full border-r-2 border-primary"
-          style={{ width: `${(ideal / maxBar) * 100}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
 export default function NorthStar() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -384,9 +351,11 @@ export default function NorthStar() {
                     <tr className="bg-secondary/50 text-muted-foreground text-xs uppercase">
                       {[
                         { key: "ticker", label: "Ticker", align: "text-left" },
-                        { key: "current", label: "Current", align: "text-right" },
-                        { key: "ideal", label: "Ideal", align: "text-right" },
+                        { key: "current", label: "Current %", align: "text-right" },
+                        { key: "currentUsd", label: "Current $", align: "text-right" },
+                        { key: "ideal", label: "Ideal %", align: "text-right" },
                         { key: "idealUsd", label: "Ideal $", align: "text-right" },
+                        { key: "buySell", label: "Buy/Sell $", align: "text-right" },
                         { key: "range", label: "Range", align: "text-right" },
                         { key: "status", label: "Status", align: "text-center" },
                         { key: "rationale", label: "Rationale", align: "text-left" },
@@ -436,6 +405,9 @@ export default function NorthStar() {
                             <td className={`px-3 py-2 text-right ${!pos.inIB || pos.status === "exit" ? "text-destructive" : "text-muted-foreground"}`}>
                               {pos.currentWeight.toFixed(1)}%
                             </td>
+                            <td className="px-3 py-2 text-right text-muted-foreground">
+                              ${(pos.currentWeight / 100 * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </td>
                             <td className="px-3 py-2 text-right">
                               {isEditing ? (
                                 <Input type="number" className="w-16 h-7 text-xs inline" value={editForm.target_weight_ideal ?? ""} onChange={(e) => setEditForm({ ...editForm, target_weight_ideal: parseFloat(e.target.value) || null })} />
@@ -446,6 +418,17 @@ export default function NorthStar() {
                             <td className="px-3 py-2 text-right text-muted-foreground">
                               ${((pos.target_weight_ideal ?? 0) * idealNormFactor / 100 * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </td>
+                            {(() => {
+                              const idealUsd = (pos.target_weight_ideal ?? 0) * idealNormFactor / 100 * totalValue;
+                              const currentUsd = pos.currentWeight / 100 * totalValue;
+                              const diff = idealUsd - currentUsd;
+                              if (Math.abs(diff) < 1) return <td className="px-3 py-2 text-right text-muted-foreground">—</td>;
+                              return (
+                                <td className={`px-3 py-2 text-right font-mono text-xs ${diff > 0 ? "text-emerald-500" : "text-amber-500"}`}>
+                                  {diff > 0 ? "+" : ""}{diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                </td>
+                              );
+                            })()}
                             <td className="px-3 py-2 text-right text-xs text-muted-foreground">
                               {isEditing ? (
                                 <div className="flex gap-1 justify-end">
@@ -502,7 +485,7 @@ export default function NorthStar() {
                           {/* Expanded thesis edit row */}
                           {isEditing && (
                             <tr key={`${pos.id}-thesis`} className="bg-secondary/20 border-t border-border/50">
-                              <td colSpan={8} className="px-4 py-3">
+                              <td colSpan={10} className="px-4 py-3">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                   <div className="space-y-1.5">
                                     <Label className="text-xs">Thesis — Why hold this?</Label>
@@ -533,6 +516,9 @@ export default function NorthStar() {
                     <tr className="border-t border-border bg-secondary/10">
                       <td className="px-3 py-2 font-mono font-medium text-foreground">💵 CASH</td>
                       <td className="px-3 py-2 text-right text-muted-foreground">{cashWeight.toFixed(1)}%</td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">
+                        ${(cashWeight / 100 * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </td>
                       <td className="px-3 py-2 text-right">
                         {editingCash ? (
                           <Input type="number" className="w-16 h-7 text-xs inline" value={cashTarget.ideal} onChange={(e) => setCashTarget({ ...cashTarget, ideal: e.target.value })} />
@@ -543,6 +529,17 @@ export default function NorthStar() {
                       <td className="px-3 py-2 text-right text-muted-foreground">
                         ${((parseFloat(cashTarget.ideal) || 0) * idealNormFactor / 100 * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </td>
+                      {(() => {
+                        const cashIdealUsd = (parseFloat(cashTarget.ideal) || 0) * idealNormFactor / 100 * totalValue;
+                        const cashCurrentUsd = cashWeight / 100 * totalValue;
+                        const diff = cashIdealUsd - cashCurrentUsd;
+                        if (Math.abs(diff) < 1) return <td className="px-3 py-2 text-right text-muted-foreground">—</td>;
+                        return (
+                          <td className={`px-3 py-2 text-right font-mono text-xs ${diff > 0 ? "text-emerald-500" : "text-amber-500"}`}>
+                            {diff > 0 ? "+" : ""}{diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </td>
+                        );
+                      })()}
                       <td className="px-3 py-2 text-right text-xs text-muted-foreground">
                         {editingCash ? (
                           <div className="flex gap-1 justify-end">
@@ -570,28 +567,40 @@ export default function NorthStar() {
                       </td>
                     </tr>
                     {/* Total row */}
-                    <tr className="border-t-2 border-border font-semibold bg-secondary/20">
-                      <td className="px-3 py-2 text-foreground">Total</td>
-                      <td className="px-3 py-2 text-right text-muted-foreground">
-                        {(enrichedPositions.reduce((s, p) => s + p.currentWeight, 0) + cashWeight).toFixed(1)}%
-                      </td>
-                      {(() => {
-                        const idealSum = enrichedPositions.reduce((s, p) => s + (p.target_weight_ideal ?? 0), 0) + (parseFloat(cashTarget.ideal) || 0);
-                        const isOff = Math.abs(idealSum - 100) > 1;
-                        return (
-                          <>
-                            <td className={`px-3 py-2 text-right ${isOff ? "text-amber-400" : "text-foreground"}`}>
-                              {idealSum.toFixed(1)}%
-                              {isOff && <span className="ml-1 text-xs">⚠️ ≠100%</span>}
-                            </td>
-                            <td className="px-3 py-2 text-right text-foreground">
-                              ${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </td>
-                            <td className="px-3 py-2" colSpan={4}></td>
-                          </>
-                        );
-                      })()}
-                    </tr>
+                    {(() => {
+                      const totalCurrentPct = enrichedPositions.reduce((s, p) => s + p.currentWeight, 0) + cashWeight;
+                      const totalCurrentUsd = totalCurrentPct / 100 * totalValue;
+                      const idealSum = enrichedPositions.reduce((s, p) => s + (p.target_weight_ideal ?? 0), 0) + (parseFloat(cashTarget.ideal) || 0);
+                      const isOff = Math.abs(idealSum - 100) > 1;
+                      const totalBuySell = enrichedPositions.reduce((s, p) => {
+                        const idealUsd = (p.target_weight_ideal ?? 0) * idealNormFactor / 100 * totalValue;
+                        const curUsd = p.currentWeight / 100 * totalValue;
+                        return s + (idealUsd - curUsd);
+                      }, 0);
+                      const cashIdealUsd = (parseFloat(cashTarget.ideal) || 0) * idealNormFactor / 100 * totalValue;
+                      const cashCurUsd = cashWeight / 100 * totalValue;
+                      const totalBuySellWithCash = totalBuySell + (cashIdealUsd - cashCurUsd);
+                      return (
+                        <tr className="border-t-2 border-border font-semibold bg-secondary/20">
+                          <td className="px-3 py-2 text-foreground">Total</td>
+                          <td className="px-3 py-2 text-right text-muted-foreground">{totalCurrentPct.toFixed(1)}%</td>
+                          <td className="px-3 py-2 text-right text-foreground">
+                            ${totalCurrentUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </td>
+                          <td className={`px-3 py-2 text-right ${isOff ? "text-amber-400" : "text-foreground"}`}>
+                            {idealSum.toFixed(1)}%
+                            {isOff && <span className="ml-1 text-xs">⚠️ ≠100%</span>}
+                          </td>
+                          <td className="px-3 py-2 text-right text-foreground">
+                            ${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </td>
+                          <td className={`px-3 py-2 text-right font-mono text-xs ${Math.abs(totalBuySellWithCash) < 1 ? "text-muted-foreground" : totalBuySellWithCash > 0 ? "text-emerald-500" : "text-amber-500"}`}>
+                            {Math.abs(totalBuySellWithCash) < 1 ? "—" : `${totalBuySellWithCash > 0 ? "+" : ""}${totalBuySellWithCash.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                          </td>
+                          <td className="px-3 py-2" colSpan={4}></td>
+                        </tr>
+                      );
+                    })()}
                   </tbody>
                 </table>
                 {nsPositions.length === 0 && (
@@ -603,133 +612,6 @@ export default function NorthStar() {
               );
             })()}
 
-            {/* Buy / Sell Action Tables */}
-            {enrichedPositions.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Buy */}
-                <div className="rounded-lg border border-emerald-500/30 overflow-hidden">
-                  <div className="bg-emerald-500/10 px-3 py-2 text-xs font-semibold uppercase text-emerald-400">Buy</div>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-muted-foreground text-xs border-b border-border">
-                        <th className="px-3 py-1.5 text-left">Ticker</th>
-                        <th className="px-3 py-1.5 text-right">USD</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        const cashIdeal = parseFloat(cashTarget.ideal) || 0;
-                        const cashExcess = Math.max(0, cashWeight - cashIdeal);
-                        const cashReduceUsd = (cashExcess / 100) * totalValue;
-                        const sellTotal = enrichedPositions
-                          .filter((p) => (p.derivedStatus === "reduce" || p.status === "exit") && p.currentWeight > 0)
-                          .reduce((s, p) => {
-                            const targetIdeal = p.status === "exit" ? 0 : (p.target_weight_ideal ?? 0);
-                            return s + ((p.currentWeight - targetIdeal) / 100) * totalValue;
-                          }, 0) + cashReduceUsd;
-
-                        const buyPositions = enrichedPositions
-                          .filter((p) => p.derivedStatus === "build" && p.currentWeight < (p.target_weight_ideal ?? 0))
-                          .sort((a, b) => ((b.target_weight_ideal ?? 0) - b.currentWeight) - ((a.target_weight_ideal ?? 0) - a.currentWeight));
-
-                        const rawBuyTotal = buyPositions.reduce((s, p) => s + (((p.target_weight_ideal ?? 0) - p.currentWeight) / 100) * totalValue, 0);
-                        const scaleFactor = rawBuyTotal > 0 && sellTotal > 0 ? sellTotal / rawBuyTotal : 1;
-
-                        return (
-                          <>
-                            {buyPositions.map((p) => {
-                              const rawUsd = (((p.target_weight_ideal ?? 0) - p.currentWeight) / 100) * totalValue;
-                              const usd = rawUsd * scaleFactor;
-                              return (
-                                <tr key={p.ticker} className="border-t border-border/50">
-                                  <td className="px-3 py-1.5 font-mono text-foreground">{p.ticker}</td>
-                                  <td className="px-3 py-1.5 text-right text-emerald-400">${usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                                </tr>
-                              );
-                            })}
-                            {buyPositions.length === 0 && (
-                              <tr><td colSpan={2} className="px-3 py-3 text-center text-xs text-muted-foreground">No buys needed</td></tr>
-                            )}
-                            {sellTotal > 0 && buyPositions.length > 0 ? (
-                              <tr className="border-t-2 border-emerald-500/30 font-semibold">
-                                <td className="px-3 py-1.5 text-foreground">Total</td>
-                                <td className="px-3 py-1.5 text-right text-emerald-400">${sellTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                              </tr>
-                            ) : null}
-                          </>
-                        );
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Sell */}
-                <div className="rounded-lg border border-amber-500/30 overflow-hidden">
-                  <div className="bg-amber-500/10 px-3 py-2 text-xs font-semibold uppercase text-amber-400">Sell</div>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-muted-foreground text-xs border-b border-border">
-                        <th className="px-3 py-1.5 text-left">Ticker</th>
-                        <th className="px-3 py-1.5 text-right">USD</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {enrichedPositions
-                        .filter((p) => (p.derivedStatus === "reduce" || p.status === "exit") && p.currentWeight > 0)
-                        .sort((a, b) => {
-                          const aUsd = (a.currentWeight - (a.status === "exit" ? 0 : (a.target_weight_ideal ?? 0))) / 100 * totalValue;
-                          const bUsd = (b.currentWeight - (b.status === "exit" ? 0 : (b.target_weight_ideal ?? 0))) / 100 * totalValue;
-                          return bUsd - aUsd;
-                        })
-                        .map((p) => {
-                          const targetIdeal = p.status === "exit" ? 0 : (p.target_weight_ideal ?? 0);
-                          const usd = ((p.currentWeight - targetIdeal) / 100) * totalValue;
-                          return (
-                            <tr key={p.ticker} className="border-t border-border/50">
-                              <td className="px-3 py-1.5 font-mono text-foreground">{p.ticker}</td>
-                              <td className="px-3 py-1.5 text-right text-amber-400">${usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                            </tr>
-                          );
-                        })}
-                      {(() => {
-                        const cashIdeal = parseFloat(cashTarget.ideal) || 0;
-                        const cashExcess = cashWeight - cashIdeal;
-                        if (cashExcess > 0) {
-                          const usd = (cashExcess / 100) * totalValue;
-                          return (
-                            <tr className="border-t border-border/50">
-                              <td className="px-3 py-1.5 font-mono text-foreground">💵 CASH</td>
-                              <td className="px-3 py-1.5 text-right text-amber-400">${usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                            </tr>
-                          );
-                        }
-                        return null;
-                      })()}
-                      {enrichedPositions.filter((p) => (p.derivedStatus === "reduce" || p.status === "exit") && p.currentWeight > 0).length === 0 && cashWeight <= (parseFloat(cashTarget.ideal) || 0) && (
-                        <tr><td colSpan={2} className="px-3 py-3 text-center text-xs text-muted-foreground">No sells needed</td></tr>
-                      )}
-                      {(() => {
-                        const cashIdeal = parseFloat(cashTarget.ideal) || 0;
-                        const cashExcess = Math.max(0, cashWeight - cashIdeal);
-                        const cashReduceUsd = (cashExcess / 100) * totalValue;
-                        const total = enrichedPositions
-                          .filter((p) => (p.derivedStatus === "reduce" || p.status === "exit") && p.currentWeight > 0)
-                          .reduce((s, p) => {
-                            const targetIdeal = p.status === "exit" ? 0 : (p.target_weight_ideal ?? 0);
-                            return s + ((p.currentWeight - targetIdeal) / 100) * totalValue;
-                          }, 0) + cashReduceUsd;
-                        return total > 0 ? (
-                          <tr className="border-t-2 border-amber-500/30 font-semibold">
-                            <td className="px-3 py-1.5 text-foreground">Total</td>
-                            <td className="px-3 py-1.5 text-right text-amber-400">${total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                          </tr>
-                        ) : null;
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Right: Progress */}
@@ -777,19 +659,6 @@ export default function NorthStar() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Position Gaps</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {alignmentData.gaps.slice(0, 10).map((g) => (
-                  <AlignmentBar key={g.ticker} ticker={g.ticker} current={g.current} ideal={g.ideal} usdAmount={g.usdAmount} />
-                ))}
-                {alignmentData.gaps.length === 0 && (
-                  <p className="text-sm text-muted-foreground">Add target positions to see gaps</p>
-                )}
-              </CardContent>
-            </Card>
           </div>
         </div>
       </div>
