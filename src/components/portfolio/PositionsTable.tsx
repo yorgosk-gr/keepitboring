@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { ChevronDown, ChevronUp, Pencil, Trash2, FileText, Search, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Pencil, Trash2, FileText, Search, Loader2, Feather, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,6 +31,7 @@ interface PositionsTableProps {
   hideDeleteActions?: boolean;
   cashBalance?: number;
   totalValue?: number;
+  onOpenThesis?: (position: Position) => void;
 }
 
 function calculatePnL(position: Position) {
@@ -137,6 +138,7 @@ export function PositionsTable({
   hideDeleteActions,
   cashBalance,
   totalValue,
+  onOpenThesis,
 }: PositionsTableProps) {
   const [sortField, setSortField] = useState<SortField>("market_value");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -318,16 +320,29 @@ export function PositionsTable({
                       </td>
                     )}
                     <td className="py-3">
-                      <button
-                        className="font-bold text-foreground hover:text-primary transition-colors flex items-center gap-1 text-base"
-                        onClick={() => setExpandedId(isExpanded ? null : position.id)}
-                      >
-                        {position.ticker}
-                        {position.position_type === "etf" && (
-                          <ETFInfoTooltip metadata={etfMetadata[position.ticker] || null} />
-                        )}
-                        {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          className="cursor-pointer hover:scale-110 transition-transform"
+                          onClick={() => onOpenThesis?.(position)}
+                          title={position.thesis_notes && position.confidence_level ? "View thesis" : "Add thesis"}
+                        >
+                          {position.thesis_notes && position.confidence_level ? (
+                            <Feather className="w-3.5 h-3.5 text-emerald-500" />
+                          ) : (
+                            <AlertTriangle className="w-3.5 h-3.5 text-muted-foreground" />
+                          )}
+                        </button>
+                        <button
+                          className="font-bold text-foreground hover:text-primary transition-colors flex items-center gap-1 text-base"
+                          onClick={() => setExpandedId(isExpanded ? null : position.id)}
+                        >
+                          {position.ticker}
+                          {position.position_type === "etf" && (
+                            <ETFInfoTooltip metadata={etfMetadata[position.ticker] || null} />
+                          )}
+                          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        </button>
+                      </div>
                     </td>
                     <td className="py-3 text-muted-foreground max-w-[120px] truncate text-xs">
                       {position.name || "—"}

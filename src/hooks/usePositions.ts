@@ -26,6 +26,8 @@ export interface Position {
   manually_classified: boolean | null;
   unrealized_pnl: number | null;
   cost_basis_money: number | null;
+  bet_type: string | null;
+  invalidation_trigger: string | null;
 }
 
 // Annotation-only form data (no shares/price/ticker editing)
@@ -108,7 +110,7 @@ export function usePositions() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("positions")
-        .select("ticker, thesis_notes, confidence_level, last_review_date, category, position_type, name, currency, exchange, manually_classified");
+        .select("ticker, thesis_notes, confidence_level, last_review_date, category, position_type, name, currency, exchange, manually_classified, bet_type, invalidation_trigger");
       if (error) throw error;
       const map: Record<string, typeof data[number]> = {};
       for (const row of data) {
@@ -186,6 +188,8 @@ export function usePositions() {
       manually_classified: ann?.manually_classified || null,
       unrealized_pnl: ib.unrealized_pnl,
       cost_basis_money: ib.cost_basis_money,
+      bet_type: ann?.bet_type || null,
+      invalidation_trigger: ann?.invalidation_trigger || null,
     };
   });
 
@@ -201,18 +205,20 @@ export function usePositions() {
         .eq("ticker", ticker)
         .maybeSingle();
 
-      const annotationData = {
-        thesis_notes: formData.thesis_notes
-          ? `${formData.thesis_notes}${formData.invalidation_triggers ? `\n\n**Invalidation Triggers:**\n${formData.invalidation_triggers}` : ""}`
-          : null,
-        confidence_level: formData.confidence_level || null,
-        category: formData.category || null,
-        position_type: formData.position_type || null,
-        name: formData.name || null,
-        currency: formData.currency || null,
-        exchange: formData.exchange || null,
+      const annotationData: Record<string, any> = {
         manually_classified: true,
       };
+      // Only set fields that are explicitly provided
+      if ('thesis_notes' in formData) annotationData.thesis_notes = formData.thesis_notes || null;
+      if ('confidence_level' in formData) annotationData.confidence_level = formData.confidence_level || null;
+      if ('category' in formData) annotationData.category = formData.category || null;
+      if ('position_type' in formData) annotationData.position_type = formData.position_type || null;
+      if ('name' in formData) annotationData.name = formData.name || null;
+      if ('currency' in formData) annotationData.currency = formData.currency || null;
+      if ('exchange' in formData) annotationData.exchange = formData.exchange || null;
+      if ('invalidation_triggers' in formData) annotationData.invalidation_trigger = formData.invalidation_triggers || null;
+      if ('bet_type' in formData) annotationData.bet_type = (formData as any).bet_type || null;
+      if ('last_review_date' in formData) annotationData.last_review_date = (formData as any).last_review_date || null;
 
       if (existing) {
         const { error } = await supabase

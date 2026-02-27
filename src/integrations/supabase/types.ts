@@ -873,6 +873,7 @@ export type Database = {
           exchange: string | null
           fundamentals: Json | null
           id: string
+          invalidation_trigger: string | null
           last_fundamentals_refresh: string | null
           last_review_date: string | null
           manually_classified: boolean | null
@@ -897,6 +898,7 @@ export type Database = {
           exchange?: string | null
           fundamentals?: Json | null
           id?: string
+          invalidation_trigger?: string | null
           last_fundamentals_refresh?: string | null
           last_review_date?: string | null
           manually_classified?: boolean | null
@@ -921,6 +923,7 @@ export type Database = {
           exchange?: string | null
           fundamentals?: Json | null
           id?: string
+          invalidation_trigger?: string | null
           last_fundamentals_refresh?: string | null
           last_review_date?: string | null
           manually_classified?: boolean | null
