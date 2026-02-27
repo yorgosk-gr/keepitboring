@@ -511,16 +511,33 @@ export default function NorthStar() {
                             </tr>
                           );
                         })}
-                      {enrichedPositions.filter((p) => (p.derivedStatus === "reduce" || p.status === "exit") && p.currentWeight > 0).length === 0 && (
+                      {(() => {
+                        const cashIdeal = parseFloat(cashTarget.ideal) || 0;
+                        const cashExcess = cashWeight - cashIdeal;
+                        if (cashExcess > 0) {
+                          const usd = (cashExcess / 100) * totalValue;
+                          return (
+                            <tr className="border-t border-border/50">
+                              <td className="px-3 py-1.5 font-mono text-foreground">💵 CASH</td>
+                              <td className="px-3 py-1.5 text-right text-amber-400">-${usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                            </tr>
+                          );
+                        }
+                        return null;
+                      })()}
+                      {enrichedPositions.filter((p) => (p.derivedStatus === "reduce" || p.status === "exit") && p.currentWeight > 0).length === 0 && cashWeight <= (parseFloat(cashTarget.ideal) || 0) && (
                         <tr><td colSpan={2} className="px-3 py-3 text-center text-xs text-muted-foreground">No sells needed</td></tr>
                       )}
                       {(() => {
+                        const cashIdeal = parseFloat(cashTarget.ideal) || 0;
+                        const cashExcess = Math.max(0, cashWeight - cashIdeal);
+                        const cashReduceUsd = (cashExcess / 100) * totalValue;
                         const total = enrichedPositions
                           .filter((p) => (p.derivedStatus === "reduce" || p.status === "exit") && p.currentWeight > 0)
                           .reduce((s, p) => {
                             const targetIdeal = p.status === "exit" ? 0 : (p.target_weight_ideal ?? 0);
                             return s + ((p.currentWeight - targetIdeal) / 100) * totalValue;
-                          }, 0);
+                          }, 0) + cashReduceUsd;
                         return total > 0 ? (
                           <tr className="border-t-2 border-amber-500/30 font-semibold">
                             <td className="px-3 py-1.5 text-foreground">Total</td>
