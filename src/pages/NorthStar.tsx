@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Compass, Plus, Trash2, Pencil, Check, X, Loader2, Import, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Compass, Plus, Trash2, Pencil, Check, X, Loader2, Import, ArrowUpDown, ArrowUp, ArrowDown, DollarSign, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -7,9 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useNorthStar, type NorthStarPosition } from "@/hooks/useNorthStar";
 import { useIBCurrentWeights, deriveStatus, statusTooltip } from "@/hooks/useIBCurrentWeights";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 const statusConfig = {
   build: { label: "Build", color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" },
@@ -51,6 +57,8 @@ function AlignmentBar({ ticker, current, ideal, usdAmount }: { ticker: string; c
 }
 
 export default function NorthStar() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const {
     portfolio, positions: nsPositions, isLoading, isLoadingPositions,
     createPortfolio, addPosition, updatePosition, deletePosition,
@@ -58,20 +66,38 @@ export default function NorthStar() {
   } = useNorthStar();
   const { weights: ibWeights, cashWeight, totalValue, isLoading: ibLoading } = useIBCurrentWeights();
 
+  // Fetch thesis data from positions table
+  const { data: thesisMap = {} } = useQuery({
+    queryKey: ["ns-thesis-map", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("positions")
+        .select("ticker, thesis_notes, invalidation_trigger")
+        .eq("user_id", user!.id);
+      if (error) throw error;
+      const map: Record<string, { thesis_notes: string | null; invalidation_trigger: string | null }> = {};
+      for (const row of data || []) {
+        map[row.ticker] = { thesis_notes: row.thesis_notes, invalidation_trigger: row.invalidation_trigger };
+      }
+      return map;
+    },
+    enabled: !!user,
+  });
+
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<Partial<NorthStarPosition>>({});
+  const [editForm, setEditForm] = useState<Partial<NorthStarPosition> & { thesis_notes?: string; invalidation_trigger?: string }>({});
   const [showAdd, setShowAdd] = useState(false);
-  // Initialize cash target from portfolio DB values
   const [cashTarget, setCashTarget] = useState<{ ideal: string; min: string; max: string }>({ ideal: "10", min: "8", max: "15" });
   const [cashTargetLoaded, setCashTargetLoaded] = useState(false);
   const [editingCash, setEditingCash] = useState(false);
   const [sortKey, setSortKey] = useState<string>("ticker");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [newPos, setNewPos] = useState({
     ticker: "", name: "", target_weight_ideal: "", target_weight_min: "", target_weight_max: "",
     status: "hold" as const, priority: 2, rationale: "",
   });
-  // Load cash target from portfolio when available
+
   useEffect(() => {
     if (portfolio && !cashTargetLoaded) {
       setCashTarget({
@@ -83,16 +109,16 @@ export default function NorthStar() {
     }
   }, [portfolio, cashTargetLoaded]);
 
-  // Compute live current weights + derived statuses
   const enrichedPositions = useMemo(() => {
     return nsPositions.map((pos) => {
       const currentWeight = ibWeights[pos.ticker] ?? 0;
       const derived = deriveStatus(currentWeight, pos.target_weight_min, pos.target_weight_max, pos.status);
       const tooltip = statusTooltip(currentWeight, pos.target_weight_min, pos.target_weight_max, derived);
       const inIB = pos.ticker in ibWeights;
-      return { ...pos, currentWeight, derivedStatus: derived, statusTooltip: tooltip, inIB };
+      const thesis = thesisMap[pos.ticker];
+      return { ...pos, currentWeight, derivedStatus: derived, statusTooltip: tooltip, inIB, thesis_notes: thesis?.thesis_notes ?? null, invalidation_trigger: thesis?.invalidation_trigger ?? null };
     });
-  }, [nsPositions, ibWeights]);
+  }, [nsPositions, ibWeights, thesisMap]);
 
   const toggleSort = useCallback((key: string) => {
     if (sortKey === key) {
@@ -121,23 +147,18 @@ export default function NorthStar() {
     return sorted;
   }, [enrichedPositions, sortKey, sortDir]);
 
-  // Alignment: % of non-exit positions that are within range (Hold)
   const alignmentData = useMemo(() => {
     if (enrichedPositions.length === 0) return { score: 0, gaps: [], cashNeeded: 0 };
 
     const nonExit = enrichedPositions.filter((p) => p.derivedStatus !== "exit" && p.status !== "exit");
     const exitPositions = enrichedPositions.filter((p) => p.status === "exit");
 
-    // Non-exit: aligned if within range
     const alignedNonExit = nonExit.filter((p) => p.derivedStatus === "hold").length;
-
-    // Exit: aligned only if current = 0
     const alignedExit = exitPositions.filter((p) => p.currentWeight === 0).length;
 
     const totalDenom = nonExit.length + exitPositions.length;
     const score = totalDenom > 0 ? Math.round(((alignedNonExit + alignedExit) / totalDenom) * 100) : 0;
 
-    // Normalize gap USD amounts so they're proportional to actual portfolio
     const rawIdealTotal = enrichedPositions.reduce((s, p) => s + (p.target_weight_ideal ?? 0), 0) + (parseFloat(cashTarget.ideal) || 0);
     const normFactor = rawIdealTotal > 0 ? 100 / rawIdealTotal : 1;
 
@@ -157,7 +178,6 @@ export default function NorthStar() {
         };
       });
 
-    // Add cash gap
     const cashIdeal = parseFloat(cashTarget.ideal) || 0;
     const normalizedCashIdeal = cashIdeal * normFactor;
     const cashDiff = normalizedCashIdeal - cashWeight;
@@ -180,7 +200,6 @@ export default function NorthStar() {
   }, [enrichedPositions, totalValue]);
 
   const handleImport = async () => {
-    // Build mapped positions from IB data
     const mapped = Object.entries(ibWeights).map(([ticker, weight]) => ({
       ticker,
       name: null as string | null,
@@ -209,7 +228,7 @@ export default function NorthStar() {
     setShowAdd(false);
   };
 
-  const startEdit = (pos: NorthStarPosition) => {
+  const startEdit = (pos: typeof enrichedPositions[0]) => {
     setEditingId(pos.id);
     setEditForm({
       target_weight_ideal: pos.target_weight_ideal,
@@ -218,13 +237,58 @@ export default function NorthStar() {
       status: pos.status,
       priority: pos.priority,
       rationale: pos.rationale,
+      thesis_notes: pos.thesis_notes ?? "",
+      invalidation_trigger: pos.invalidation_trigger ?? "",
     });
   };
 
   const saveEdit = async () => {
-    if (!editingId) return;
-    await updatePosition({ id: editingId, ...editForm });
-    setEditingId(null);
+    if (!editingId || !user) return;
+    setIsSavingEdit(true);
+    try {
+      const editingPos = enrichedPositions.find(p => p.id === editingId);
+      if (!editingPos) return;
+
+      // Save weights/range/status to north_star_positions
+      const { thesis_notes, invalidation_trigger, ...nsFields } = editForm;
+      await updatePosition({ id: editingId, ...nsFields });
+
+      // Upsert thesis/invalidation to positions table
+      const { data: existing } = await supabase
+        .from("positions")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("ticker", editingPos.ticker)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from("positions")
+          .update({ thesis_notes: thesis_notes || null, invalidation_trigger: invalidation_trigger || null })
+          .eq("id", existing.id);
+      } else {
+        await supabase
+          .from("positions")
+          .insert({
+            user_id: user.id,
+            ticker: editingPos.ticker,
+            shares: 0,
+            avg_cost: 0,
+            current_price: 0,
+            market_value: 0,
+            thesis_notes: thesis_notes || null,
+            invalidation_trigger: invalidation_trigger || null,
+          });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["ns-thesis-map"] });
+      queryClient.invalidateQueries({ queryKey: ["position-annotations"] });
+      setEditingId(null);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
   if (isLoading) {
@@ -311,7 +375,6 @@ export default function NorthStar() {
             {isLoadingPositions || ibLoading ? (
               <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-16" />)}</div>
             ) : (() => {
-              // Normalize Ideal $ so total matches actual portfolio value
               const rawIdealSum = enrichedPositions.reduce((s, p) => s + (p.target_weight_ideal ?? 0), 0) + (parseFloat(cashTarget.ideal) || 0);
               const idealNormFactor = rawIdealSum > 0 ? 100 / rawIdealSum : 1;
               return (
@@ -350,73 +413,120 @@ export default function NorthStar() {
                     {sortedPositions.map((pos) => {
                       const isEditing = editingId === pos.id;
                       const sc = statusConfig[pos.derivedStatus];
+                      const hasThesis = !!(pos.thesis_notes);
                       return (
-                        <tr key={pos.id} className="border-t border-border hover:bg-secondary/20 transition-colors">
-                          <td className="px-3 py-2 font-mono font-medium text-foreground">{pos.ticker}</td>
-                          <td className={`px-3 py-2 text-right ${!pos.inIB || pos.status === "exit" ? "text-destructive" : "text-muted-foreground"}`}>
-                            {pos.currentWeight.toFixed(1)}%
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            {isEditing ? (
-                              <Input type="number" className="w-16 h-7 text-xs inline" value={editForm.target_weight_ideal ?? ""} onChange={(e) => setEditForm({ ...editForm, target_weight_ideal: parseFloat(e.target.value) || null })} />
-                            ) : (
-                              <span className="text-foreground">{pos.target_weight_ideal?.toFixed(1) ?? "-"}%</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-right text-muted-foreground">
-                            ${((pos.target_weight_ideal ?? 0) * idealNormFactor / 100 * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                          </td>
-                          <td className="px-3 py-2 text-right text-xs text-muted-foreground">
-                            {isEditing ? (
-                              <div className="flex gap-1 justify-end">
-                                <Input type="number" className="w-14 h-7 text-xs" value={editForm.target_weight_min ?? ""} onChange={(e) => setEditForm({ ...editForm, target_weight_min: parseFloat(e.target.value) || null })} />
-                                <Input type="number" className="w-14 h-7 text-xs" value={editForm.target_weight_max ?? ""} onChange={(e) => setEditForm({ ...editForm, target_weight_max: parseFloat(e.target.value) || null })} />
+                        <>
+                          <tr key={pos.id} className="border-t border-border hover:bg-secondary/20 transition-colors">
+                            <td className="px-3 py-2 font-mono font-medium text-foreground">
+                              <div className="flex items-center gap-1.5">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      className="cursor-pointer hover:scale-110 transition-transform text-sm"
+                                      onClick={() => startEdit(pos)}
+                                    >
+                                      {hasThesis ? "📝" : "⚠️"}
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>{hasThesis ? "View thesis" : "Add thesis"}</TooltipContent>
+                                </Tooltip>
+                                {pos.ticker}
                               </div>
-                            ) : (
-                              `${pos.target_weight_min?.toFixed(0) ?? "?"}–${pos.target_weight_max?.toFixed(0) ?? "?"}%`
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {isEditing ? (
-                              <Select value={editForm.status ?? pos.status} onValueChange={(v: any) => setEditForm({ ...editForm, status: v })}>
-                                <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="hold">Auto</SelectItem>
-                                  <SelectItem value="exit">Exit</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <Badge variant="outline" className={sc.color}>{sc.label}</Badge>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-xs text-xs">
-                                  {pos.statusTooltip}
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-xs text-muted-foreground max-w-[200px] truncate">
-                            {isEditing ? (
-                              <Input className="h-7 text-xs" value={editForm.rationale ?? ""} onChange={(e) => setEditForm({ ...editForm, rationale: e.target.value })} />
-                            ) : (
-                              pos.rationale || "—"
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            {isEditing ? (
-                              <div className="flex gap-1 justify-end">
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingId(null)}><X className="w-3 h-3" /></Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={saveEdit}><Check className="w-3 h-3" /></Button>
-                              </div>
-                            ) : (
-                              <div className="flex gap-1 justify-end">
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEdit(pos)}><Pencil className="w-3 h-3" /></Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deletePosition(pos.id)}><Trash2 className="w-3 h-3" /></Button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
+                            </td>
+                            <td className={`px-3 py-2 text-right ${!pos.inIB || pos.status === "exit" ? "text-destructive" : "text-muted-foreground"}`}>
+                              {pos.currentWeight.toFixed(1)}%
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              {isEditing ? (
+                                <Input type="number" className="w-16 h-7 text-xs inline" value={editForm.target_weight_ideal ?? ""} onChange={(e) => setEditForm({ ...editForm, target_weight_ideal: parseFloat(e.target.value) || null })} />
+                              ) : (
+                                <span className="text-foreground">{pos.target_weight_ideal?.toFixed(1) ?? "-"}%</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right text-muted-foreground">
+                              ${((pos.target_weight_ideal ?? 0) * idealNormFactor / 100 * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </td>
+                            <td className="px-3 py-2 text-right text-xs text-muted-foreground">
+                              {isEditing ? (
+                                <div className="flex gap-1 justify-end">
+                                  <Input type="number" className="w-14 h-7 text-xs" value={editForm.target_weight_min ?? ""} onChange={(e) => setEditForm({ ...editForm, target_weight_min: parseFloat(e.target.value) || null })} />
+                                  <Input type="number" className="w-14 h-7 text-xs" value={editForm.target_weight_max ?? ""} onChange={(e) => setEditForm({ ...editForm, target_weight_max: parseFloat(e.target.value) || null })} />
+                                </div>
+                              ) : (
+                                `${pos.target_weight_min?.toFixed(0) ?? "?"}–${pos.target_weight_max?.toFixed(0) ?? "?"}%`
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              {isEditing ? (
+                                <Select value={editForm.status ?? pos.status} onValueChange={(v: any) => setEditForm({ ...editForm, status: v })}>
+                                  <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="hold">Auto</SelectItem>
+                                    <SelectItem value="exit">Exit</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <Badge variant="outline" className={sc.color}>{sc.label}</Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-xs text-xs">
+                                    {pos.statusTooltip}
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-xs text-muted-foreground max-w-[200px] truncate">
+                              {isEditing ? (
+                                <Input className="h-7 text-xs" value={editForm.rationale ?? ""} onChange={(e) => setEditForm({ ...editForm, rationale: e.target.value })} />
+                              ) : (
+                                pos.rationale || "—"
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              {isEditing ? (
+                                <div className="flex gap-1 justify-end">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingId(null)}><X className="w-3 h-3" /></Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={saveEdit} disabled={isSavingEdit}>
+                                    {isSavingEdit ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="flex gap-1 justify-end">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEdit(pos)}><Pencil className="w-3 h-3" /></Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deletePosition(pos.id)}><Trash2 className="w-3 h-3" /></Button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                          {/* Expanded thesis edit row */}
+                          {isEditing && (
+                            <tr key={`${pos.id}-thesis`} className="bg-secondary/20 border-t border-border/50">
+                              <td colSpan={8} className="px-4 py-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Thesis — Why hold this?</Label>
+                                    <Textarea
+                                      placeholder="What's your rationale?"
+                                      value={editForm.thesis_notes ?? ""}
+                                      onChange={(e) => setEditForm({ ...editForm, thesis_notes: e.target.value })}
+                                      className="min-h-[70px] text-xs"
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">What would invalidate this?</Label>
+                                    <Textarea
+                                      placeholder="Price drops below X, revenue declines..."
+                                      value={editForm.invalidation_trigger ?? ""}
+                                      onChange={(e) => setEditForm({ ...editForm, invalidation_trigger: e.target.value })}
+                                      className="min-h-[70px] text-xs"
+                                    />
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </>
                       );
                     })}
                     {/* Cash Target Row */}
@@ -508,7 +618,6 @@ export default function NorthStar() {
                     </thead>
                     <tbody>
                       {(() => {
-                        // Calculate sell total first to cap buy amounts
                         const cashIdeal = parseFloat(cashTarget.ideal) || 0;
                         const cashExcess = Math.max(0, cashWeight - cashIdeal);
                         const cashReduceUsd = (cashExcess / 100) * totalValue;
@@ -641,6 +750,32 @@ export default function NorthStar() {
               </CardContent>
             </Card>
 
+            {/* Cash to Reach Target */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-primary" />
+                  Cash to Reach Target
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {alignmentData.cashNeeded > 0 ? (
+                  <>
+                    <span className="text-2xl font-bold text-foreground">
+                      ${alignmentData.cashNeeded.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Estimated additional investment needed for Build positions
+                    </p>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                    <span className="text-sm text-emerald-500 font-medium">Fully funded from rebalancing</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader className="pb-3">

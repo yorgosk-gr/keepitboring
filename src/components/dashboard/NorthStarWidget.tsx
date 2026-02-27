@@ -8,10 +8,10 @@ import { useMemo } from "react";
 
 export function NorthStarWidget() {
   const { portfolio, positions: nsPositions, isLoading } = useNorthStar();
-  const { weights: ibWeights } = useIBCurrentWeights();
+  const { weights: ibWeights, totalValue } = useIBCurrentWeights();
 
-  const score = useMemo(() => {
-    if (nsPositions.length === 0) return 0;
+  const { score, topBuy, topExit } = useMemo(() => {
+    if (nsPositions.length === 0) return { score: 0, topBuy: null, topExit: null };
 
     const enriched = nsPositions.map((pos) => {
       const currentWeight = ibWeights[pos.ticker] ?? 0;
@@ -26,8 +26,29 @@ export function NorthStarWidget() {
     const alignedExit = exitPositions.filter((p) => p.currentWeight === 0).length;
 
     const total = nonExit.length + exitPositions.length;
-    return total > 0 ? Math.round(((alignedNonExit + alignedExit) / total) * 100) : 0;
-  }, [nsPositions, ibWeights]);
+    const s = total > 0 ? Math.round(((alignedNonExit + alignedExit) / total) * 100) : 0;
+
+    // Top build action
+    const buildPositions = enriched
+      .filter((p) => p.derivedStatus === "build" && p.currentWeight < (p.target_weight_ideal ?? 0))
+      .sort((a, b) => ((b.target_weight_ideal ?? 0) - b.currentWeight) - ((a.target_weight_ideal ?? 0) - a.currentWeight));
+
+    let topBuyItem: { ticker: string; usd: number } | null = null;
+    if (buildPositions.length > 0) {
+      const p = buildPositions[0];
+      const usd = (((p.target_weight_ideal ?? 0) - p.currentWeight) / 100) * totalValue;
+      topBuyItem = { ticker: p.ticker, usd };
+    }
+
+    // Top exit action
+    const exitWithWeight = exitPositions.filter((p) => p.currentWeight > 0);
+    let topExitItem: { ticker: string } | null = null;
+    if (exitWithWeight.length > 0) {
+      topExitItem = { ticker: exitWithWeight[0].ticker };
+    }
+
+    return { score: s, topBuy: topBuyItem, topExit: topExitItem };
+  }, [nsPositions, ibWeights, totalValue]);
 
   if (isLoading || !portfolio) return null;
 
@@ -45,7 +66,21 @@ export function NorthStarWidget() {
                 <span className="text-lg font-bold text-primary">{score}%</span>
               </div>
               <Progress value={score} className="h-1.5" />
-              <p className="text-xs text-muted-foreground mt-1">{score}% aligned with target portfolio</p>
+              <div className="mt-1.5 space-y-0.5">
+                {topBuy && (
+                  <p className="text-xs text-emerald-500 truncate">
+                    Buy {topBuy.ticker} (+${Math.round(topBuy.usd / 1000)}k)
+                  </p>
+                )}
+                {topExit && (
+                  <p className="text-xs text-amber-500 truncate">
+                    Exit {topExit.ticker}
+                  </p>
+                )}
+                {!topBuy && !topExit && (
+                  <p className="text-xs text-muted-foreground">{score}% aligned with target</p>
+                )}
+              </div>
             </div>
             <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
           </div>
