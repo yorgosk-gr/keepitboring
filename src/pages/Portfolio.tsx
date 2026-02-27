@@ -16,6 +16,7 @@ import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import { RefreshPricesModal } from "@/components/portfolio/RefreshPricesModal";
 import { CashBalanceEditor } from "@/components/portfolio/CashBalanceEditor";
 import { DeleteConfirmModal } from "@/components/portfolio/DeleteConfirmModal";
+import { ThesisPanel } from "@/components/portfolio/ThesisPanel";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -106,8 +107,10 @@ export default function Portfolio() {
   // Modal states
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [loggingDecisionFor, setLoggingDecisionFor] = useState<Position | null>(null);
+  const [thesisPosition, setThesisPosition] = useState<Position | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [showMissingThesisOnly, setShowMissingThesisOnly] = useState(false);
 
   // Load last price refresh timestamp
   useEffect(() => {
@@ -134,13 +137,23 @@ export default function Portfolio() {
 
   // Filter positions by search
   const filteredPositions = useMemo(() => {
-    if (!searchQuery.trim()) return positions;
+    let result = positions;
+    if (showMissingThesisOnly) {
+      result = result.filter(p => !p.thesis_notes || !p.confidence_level);
+    }
+    if (!searchQuery.trim()) return result;
     const query = searchQuery.toLowerCase();
-    return positions.filter(p => 
+    return result.filter(p => 
       p.ticker.toLowerCase().includes(query) ||
       p.name?.toLowerCase().includes(query)
     );
-  }, [positions, searchQuery]);
+  }, [positions, searchQuery, showMissingThesisOnly]);
+
+  // Count positions missing thesis
+  const missingThesisCount = useMemo(() =>
+    positions.filter(p => !p.thesis_notes || !p.confidence_level).length,
+    [positions]
+  );
 
   const handleUpdateAnnotation = async (data: PositionFormData) => {
     if (!editingPosition) return;
@@ -381,6 +394,23 @@ export default function Portfolio() {
         </div>
       )}
 
+      {/* Thesis Health Banner */}
+      {!isLoading && positions.length > 0 && missingThesisCount > 3 && (
+        <div className="flex items-center justify-between p-4 rounded-lg border bg-amber-500/10 border-amber-500/20">
+          <p className="text-sm text-amber-500">
+            ⚠️ {missingThesisCount} of {positions.length} positions have no thesis
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
+            onClick={() => setShowMissingThesisOnly(!showMissingThesisOnly)}
+          >
+            {showMissingThesisOnly ? "Show All" : "Add thesis"}
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div>
@@ -571,6 +601,7 @@ export default function Portfolio() {
           hideDeleteActions
           cashBalance={cashBalance}
           totalValue={totalValue}
+          onOpenThesis={setThesisPosition}
         />
       )}
 
@@ -614,6 +645,28 @@ export default function Portfolio() {
         onConfirm={handleClearAllPositions}
         ticker="ALL POSITIONS"
         isLoading={isClearing}
+      />
+
+      {/* Thesis Side Panel */}
+      <ThesisPanel
+        open={!!thesisPosition}
+        onClose={() => setThesisPosition(null)}
+        position={thesisPosition}
+        onSave={async (data) => {
+          if (!thesisPosition) return;
+          await updateAnnotation({
+            ticker: thesisPosition.ticker,
+            formData: {
+              thesis_notes: data.thesis_notes,
+              confidence_level: data.confidence_level,
+              bet_type: data.bet_type,
+              invalidation_triggers: data.invalidation_trigger,
+              last_review_date: data.last_review_date,
+            } as any,
+          });
+          setThesisPosition(null);
+        }}
+        isSaving={isUpdating}
       />
     </div>
   );

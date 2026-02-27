@@ -484,11 +484,19 @@ BANNED TERM
 - NEVER use the word "thesis" in any free-text field.
 - "thesis_checks" key MUST always be present and always be [].
 
+THESIS / CONVICTION DATA
+- Each position may include thesis_notes, confidence_level (1-10), bet_type (active/passive_carry/legacy_hold), and invalidation_trigger.
+- HIGH CONVICTION (8-10): Do NOT recommend selling unless there is a clear HARD rule breach or the invalidation trigger has been met. Respect the investor's conviction.
+- LOW CONVICTION + LEGACY HOLD: Flag these as first candidates for exit or trimming. Legacy holds with conviction ≤ 4 should be priority sells in any rebalancing.
+- When recommending a sell, if the position has an invalidation_trigger, reference it: "Your invalidation trigger for [TICKER] was [trigger] — current conditions suggest this has been met."
+- Use thesis_notes to assess rationale alignment (rationale_aligned field in trade_recommendations).
+
 SELL CRITERIA — only for:
 - HARD allocation/rule breaches
 - Intelligence Brief signals on specific tickers
 - Valuation concerns with fundamental evidence
 - Fundamental business problems
+- Invalidation triggers being met
 NEVER sell just to tidy documentation or fix a SOFT rule.
 
 DIAGNOSTIC RULES (rule_enforcement === "diagnostic") are informational only:
@@ -608,7 +616,13 @@ SUMMARY FIELD RULES
     );
 
     const userPrompt = `CURRENT PORTFOLIO:
-${JSON.stringify(positions, null, 2)}
+${JSON.stringify((positions ?? []).map((p: any) => ({
+  ...p,
+  thesis_notes: p.thesis_notes || null,
+  confidence_level: p.confidence_level || null,
+  bet_type: p.bet_type || null,
+  invalidation_trigger: p.invalidation_trigger || null,
+})), null, 2)}
 
 CASH BALANCE: $${(cash_balance ?? 0).toFixed(2)}
 TOTAL PORTFOLIO VALUE (including cash): $${(total_portfolio_value ?? 0).toFixed(2)}
