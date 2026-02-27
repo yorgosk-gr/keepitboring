@@ -18,16 +18,23 @@ const statusConfig = {
   exit: { label: "Exit", color: "bg-destructive/20 text-destructive border-destructive/30" },
 };
 
-function AlignmentBar({ ticker, current, ideal }: { ticker: string; current: number; ideal: number }) {
-  const gap = Math.abs(current - ideal);
+function AlignmentBar({ ticker, current, ideal, usdAmount }: { ticker: string; current: number; ideal: number; usdAmount: number }) {
   const maxBar = Math.max(current, ideal, 1);
+  const isBuy = ideal > current;
+  const actionLabel = usdAmount === 0 ? "—" : isBuy
+    ? `Buy $${Math.abs(usdAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    : `Sell $${Math.abs(usdAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-xs">
         <span className="font-mono">{ticker}</span>
-        <span className="text-muted-foreground">
-          {current.toFixed(1)}% → {ideal.toFixed(1)}% ({gap > 0 ? (current < ideal ? "+" : "-") : ""}{gap.toFixed(1)}%)
+        <span className={usdAmount === 0 ? "text-muted-foreground" : isBuy ? "text-emerald-400" : "text-amber-400"}>
+          {actionLabel}
         </span>
+      </div>
+      <div className="flex justify-between text-xs text-muted-foreground">
+        <span>{current.toFixed(1)}%</span>
+        <span>→ {ideal.toFixed(1)}%</span>
       </div>
       <div className="relative h-3 bg-secondary rounded-full overflow-hidden">
         <div
@@ -54,6 +61,8 @@ export default function NorthStar() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<NorthStarPosition>>({});
   const [showAdd, setShowAdd] = useState(false);
+  const [cashTarget, setCashTarget] = useState<{ ideal: string; min: string; max: string }>({ ideal: "10", min: "8", max: "15" });
+  const [editingCash, setEditingCash] = useState(false);
   const [newPos, setNewPos] = useState({
     ticker: "", name: "", target_weight_ideal: "", target_weight_min: "", target_weight_max: "",
     status: "hold" as const, priority: 2, rationale: "",
@@ -87,14 +96,33 @@ export default function NorthStar() {
     const score = totalDenom > 0 ? Math.round(((alignedNonExit + alignedExit) / totalDenom) * 100) : 0;
 
     const gaps = enrichedPositions
-      .map((p) => ({
-        ticker: p.ticker,
-        current: p.currentWeight,
-        ideal: p.target_weight_ideal ?? 0,
-        gap: Math.abs(p.currentWeight - (p.target_weight_ideal ?? 0)),
-        status: p.derivedStatus,
-      }))
-      .sort((a, b) => b.gap - a.gap);
+      .map((p) => {
+        const ideal = p.target_weight_ideal ?? 0;
+        const diff = ideal - p.currentWeight;
+        const usdAmount = (diff / 100) * totalValue;
+        return {
+          ticker: p.ticker,
+          current: p.currentWeight,
+          ideal,
+          gap: Math.abs(diff),
+          usdAmount,
+          status: p.derivedStatus,
+        };
+      });
+
+    // Add cash gap
+    const cashIdeal = parseFloat(cashTarget.ideal) || 0;
+    const cashDiff = cashIdeal - cashWeight;
+    gaps.push({
+      ticker: "CASH",
+      current: cashWeight,
+      ideal: cashIdeal,
+      gap: Math.abs(cashDiff),
+      usdAmount: (cashDiff / 100) * totalValue,
+      status: deriveStatus(cashWeight, parseFloat(cashTarget.min) || 0, parseFloat(cashTarget.max) || 100, null) as any,
+    });
+
+    gaps.sort((a, b) => b.gap - a.gap);
 
     const cashNeeded = enrichedPositions
       .filter((p) => p.derivedStatus === "build" && p.currentWeight < (p.target_weight_ideal ?? 0))
@@ -318,6 +346,43 @@ export default function NorthStar() {
                         </tr>
                       );
                     })}
+                    {/* Cash Target Row */}
+                    <tr className="border-t border-border bg-secondary/10">
+                      <td className="px-3 py-2 font-mono font-medium text-foreground">💵 CASH</td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">{cashWeight.toFixed(1)}%</td>
+                      <td className="px-3 py-2 text-right">
+                        {editingCash ? (
+                          <Input type="number" className="w-16 h-7 text-xs inline" value={cashTarget.ideal} onChange={(e) => setCashTarget({ ...cashTarget, ideal: e.target.value })} />
+                        ) : (
+                          <span className="text-foreground">{parseFloat(cashTarget.ideal).toFixed(1)}%</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right text-xs text-muted-foreground">
+                        {editingCash ? (
+                          <div className="flex gap-1 justify-end">
+                            <Input type="number" className="w-14 h-7 text-xs" value={cashTarget.min} onChange={(e) => setCashTarget({ ...cashTarget, min: e.target.value })} />
+                            <Input type="number" className="w-14 h-7 text-xs" value={cashTarget.max} onChange={(e) => setCashTarget({ ...cashTarget, max: e.target.value })} />
+                          </div>
+                        ) : (
+                          `${parseFloat(cashTarget.min).toFixed(0)}–${parseFloat(cashTarget.max).toFixed(0)}%`
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {(() => {
+                          const cs = deriveStatus(cashWeight, parseFloat(cashTarget.min) || 0, parseFloat(cashTarget.max) || 100, null);
+                          const sc = statusConfig[cs];
+                          return <Badge variant="outline" className={sc.color}>{sc.label}</Badge>;
+                        })()}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">Dry powder buffer</td>
+                      <td className="px-3 py-2 text-right">
+                        {editingCash ? (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => setEditingCash(false)}><Check className="w-3 h-3" /></Button>
+                        ) : (
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingCash(true)}><Pencil className="w-3 h-3" /></Button>
+                        )}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
                 {nsPositions.length === 0 && (
@@ -369,7 +434,7 @@ export default function NorthStar() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {alignmentData.gaps.slice(0, 10).map((g) => (
-                  <AlignmentBar key={g.ticker} ticker={g.ticker} current={g.current} ideal={g.ideal} />
+                  <AlignmentBar key={g.ticker} ticker={g.ticker} current={g.current} ideal={g.ideal} usdAmount={g.usdAmount} />
                 ))}
                 {alignmentData.gaps.length === 0 && (
                   <p className="text-sm text-muted-foreground">Add target positions to see gaps</p>
