@@ -553,21 +553,6 @@ export default function NorthStar() {
               </CardContent>
             </Card>
 
-            {alignmentData.cashNeeded > 0 && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Cash to Reach Target</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold text-foreground">
-                    ${alignmentData.cashNeeded.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Estimated additional investment needed for Build positions
-                  </p>
-                </CardContent>
-              </Card>
-            )}
 
             <Card>
               <CardHeader className="pb-3">
