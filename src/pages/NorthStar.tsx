@@ -519,7 +519,7 @@ export default function NorthStar() {
                           return (
                             <tr className="border-t border-border/50">
                               <td className="px-3 py-1.5 font-mono text-foreground">💵 CASH</td>
-                              <td className="px-3 py-1.5 text-right text-amber-400">-${usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                              <td className="px-3 py-1.5 text-right text-amber-400">${usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
                             </tr>
                           );
                         }
