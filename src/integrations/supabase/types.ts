@@ -1040,7 +1040,6 @@ export type Database = {
       }
       user_settings: {
         Row: {
-          anthropic_api_key: string | null
           created_at: string
           id: string
           portfolio_mode: string
@@ -1048,7 +1047,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          anthropic_api_key?: string | null
           created_at?: string
           id?: string
           portfolio_mode?: string
@@ -1056,7 +1054,6 @@ export type Database = {
           user_id: string
         }
         Update: {
-          anthropic_api_key?: string | null
           created_at?: string
           id?: string
           portfolio_mode?: string
