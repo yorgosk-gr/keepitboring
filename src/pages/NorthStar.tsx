@@ -75,24 +75,6 @@ export default function NorthStar() {
     }
   }, [sortKey]);
 
-  const sortedPositions = useMemo(() => {
-    const sorted = [...enrichedPositions];
-    const dir = sortDir === "asc" ? 1 : -1;
-    sorted.sort((a, b) => {
-      let av: number | string = 0, bv: number | string = 0;
-      switch (sortKey) {
-        case "ticker": av = a.ticker; bv = b.ticker; return dir * av.localeCompare(bv);
-        case "current": av = a.currentWeight; bv = b.currentWeight; break;
-        case "ideal": av = a.target_weight_ideal ?? 0; bv = b.target_weight_ideal ?? 0; break;
-        case "range": av = a.target_weight_min ?? 0; bv = b.target_weight_min ?? 0; break;
-        case "status": av = a.derivedStatus; bv = b.derivedStatus; return dir * av.localeCompare(bv);
-        case "rationale": av = a.rationale ?? ""; bv = b.rationale ?? ""; return dir * (av as string).localeCompare(bv as string);
-      }
-      return dir * ((av as number) - (bv as number));
-    });
-    return sorted;
-  }, [enrichedPositions, sortKey, sortDir]);
-
   const rebalancingData = useMemo(() => {
     if (enrichedPositions.length === 0) return { score: 0, totalSells: 0, availableCash: 0, totalFunding: 0, rawTotalBuys: 0, gap: 0, buyScale: 1, scaledBuys: {} as Record<string, number>, scaledSells: {} as Record<string, number>, cashRemaining: 0, scaleBackPositions: [] as { ticker: string; cut: number }[] };
 
@@ -159,6 +141,33 @@ export default function NorthStar() {
 
     return { score, totalSells, availableCash, totalFunding, rawTotalBuys, gap, buyScale, scaledBuys, scaledSells, cashRemaining, scaleBackPositions };
   }, [enrichedPositions, totalValue, cashWeight, cashTarget]);
+
+  const sortedPositions = useMemo(() => {
+    const sorted = [...enrichedPositions];
+    const dir = sortDir === "asc" ? 1 : -1;
+    sorted.sort((a, b) => {
+      let av: number | string = 0, bv: number | string = 0;
+      switch (sortKey) {
+        case "ticker": av = a.ticker; bv = b.ticker; return dir * av.localeCompare(bv);
+        case "current": av = a.currentWeight; bv = b.currentWeight; break;
+        case "ideal": av = a.target_weight_ideal ?? 0; bv = b.target_weight_ideal ?? 0; break;
+        case "currentUsd": av = (a.currentWeight / 100) * totalValue; bv = (b.currentWeight / 100) * totalValue; break;
+        case "idealUsd": {
+          const rawIdealTotal = enrichedPositions.reduce((s, p) => s + (p.target_weight_ideal ?? 0), 0) + (parseFloat(cashTarget.ideal) || 0);
+          const nf = rawIdealTotal > 0 ? 100 / rawIdealTotal : 1;
+          av = ((a.target_weight_ideal ?? 0) * nf / 100) * totalValue;
+          bv = ((b.target_weight_ideal ?? 0) * nf / 100) * totalValue;
+          break;
+        }
+        case "buySell": av = rebalancingData.scaledBuys[a.ticker] ?? rebalancingData.scaledSells[a.ticker] ?? 0; bv = rebalancingData.scaledBuys[b.ticker] ?? rebalancingData.scaledSells[b.ticker] ?? 0; break;
+        case "range": av = a.target_weight_min ?? 0; bv = b.target_weight_min ?? 0; break;
+        case "status": av = a.derivedStatus; bv = b.derivedStatus; return dir * av.localeCompare(bv);
+        case "rationale": av = a.rationale ?? ""; bv = b.rationale ?? ""; return dir * (av as string).localeCompare(bv as string);
+      }
+      return dir * ((av as number) - (bv as number));
+    });
+    return sorted;
+  }, [enrichedPositions, sortKey, sortDir, rebalancingData, totalValue, cashTarget]);
 
   const handleImport = async () => {
     const mapped = Object.entries(ibWeights).map(([ticker, weight]) => ({
