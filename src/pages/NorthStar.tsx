@@ -438,6 +438,76 @@ export default function NorthStar() {
                 )}
               </div>
             )}
+
+            {/* Buy / Sell Action Tables */}
+            {enrichedPositions.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Buy */}
+                <div className="rounded-lg border border-emerald-500/30 overflow-hidden">
+                  <div className="bg-emerald-500/10 px-3 py-2 text-xs font-semibold uppercase text-emerald-400">Buy</div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-muted-foreground text-xs border-b border-border">
+                        <th className="px-3 py-1.5 text-left">Ticker</th>
+                        <th className="px-3 py-1.5 text-right">USD</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {enrichedPositions
+                        .filter((p) => p.derivedStatus === "build" && p.currentWeight < (p.target_weight_ideal ?? 0))
+                        .sort((a, b) => ((b.target_weight_ideal ?? 0) - b.currentWeight) - ((a.target_weight_ideal ?? 0) - a.currentWeight))
+                        .map((p) => {
+                          const usd = (((p.target_weight_ideal ?? 0) - p.currentWeight) / 100) * totalValue;
+                          return (
+                            <tr key={p.ticker} className="border-t border-border/50">
+                              <td className="px-3 py-1.5 font-mono text-foreground">{p.ticker}</td>
+                              <td className="px-3 py-1.5 text-right text-emerald-400">${usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                            </tr>
+                          );
+                        })}
+                      {enrichedPositions.filter((p) => p.derivedStatus === "build" && p.currentWeight < (p.target_weight_ideal ?? 0)).length === 0 && (
+                        <tr><td colSpan={2} className="px-3 py-3 text-center text-xs text-muted-foreground">No buys needed</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Sell */}
+                <div className="rounded-lg border border-amber-500/30 overflow-hidden">
+                  <div className="bg-amber-500/10 px-3 py-2 text-xs font-semibold uppercase text-amber-400">Sell</div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-muted-foreground text-xs border-b border-border">
+                        <th className="px-3 py-1.5 text-left">Ticker</th>
+                        <th className="px-3 py-1.5 text-right">USD</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {enrichedPositions
+                        .filter((p) => (p.derivedStatus === "reduce" || p.status === "exit") && p.currentWeight > 0)
+                        .sort((a, b) => {
+                          const aUsd = (a.currentWeight - (a.status === "exit" ? 0 : (a.target_weight_ideal ?? 0))) / 100 * totalValue;
+                          const bUsd = (b.currentWeight - (b.status === "exit" ? 0 : (b.target_weight_ideal ?? 0))) / 100 * totalValue;
+                          return bUsd - aUsd;
+                        })
+                        .map((p) => {
+                          const targetIdeal = p.status === "exit" ? 0 : (p.target_weight_ideal ?? 0);
+                          const usd = ((p.currentWeight - targetIdeal) / 100) * totalValue;
+                          return (
+                            <tr key={p.ticker} className="border-t border-border/50">
+                              <td className="px-3 py-1.5 font-mono text-foreground">{p.ticker}</td>
+                              <td className="px-3 py-1.5 text-right text-amber-400">${usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                            </tr>
+                          );
+                        })}
+                      {enrichedPositions.filter((p) => (p.derivedStatus === "reduce" || p.status === "exit") && p.currentWeight > 0).length === 0 && (
+                        <tr><td colSpan={2} className="px-3 py-3 text-center text-xs text-muted-foreground">No sells needed</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right: Progress */}
