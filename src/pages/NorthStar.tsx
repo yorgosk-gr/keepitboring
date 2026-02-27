@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Compass, Plus, Trash2, Pencil, Check, X, Loader2, Import, ArrowUpDown, ArrowUp, ArrowDown, DollarSign, CheckCircle2 } from "lucide-react";
+import { Compass, Plus, Trash2, Pencil, Check, X, Loader2, Import, ArrowUpDown, ArrowUp, ArrowDown, DollarSign, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -93,57 +93,72 @@ export default function NorthStar() {
     return sorted;
   }, [enrichedPositions, sortKey, sortDir]);
 
-  const alignmentData = useMemo(() => {
-    if (enrichedPositions.length === 0) return { score: 0, gaps: [], cashNeeded: 0 };
-
-    const nonExit = enrichedPositions.filter((p) => p.derivedStatus !== "exit" && p.status !== "exit");
-    const exitPositions = enrichedPositions.filter((p) => p.status === "exit");
-
-    const alignedNonExit = nonExit.filter((p) => p.derivedStatus === "hold").length;
-    const alignedExit = exitPositions.filter((p) => p.currentWeight === 0).length;
-
-    const totalDenom = nonExit.length + exitPositions.length;
-    const score = totalDenom > 0 ? Math.round(((alignedNonExit + alignedExit) / totalDenom) * 100) : 0;
+  const rebalancingData = useMemo(() => {
+    if (enrichedPositions.length === 0) return { score: 0, totalSells: 0, availableCash: 0, totalFunding: 0, rawTotalBuys: 0, gap: 0, buyScale: 1, scaledBuys: {} as Record<string, number>, scaledSells: {} as Record<string, number>, cashRemaining: 0, scaleBackPositions: [] as { ticker: string; cut: number }[] };
 
     const rawIdealTotal = enrichedPositions.reduce((s, p) => s + (p.target_weight_ideal ?? 0), 0) + (parseFloat(cashTarget.ideal) || 0);
     const normFactor = rawIdealTotal > 0 ? 100 / rawIdealTotal : 1;
 
-    const gaps = enrichedPositions
-      .map((p) => {
-        const ideal = p.target_weight_ideal ?? 0;
-        const normalizedIdeal = ideal * normFactor;
-        const diff = normalizedIdeal - p.currentWeight;
-        const usdAmount = (diff / 100) * totalValue;
-        return {
-          ticker: p.ticker,
-          current: p.currentWeight,
-          ideal: normalizedIdeal,
-          gap: Math.abs(diff),
-          usdAmount,
-          status: p.derivedStatus,
-        };
-      });
-
-    const cashIdeal = parseFloat(cashTarget.ideal) || 0;
-    const normalizedCashIdeal = cashIdeal * normFactor;
-    const cashDiff = normalizedCashIdeal - cashWeight;
-    gaps.push({
-      ticker: "CASH",
-      current: cashWeight,
-      ideal: normalizedCashIdeal,
-      gap: Math.abs(cashDiff),
-      usdAmount: (cashDiff / 100) * totalValue,
-      status: deriveStatus(cashWeight, parseFloat(cashTarget.min) || 0, parseFloat(cashTarget.max) || 100, null) as any,
+    // Calculate raw diffs per position
+    const diffs = enrichedPositions.map((p) => {
+      const normalizedIdeal = (p.target_weight_ideal ?? 0) * normFactor;
+      const idealUsd = (normalizedIdeal / 100) * totalValue;
+      const currentUsd = (p.currentWeight / 100) * totalValue;
+      const diff = idealUsd - currentUsd;
+      return { ticker: p.ticker, diff, status: p.derivedStatus, currentWeight: p.currentWeight };
     });
 
-    gaps.sort((a, b) => b.gap - a.gap);
+    // Sells: reduce + exit positions (diff < 0)
+    const sells = diffs.filter((d) => d.diff < 0);
+    const totalSells = sells.reduce((s, d) => s + Math.abs(d.diff), 0);
 
-    const cashNeeded = enrichedPositions
-      .filter((p) => p.derivedStatus === "build" && p.currentWeight < (p.target_weight_ideal ?? 0))
-      .reduce((s, p) => s + (((p.target_weight_ideal ?? 0) - p.currentWeight) / 100) * totalValue, 0);
+    // Available cash above cash target min
+    const cashCurrentUsd = (cashWeight / 100) * totalValue;
+    const cashMinUsd = ((parseFloat(cashTarget.min) || 0) * normFactor / 100) * totalValue;
+    const availableCash = Math.max(0, cashCurrentUsd - cashMinUsd);
 
-    return { score, gaps, cashNeeded };
-  }, [enrichedPositions, totalValue]);
+    const totalFunding = totalSells + availableCash;
+
+    // Raw buys: build positions (diff > 0)
+    const buys = diffs.filter((d) => d.diff > 0);
+    const rawTotalBuys = buys.reduce((s, d) => s + d.diff, 0);
+
+    // Scale buys proportionally to fit within funding
+    const buyScale = rawTotalBuys > 0 ? Math.min(1, totalFunding / rawTotalBuys) : 1;
+
+    const scaledBuys: Record<string, number> = {};
+    for (const b of buys) {
+      scaledBuys[b.ticker] = b.diff * buyScale;
+    }
+    const scaledSells: Record<string, number> = {};
+    for (const s of sells) {
+      scaledSells[s.ticker] = s.diff; // sells stay as-is (negative)
+    }
+
+    const gap = rawTotalBuys - totalFunding;
+
+    // If gap > 0, show which Build positions to scale back (smallest first)
+    const scaleBackPositions = gap > 0
+      ? buys
+          .sort((a, b) => a.diff - b.diff) // smallest buys first
+          .map((b) => ({ ticker: b.ticker, cut: b.diff * (1 - buyScale) }))
+          .filter((x) => x.cut > 10)
+      : [];
+
+    // Cash remaining after rebalancing
+    const totalScaledBuys = Object.values(scaledBuys).reduce((s, v) => s + v, 0);
+    const cashRemaining = totalFunding - totalScaledBuys;
+
+    // Alignment score
+    const nonExit = enrichedPositions.filter((p) => p.derivedStatus !== "exit" && p.status !== "exit");
+    const exitPositions = enrichedPositions.filter((p) => p.status === "exit");
+    const alignedNonExit = nonExit.filter((p) => p.derivedStatus === "hold").length;
+    const alignedExit = exitPositions.filter((p) => p.currentWeight === 0).length;
+    const totalDenom = nonExit.length + exitPositions.length;
+    const score = totalDenom > 0 ? Math.round(((alignedNonExit + alignedExit) / totalDenom) * 100) : 0;
+
+    return { score, totalSells, availableCash, totalFunding, rawTotalBuys, gap, buyScale, scaledBuys, scaledSells, cashRemaining, scaleBackPositions };
+  }, [enrichedPositions, totalValue, cashWeight, cashTarget]);
 
   const handleImport = async () => {
     const mapped = Object.entries(ibWeights).map(([ticker, weight]) => ({
@@ -349,13 +364,11 @@ export default function NorthStar() {
                               ${((pos.target_weight_ideal ?? 0) * idealNormFactor / 100 * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </td>
                             {(() => {
-                              const idealUsd = (pos.target_weight_ideal ?? 0) * idealNormFactor / 100 * totalValue;
-                              const currentUsd = pos.currentWeight / 100 * totalValue;
-                              const diff = idealUsd - currentUsd;
-                              if (Math.abs(diff) < 1) return <td className="px-3 py-2 text-right text-muted-foreground">—</td>;
+                              const scaledAmount = rebalancingData.scaledBuys[pos.ticker] ?? rebalancingData.scaledSells[pos.ticker] ?? 0;
+                              if (Math.abs(scaledAmount) < 1) return <td className="px-3 py-2 text-right text-muted-foreground">—</td>;
                               return (
-                                <td className={`px-3 py-2 text-right font-mono text-xs ${diff > 0 ? "text-emerald-500" : "text-amber-500"}`}>
-                                  {diff > 0 ? "+" : ""}{diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                <td className={`px-3 py-2 text-right font-mono text-xs ${scaledAmount > 0 ? "text-emerald-500" : "text-amber-500"}`}>
+                                  {scaledAmount > 0 ? "+" : ""}{scaledAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                 </td>
                               );
                             })()}
@@ -433,13 +446,12 @@ export default function NorthStar() {
                         ${((parseFloat(cashTarget.ideal) || 0) * idealNormFactor / 100 * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </td>
                       {(() => {
-                        const cashIdealUsd = (parseFloat(cashTarget.ideal) || 0) * idealNormFactor / 100 * totalValue;
-                        const cashCurrentUsd = cashWeight / 100 * totalValue;
-                        const diff = cashIdealUsd - cashCurrentUsd;
-                        if (Math.abs(diff) < 1) return <td className="px-3 py-2 text-right text-muted-foreground">—</td>;
+                        const totalScaledBuys = Object.values(rebalancingData.scaledBuys).reduce((s, v) => s + v, 0);
+                        const netCashEffect = rebalancingData.totalSells - totalScaledBuys;
+                        if (Math.abs(netCashEffect) < 1) return <td className="px-3 py-2 text-right text-muted-foreground">—</td>;
                         return (
-                          <td className={`px-3 py-2 text-right font-mono text-xs ${diff > 0 ? "text-emerald-500" : "text-amber-500"}`}>
-                            {diff > 0 ? "+" : ""}{diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          <td className={`px-3 py-2 text-right font-mono text-xs ${netCashEffect > 0 ? "text-emerald-500" : "text-amber-500"}`}>
+                            {netCashEffect > 0 ? "+" : ""}{netCashEffect.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </td>
                         );
                       })()}
@@ -475,14 +487,9 @@ export default function NorthStar() {
                       const totalCurrentUsd = totalCurrentPct / 100 * totalValue;
                       const idealSum = enrichedPositions.reduce((s, p) => s + (p.target_weight_ideal ?? 0), 0) + (parseFloat(cashTarget.ideal) || 0);
                       const isOff = Math.abs(idealSum - 100) > 1;
-                      const totalBuySell = enrichedPositions.reduce((s, p) => {
-                        const idealUsd = (p.target_weight_ideal ?? 0) * idealNormFactor / 100 * totalValue;
-                        const curUsd = p.currentWeight / 100 * totalValue;
-                        return s + (idealUsd - curUsd);
-                      }, 0);
-                      const cashIdealUsd = (parseFloat(cashTarget.ideal) || 0) * idealNormFactor / 100 * totalValue;
-                      const cashCurUsd = cashWeight / 100 * totalValue;
-                      const totalBuySellWithCash = totalBuySell + (cashIdealUsd - cashCurUsd);
+                      const totalScaledBuys = Object.values(rebalancingData.scaledBuys).reduce((s, v) => s + v, 0);
+                      const totalSellsAmount = Object.values(rebalancingData.scaledSells).reduce((s, v) => s + v, 0); // negative
+                      const netTotal = totalScaledBuys + totalSellsAmount; // buys positive + sells negative
                       return (
                         <tr className="border-t-2 border-border font-semibold bg-secondary/20">
                           <td className="px-3 py-2 text-foreground">Total</td>
@@ -497,8 +504,17 @@ export default function NorthStar() {
                           <td className="px-3 py-2 text-right text-foreground">
                             ${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </td>
-                          <td className={`px-3 py-2 text-right font-mono text-xs ${Math.abs(totalBuySellWithCash) < 1 ? "text-muted-foreground" : totalBuySellWithCash > 0 ? "text-emerald-500" : "text-amber-500"}`}>
-                            {Math.abs(totalBuySellWithCash) < 1 ? "—" : `${totalBuySellWithCash > 0 ? "+" : ""}${totalBuySellWithCash.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                          <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
+                            {rebalancingData.buyScale < 1 && (
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <span className="text-amber-400">scaled {Math.round(rebalancingData.buyScale * 100)}%</span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs text-xs">
+                                  Buys scaled to {Math.round(rebalancingData.buyScale * 100)}% to fit within sell proceeds + available cash
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                           </td>
                           <td className="px-3 py-2" colSpan={4}></td>
                         </tr>
@@ -525,38 +541,72 @@ export default function NorthStar() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-end gap-2 mb-3">
-                  <span className="text-4xl font-bold text-primary">{alignmentData.score}%</span>
+                  <span className="text-4xl font-bold text-primary">{rebalancingData.score}%</span>
                   <span className="text-sm text-muted-foreground mb-1">aligned</span>
                 </div>
-                <Progress value={alignmentData.score} className="h-2" />
+                <Progress value={rebalancingData.score} className="h-2" />
                 <p className="text-xs text-muted-foreground mt-2">
                   Positions within target range / total positions
                 </p>
               </CardContent>
             </Card>
 
-            {/* Cash to Reach Target */}
+            {/* Rebalancing Summary */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <DollarSign className="w-4 h-4 text-primary" />
-                  Cash to Reach Target
+                  Rebalancing Summary
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                {alignmentData.cashNeeded > 0 ? (
-                  <>
-                    <span className="text-2xl font-bold text-foreground">
-                      ${alignmentData.cashNeeded.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                    </span>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Estimated additional investment needed for Build positions
+              <CardContent className="space-y-3">
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Sell proceeds</span>
+                    <span className="font-mono text-foreground">${rebalancingData.totalSells.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Available cash (above min)</span>
+                    <span className="font-mono text-foreground">${rebalancingData.availableCash.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-border pt-1.5">
+                    <span className="text-muted-foreground font-medium">Total funding</span>
+                    <span className="font-mono font-medium text-foreground">${rebalancingData.totalFunding.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                  </div>
+                </div>
+
+                {rebalancingData.gap <= 0 ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      <span className="text-sm text-emerald-500 font-medium">Fully funded — rebalancing covers all buys</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      ~${rebalancingData.cashRemaining.toLocaleString(undefined, { maximumFractionDigits: 0 })} cash remaining after rebalancing
                     </p>
-                  </>
+                  </div>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                    <span className="text-sm text-emerald-500 font-medium">Fully funded from rebalancing</span>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-500" />
+                      <span className="text-sm text-amber-500 font-medium">
+                        ${rebalancingData.gap.toLocaleString(undefined, { maximumFractionDigits: 0 })} shortfall
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Buys scaled to {Math.round(rebalancingData.buyScale * 100)}%. Reduce targets or sell more.
+                    </p>
+                    {rebalancingData.scaleBackPositions.length > 0 && (
+                      <div className="text-xs space-y-0.5">
+                        <span className="text-muted-foreground font-medium">Scale back:</span>
+                        {rebalancingData.scaleBackPositions.map((p) => (
+                          <div key={p.ticker} className="flex justify-between pl-2">
+                            <span className="font-mono">{p.ticker}</span>
+                            <span className="text-amber-500">-${p.cut.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
