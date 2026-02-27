@@ -34,6 +34,23 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Validate webhook secret to prevent unauthorized access
+    const INGEST_EMAIL_SECRET = Deno.env.get("INGEST_EMAIL_SECRET");
+    if (INGEST_EMAIL_SECRET) {
+      const authHeader = req.headers.get("Authorization");
+      if (authHeader !== `Bearer ${INGEST_EMAIL_SECRET}`) {
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          {
+            status: 401,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+    } else {
+      console.warn("INGEST_EMAIL_SECRET not configured — endpoint is unprotected. Set this secret to secure the webhook.");
+    }
+
     const body = await req.json();
 
     // Extract fields from Cloudmailin payload
