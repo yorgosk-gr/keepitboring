@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { Compass, Plus, Trash2, Pencil, Check, X, Loader2, Import, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,14 +54,16 @@ export default function NorthStar() {
   const {
     portfolio, positions: nsPositions, isLoading, isLoadingPositions,
     createPortfolio, addPosition, updatePosition, deletePosition,
-    importFromCurrent, isImporting,
+    importFromCurrent, isImporting, updateCashTarget,
   } = useNorthStar();
   const { weights: ibWeights, cashWeight, totalValue, isLoading: ibLoading } = useIBCurrentWeights();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<NorthStarPosition>>({});
   const [showAdd, setShowAdd] = useState(false);
+  // Initialize cash target from portfolio DB values
   const [cashTarget, setCashTarget] = useState<{ ideal: string; min: string; max: string }>({ ideal: "10", min: "8", max: "15" });
+  const [cashTargetLoaded, setCashTargetLoaded] = useState(false);
   const [editingCash, setEditingCash] = useState(false);
   const [sortKey, setSortKey] = useState<string>("ticker");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -69,6 +71,17 @@ export default function NorthStar() {
     ticker: "", name: "", target_weight_ideal: "", target_weight_min: "", target_weight_max: "",
     status: "hold" as const, priority: 2, rationale: "",
   });
+  // Load cash target from portfolio when available
+  useEffect(() => {
+    if (portfolio && !cashTargetLoaded) {
+      setCashTarget({
+        ideal: String(portfolio.cash_target_ideal ?? 10),
+        min: String(portfolio.cash_target_min ?? 8),
+        max: String(portfolio.cash_target_max ?? 15),
+      });
+      setCashTargetLoaded(true);
+    }
+  }, [portfolio, cashTargetLoaded]);
 
   // Compute live current weights + derived statuses
   const enrichedPositions = useMemo(() => {
@@ -124,15 +137,20 @@ export default function NorthStar() {
     const totalDenom = nonExit.length + exitPositions.length;
     const score = totalDenom > 0 ? Math.round(((alignedNonExit + alignedExit) / totalDenom) * 100) : 0;
 
+    // Normalize gap USD amounts so they're proportional to actual portfolio
+    const rawIdealTotal = enrichedPositions.reduce((s, p) => s + (p.target_weight_ideal ?? 0), 0) + (parseFloat(cashTarget.ideal) || 0);
+    const normFactor = rawIdealTotal > 0 ? 100 / rawIdealTotal : 1;
+
     const gaps = enrichedPositions
       .map((p) => {
         const ideal = p.target_weight_ideal ?? 0;
-        const diff = ideal - p.currentWeight;
+        const normalizedIdeal = ideal * normFactor;
+        const diff = normalizedIdeal - p.currentWeight;
         const usdAmount = (diff / 100) * totalValue;
         return {
           ticker: p.ticker,
           current: p.currentWeight,
-          ideal,
+          ideal: normalizedIdeal,
           gap: Math.abs(diff),
           usdAmount,
           status: p.derivedStatus,
@@ -141,11 +159,12 @@ export default function NorthStar() {
 
     // Add cash gap
     const cashIdeal = parseFloat(cashTarget.ideal) || 0;
-    const cashDiff = cashIdeal - cashWeight;
+    const normalizedCashIdeal = cashIdeal * normFactor;
+    const cashDiff = normalizedCashIdeal - cashWeight;
     gaps.push({
       ticker: "CASH",
       current: cashWeight,
-      ideal: cashIdeal,
+      ideal: normalizedCashIdeal,
       gap: Math.abs(cashDiff),
       usdAmount: (cashDiff / 100) * totalValue,
       status: deriveStatus(cashWeight, parseFloat(cashTarget.min) || 0, parseFloat(cashTarget.max) || 100, null) as any,
@@ -434,7 +453,7 @@ export default function NorthStar() {
                       <td className="px-3 py-2 text-xs text-muted-foreground">Dry powder buffer</td>
                       <td className="px-3 py-2 text-right">
                         {editingCash ? (
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => setEditingCash(false)}><Check className="w-3 h-3" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => { setEditingCash(false); updateCashTarget({ cash_target_ideal: parseFloat(cashTarget.ideal) || 10, cash_target_min: parseFloat(cashTarget.min) || 8, cash_target_max: parseFloat(cashTarget.max) || 15 }); }}><Check className="w-3 h-3" /></Button>
                         ) : (
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingCash(true)}><Pencil className="w-3 h-3" /></Button>
                         )}
@@ -446,13 +465,22 @@ export default function NorthStar() {
                       <td className="px-3 py-2 text-right text-muted-foreground">
                         {(enrichedPositions.reduce((s, p) => s + p.currentWeight, 0) + cashWeight).toFixed(1)}%
                       </td>
-                      <td className="px-3 py-2 text-right text-foreground">
-                        {(enrichedPositions.reduce((s, p) => s + (p.target_weight_ideal ?? 0), 0) + (parseFloat(cashTarget.ideal) || 0)).toFixed(1)}%
-                      </td>
-                      <td className="px-3 py-2 text-right text-foreground">
-                        ${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                      </td>
-                      <td className="px-3 py-2" colSpan={4}></td>
+                      {(() => {
+                        const idealSum = enrichedPositions.reduce((s, p) => s + (p.target_weight_ideal ?? 0), 0) + (parseFloat(cashTarget.ideal) || 0);
+                        const isOff = Math.abs(idealSum - 100) > 1;
+                        return (
+                          <>
+                            <td className={`px-3 py-2 text-right ${isOff ? "text-amber-400" : "text-foreground"}`}>
+                              {idealSum.toFixed(1)}%
+                              {isOff && <span className="ml-1 text-xs">⚠️ ≠100%</span>}
+                            </td>
+                            <td className="px-3 py-2 text-right text-foreground">
+                              ${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </td>
+                            <td className="px-3 py-2" colSpan={4}></td>
+                          </>
+                        );
+                      })()}
                     </tr>
                   </tbody>
                 </table>

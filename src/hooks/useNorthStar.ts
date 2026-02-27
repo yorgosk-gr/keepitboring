@@ -23,6 +23,9 @@ export interface NorthStarPortfolio {
   user_id: string;
   name: string;
   description: string | null;
+  cash_target_ideal: number | null;
+  cash_target_min: number | null;
+  cash_target_max: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -126,10 +129,25 @@ export function useNorthStar() {
     onError: (e) => toast.error(e.message),
   });
 
+  const updateCashTarget = useMutation({
+    mutationFn: async (target: { cash_target_ideal: number; cash_target_min: number; cash_target_max: number }) => {
+      if (!portfolioQuery.data) throw new Error("No portfolio");
+      const { error } = await supabase
+        .from("north_star_portfolio" as any)
+        .update(target as any)
+        .eq("id", portfolioQuery.data.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["north_star_portfolio"] });
+      toast.success("Cash target saved");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const importFromCurrent = useMutation({
     mutationFn: async (currentPositions: { ticker: string; name: string | null; weight: number | null }[]) => {
       if (!user) throw new Error("Not authenticated");
-      // Create portfolio first
       const { data: portfolio, error: pErr } = await supabase
         .from("north_star_portfolio" as any)
         .insert({ user_id: user.id, name: "Target Portfolio" } as any)
@@ -138,7 +156,6 @@ export function useNorthStar() {
       if (pErr) throw pErr;
       const pid = (portfolio as any).id;
 
-      // Insert all positions
       const rows = currentPositions.map((p) => ({
         portfolio_id: pid,
         user_id: user.id,
@@ -175,6 +192,8 @@ export function useNorthStar() {
     addPosition: addPosition.mutateAsync,
     updatePosition: updatePosition.mutateAsync,
     deletePosition: deletePosition.mutateAsync,
+    updateCashTarget: updateCashTarget.mutateAsync,
+    isUpdatingCashTarget: updateCashTarget.isPending,
     importFromCurrent: importFromCurrent.mutateAsync,
     isImporting: importFromCurrent.isPending,
   };
