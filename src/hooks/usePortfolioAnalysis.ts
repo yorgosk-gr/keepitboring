@@ -10,6 +10,7 @@ import { useAllETFMetadata } from "./useAllETFMetadata";
 import { useSettings } from "./useSettings";
 import { useRiskProfile } from "./useRiskProfile";
 import { selectSmartInsights } from "./useSmartInsightSelection";
+import { usePortfolioStrategy } from "./usePortfolioStrategy";
 import { toast } from "sonner";
 
 export interface AllocationBreakdownItem {
@@ -135,6 +136,7 @@ export function usePortfolioAnalysis() {
   const { data: etfMetadata = {} } = useAllETFMetadata();
   const { settings } = useSettings();
   const { activeProfile, behavioralSignals } = useRiskProfile();
+  const { strategy } = usePortfolioStrategy();
   const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisResult | null>(null);
 
   // Fetch analysis history
@@ -280,6 +282,15 @@ export function usePortfolioAnalysis() {
               aligned_count: aligned,
             };
           })(),
+          portfolio_strategy: strategy ? {
+            mandate: strategy.mandate,
+            philosophy: strategy.philosophy,
+            target_description: strategy.target_description,
+            priorities: strategy.priorities,
+            positions_to_build: strategy.positions_to_build,
+            positions_to_exit: strategy.positions_to_exit,
+            constraints: strategy.constraints,
+          } : null,
         },
       });
 

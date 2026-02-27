@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Plus, PlayCircle, Loader2, BookOpen, AlertTriangle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   usePhilosophyRules,
   type PhilosophyRule,
@@ -10,6 +11,7 @@ import {
 import { PhilosophyRuleCard } from "@/components/philosophy/PhilosophyRuleCard";
 import { AddRuleModal } from "@/components/philosophy/AddRuleModal";
 import { RuleCheckResultsModal } from "@/components/philosophy/RuleCheckResultsModal";
+import { StrategyBriefEditor } from "@/components/philosophy/StrategyBriefEditor";
 import { toast } from "sonner";
 
 export default function Philosophy() {
@@ -57,7 +59,6 @@ export default function Philosophy() {
       const results = await runAllChecks();
       setAllCheckResults(results);
 
-      // Update individual results map
       const newMap = new Map<string, RuleCheckResult>();
       results.forEach((r) => newMap.set(r.rule.id, r));
       setCheckResults(newMap);
@@ -144,109 +145,125 @@ export default function Philosophy() {
             Your investment philosophy, synthesized from 13 books. These rules guide all analysis.
           </p>
         </div>
-
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={handleRunAllChecks}
-            disabled={isRunningAllChecks || rules.length === 0}
-          >
-            {isRunningAllChecks ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <PlayCircle className="w-4 h-4" />
-            )}
-            Run All Checks
-          </Button>
-          <Button className="gap-2" onClick={() => setShowAddModal(true)}>
-            <Plus className="w-4 h-4" />
-            Add Rule
-          </Button>
-        </div>
       </div>
 
-      {/* Info Banner */}
-      <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
-        <div className="flex items-start gap-3">
-          <BookOpen className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm text-foreground font-medium">
-              Rules sourced from investment classics
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Graham • Malkiel • Siegel • Greenblatt • Thorndike • Duke • Marks • Kindleberger • Taleb • Lefèvre • Erkan • Clason
-            </p>
-          </div>
-        </div>
-      </div>
+      <Tabs defaultValue="rules" className="w-full">
+        <TabsList>
+          <TabsTrigger value="rules">Rules</TabsTrigger>
+          <TabsTrigger value="strategy">Portfolio Strategy</TabsTrigger>
+        </TabsList>
 
-      {/* Empty State */}
-      {rules.length === 0 && (
-        <div className="text-center py-12">
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            <AlertTriangle className="w-8 h-8 text-primary" />
-          </div>
-          <h3 className="text-lg font-medium text-foreground mb-2">No rules configured</h3>
-          <p className="text-muted-foreground mb-4">
-            Default rules should load automatically. Click below to retry.
-          </p>
-          <Button onClick={() => seedDefaultRules()}>Load Default Rules</Button>
-        </div>
-      )}
-
-      {/* Rules by Author */}
-      {authorOrder
-        .filter((author) => rulesByAuthor[author]?.length > 0)
-        .map((author) => {
-          const isOpen = openAuthors.includes(author);
-          return (
-            <div key={author} className="rounded-lg border border-border bg-card overflow-hidden">
-              <button
-                onClick={() =>
-                  setOpenAuthors((prev) =>
-                    prev.includes(author)
-                      ? prev.filter((a) => a !== author)
-                      : [...prev, author]
-                  )
-                }
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-secondary/30 transition-colors text-left"
-              >
-                <div>
-                  <h2 className="text-base font-semibold text-foreground">
-                    {authorDetails[author]?.title ?? author}
-                  </h2>
-                  <p className="text-xs text-muted-foreground italic">
-                    {authorDetails[author]?.work}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    {rulesByAuthor[author].length} rule{rulesByAuthor[author].length !== 1 ? "s" : ""}
-                  </span>
-                  <ChevronDown
-                    className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
-                  />
-                </div>
-              </button>
-              {isOpen && (
-                <div className="px-5 pb-5 pt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-t border-border">
-                  {rulesByAuthor[author].map((rule) => (
-                    <PhilosophyRuleCard
-                      key={rule.id}
-                      rule={rule}
-                      checkResult={checkResults.get(rule.id)}
-                      onCheck={handleCheckRule}
-                      onUpdate={(id, updates) => updateRule({ id, updates })}
-                      onDelete={handleDeleteRule}
-                      isChecking={checkingRuleId === rule.id}
-                    />
-                  ))}
-                </div>
+        {/* Rules Tab */}
+        <TabsContent value="rules" className="space-y-6 mt-4">
+          {/* Action Buttons */}
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={handleRunAllChecks}
+              disabled={isRunningAllChecks || rules.length === 0}
+            >
+              {isRunningAllChecks ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <PlayCircle className="w-4 h-4" />
               )}
+              Run All Checks
+            </Button>
+            <Button className="gap-2" onClick={() => setShowAddModal(true)}>
+              <Plus className="w-4 h-4" />
+              Add Rule
+            </Button>
+          </div>
+
+          {/* Info Banner */}
+          <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
+            <div className="flex items-start gap-3">
+              <BookOpen className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-foreground font-medium">
+                  Rules sourced from investment classics
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Graham • Malkiel • Siegel • Greenblatt • Thorndike • Duke • Marks • Kindleberger • Taleb • Lefèvre • Erkan • Clason
+                </p>
+              </div>
             </div>
-          );
-        })}
+          </div>
+
+          {/* Empty State */}
+          {rules.length === 0 && (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8 text-primary" />
+              </div>
+              <h3 className="text-lg font-medium text-foreground mb-2">No rules configured</h3>
+              <p className="text-muted-foreground mb-4">
+                Default rules should load automatically. Click below to retry.
+              </p>
+              <Button onClick={() => seedDefaultRules()}>Load Default Rules</Button>
+            </div>
+          )}
+
+          {/* Rules by Author */}
+          {authorOrder
+            .filter((author) => rulesByAuthor[author]?.length > 0)
+            .map((author) => {
+              const isOpen = openAuthors.includes(author);
+              return (
+                <div key={author} className="rounded-lg border border-border bg-card overflow-hidden">
+                  <button
+                    onClick={() =>
+                      setOpenAuthors((prev) =>
+                        prev.includes(author)
+                          ? prev.filter((a) => a !== author)
+                          : [...prev, author]
+                      )
+                    }
+                    className="w-full flex items-center justify-between px-5 py-4 hover:bg-secondary/30 transition-colors text-left"
+                  >
+                    <div>
+                      <h2 className="text-base font-semibold text-foreground">
+                        {authorDetails[author]?.title ?? author}
+                      </h2>
+                      <p className="text-xs text-muted-foreground italic">
+                        {authorDetails[author]?.work}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {rulesByAuthor[author].length} rule{rulesByAuthor[author].length !== 1 ? "s" : ""}
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
+                      />
+                    </div>
+                  </button>
+                  {isOpen && (
+                    <div className="px-5 pb-5 pt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-t border-border">
+                      {rulesByAuthor[author].map((rule) => (
+                        <PhilosophyRuleCard
+                          key={rule.id}
+                          rule={rule}
+                          checkResult={checkResults.get(rule.id)}
+                          onCheck={handleCheckRule}
+                          onUpdate={(id, updates) => updateRule({ id, updates })}
+                          onDelete={handleDeleteRule}
+                          isChecking={checkingRuleId === rule.id}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </TabsContent>
+
+        {/* Strategy Tab */}
+        <TabsContent value="strategy" className="mt-4">
+          <StrategyBriefEditor />
+        </TabsContent>
+      </Tabs>
 
       {/* Add Rule Modal */}
       <AddRuleModal
