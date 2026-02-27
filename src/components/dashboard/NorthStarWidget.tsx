@@ -3,26 +3,31 @@ import { Compass, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useNorthStar } from "@/hooks/useNorthStar";
-import { usePositions } from "@/hooks/usePositions";
+import { useIBCurrentWeights, deriveStatus } from "@/hooks/useIBCurrentWeights";
 import { useMemo } from "react";
 
 export function NorthStarWidget() {
   const { portfolio, positions: nsPositions, isLoading } = useNorthStar();
-  const { positions: currentPositions } = usePositions();
+  const { weights: ibWeights } = useIBCurrentWeights();
 
   const score = useMemo(() => {
     if (nsPositions.length === 0) return 0;
-    const currentMap: Record<string, number> = {};
-    for (const p of currentPositions) currentMap[p.ticker] = p.weight_percent ?? 0;
-    let totalGap = 0, totalWeight = 0;
-    for (const ns of nsPositions) {
-      const current = currentMap[ns.ticker] ?? 0;
-      const ideal = ns.target_weight_ideal ?? 0;
-      totalGap += Math.abs(current - ideal);
-      totalWeight += ideal;
-    }
-    return totalWeight > 0 ? Math.max(0, Math.round(100 - (totalGap / totalWeight) * 50)) : 0;
-  }, [nsPositions, currentPositions]);
+
+    const enriched = nsPositions.map((pos) => {
+      const currentWeight = ibWeights[pos.ticker] ?? 0;
+      const derived = deriveStatus(currentWeight, pos.target_weight_min, pos.target_weight_max, pos.status);
+      return { ...pos, currentWeight, derivedStatus: derived };
+    });
+
+    const nonExit = enriched.filter((p) => p.status !== "exit");
+    const exitPositions = enriched.filter((p) => p.status === "exit");
+
+    const alignedNonExit = nonExit.filter((p) => p.derivedStatus === "hold").length;
+    const alignedExit = exitPositions.filter((p) => p.currentWeight === 0).length;
+
+    const total = nonExit.length + exitPositions.length;
+    return total > 0 ? Math.round(((alignedNonExit + alignedExit) / total) * 100) : 0;
+  }, [nsPositions, ibWeights]);
 
   if (isLoading || !portfolio) return null;
 
