@@ -272,7 +272,7 @@ export default function NorthStar() {
                 <span className="text-sm text-muted-foreground mb-1">aligned</span>
               </div>
               <Progress value={rebalancingData.score} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-2">
+              <p className="text-sm text-muted-foreground mt-2">
                 Positions within target range / total positions
               </p>
             </CardContent>
@@ -286,7 +286,7 @@ export default function NorthStar() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="space-y-1.5 text-xs">
+              <div className="space-y-1.5 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Sell proceeds</span>
                   <span className="font-mono text-foreground">${rebalancingData.totalSells.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
@@ -307,7 +307,7 @@ export default function NorthStar() {
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                     <span className="text-sm text-emerald-500 font-medium">Fully funded — rebalancing covers all buys</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     ~${rebalancingData.cashRemaining.toLocaleString(undefined, { maximumFractionDigits: 0 })} cash remaining
                   </p>
                 </div>
@@ -319,11 +319,11 @@ export default function NorthStar() {
                       ${rebalancingData.gap.toLocaleString(undefined, { maximumFractionDigits: 0 })} shortfall
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     Buys scaled to {Math.round(rebalancingData.buyScale * 100)}%. Reduce targets or sell more.
                   </p>
                   {rebalancingData.scaleBackPositions.length > 0 && (
-                    <div className="text-xs space-y-0.5">
+                    <div className="text-sm space-y-0.5">
                       <span className="text-muted-foreground font-medium">Scale back:</span>
                       {rebalancingData.scaleBackPositions.map((p) => (
                         <div key={p.ticker} className="flex justify-between pl-2">
@@ -385,7 +385,7 @@ export default function NorthStar() {
               <div className="rounded-lg border border-border overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-secondary/50 text-muted-foreground text-xs uppercase">
+                    <tr className="bg-secondary/50 text-muted-foreground text-sm uppercase">
                       {[
                         { key: "ticker", label: "Ticker", align: "text-left" },
                         { key: "current", label: "Current %", align: "text-right" },
@@ -445,16 +445,16 @@ export default function NorthStar() {
                               const scaledAmount = rebalancingData.scaledBuys[pos.ticker] ?? rebalancingData.scaledSells[pos.ticker] ?? 0;
                               if (Math.abs(scaledAmount) < 1) return <td className="px-3 py-2 text-right text-muted-foreground">—</td>;
                               return (
-                                <td className={`px-3 py-2 text-right font-mono text-xs ${scaledAmount > 0 ? "text-emerald-500" : "text-amber-500"}`}>
+                                <td className={`px-3 py-2 text-right font-mono text-sm ${scaledAmount > 0 ? "text-emerald-500" : "text-amber-500"}`}>
                                   {scaledAmount > 0 ? "+" : ""}{scaledAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                 </td>
                               );
                             })()}
-                            <td className="px-3 py-2 text-right text-xs text-muted-foreground">
+                            <td className="px-3 py-2 text-right text-sm text-muted-foreground">
                               {isEditing ? (
                                 <div className="flex gap-1 justify-end">
-                                  <Input type="number" className="w-14 h-7 text-xs" value={editForm.target_weight_min ?? ""} onChange={(e) => setEditForm({ ...editForm, target_weight_min: parseFloat(e.target.value) || null })} />
-                                  <Input type="number" className="w-14 h-7 text-xs" value={editForm.target_weight_max ?? ""} onChange={(e) => setEditForm({ ...editForm, target_weight_max: parseFloat(e.target.value) || null })} />
+                                  <Input type="number" className="w-14 h-7 text-sm" value={editForm.target_weight_min ?? ""} onChange={(e) => setEditForm({ ...editForm, target_weight_min: parseFloat(e.target.value) || null })} />
+                                  <Input type="number" className="w-14 h-7 text-sm" value={editForm.target_weight_max ?? ""} onChange={(e) => setEditForm({ ...editForm, target_weight_max: parseFloat(e.target.value) || null })} />
                                 </div>
                               ) : (
                                 `${pos.target_weight_min?.toFixed(0) ?? "?"}–${pos.target_weight_max?.toFixed(0) ?? "?"}%`
@@ -480,7 +480,7 @@ export default function NorthStar() {
                                 </Tooltip>
                               )}
                             </td>
-                            <td className="px-3 py-2 text-xs text-muted-foreground max-w-[200px] truncate">
+                            <td className="px-3 py-2 text-sm text-muted-foreground max-w-[200px] truncate">
                               {isEditing ? (
                                 <Input className="h-7 text-xs" value={editForm.rationale ?? ""} onChange={(e) => setEditForm({ ...editForm, rationale: e.target.value })} />
                               ) : (
@@ -528,16 +528,16 @@ export default function NorthStar() {
                         const netCashEffect = rebalancingData.totalSells - totalScaledBuys;
                         if (Math.abs(netCashEffect) < 1) return <td className="px-3 py-2 text-right text-muted-foreground">—</td>;
                         return (
-                          <td className={`px-3 py-2 text-right font-mono text-xs ${netCashEffect > 0 ? "text-emerald-500" : "text-amber-500"}`}>
+                          <td className={`px-3 py-2 text-right font-mono text-sm ${netCashEffect > 0 ? "text-emerald-500" : "text-amber-500"}`}>
                             {netCashEffect > 0 ? "+" : ""}{netCashEffect.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </td>
                         );
                       })()}
-                      <td className="px-3 py-2 text-right text-xs text-muted-foreground">
+                      <td className="px-3 py-2 text-right text-sm text-muted-foreground">
                         {editingCash ? (
                           <div className="flex gap-1 justify-end">
-                            <Input type="number" className="w-14 h-7 text-xs" value={cashTarget.min} onChange={(e) => setCashTarget({ ...cashTarget, min: e.target.value })} />
-                            <Input type="number" className="w-14 h-7 text-xs" value={cashTarget.max} onChange={(e) => setCashTarget({ ...cashTarget, max: e.target.value })} />
+                            <Input type="number" className="w-14 h-7 text-sm" value={cashTarget.min} onChange={(e) => setCashTarget({ ...cashTarget, min: e.target.value })} />
+                            <Input type="number" className="w-14 h-7 text-sm" value={cashTarget.max} onChange={(e) => setCashTarget({ ...cashTarget, max: e.target.value })} />
                           </div>
                         ) : (
                           `${parseFloat(cashTarget.min).toFixed(0)}–${parseFloat(cashTarget.max).toFixed(0)}%`
@@ -550,7 +550,7 @@ export default function NorthStar() {
                           return <Badge variant="outline" className={sc.color}>{sc.label}</Badge>;
                         })()}
                       </td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">Dry powder buffer</td>
+                      <td className="px-3 py-2 text-sm text-muted-foreground">Dry powder buffer</td>
                       <td className="px-3 py-2 text-right">
                         {editingCash ? (
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => { setEditingCash(false); updateCashTarget({ cash_target_ideal: parseFloat(cashTarget.ideal) || 10, cash_target_min: parseFloat(cashTarget.min) || 8, cash_target_max: parseFloat(cashTarget.max) || 15 }); }}><Check className="w-3 h-3" /></Button>
@@ -582,7 +582,7 @@ export default function NorthStar() {
                           <td className="px-3 py-2 text-right text-foreground">
                             ${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </td>
-                          <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
+                          <td className="px-3 py-2 text-right font-mono text-sm text-muted-foreground">
                             {rebalancingData.buyScale < 1 && (
                               <Tooltip>
                                 <TooltipTrigger>
