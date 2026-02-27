@@ -468,6 +468,17 @@ export default function NorthStar() {
                       {enrichedPositions.filter((p) => p.derivedStatus === "build" && p.currentWeight < (p.target_weight_ideal ?? 0)).length === 0 && (
                         <tr><td colSpan={2} className="px-3 py-3 text-center text-xs text-muted-foreground">No buys needed</td></tr>
                       )}
+                      {(() => {
+                        const total = enrichedPositions
+                          .filter((p) => p.derivedStatus === "build" && p.currentWeight < (p.target_weight_ideal ?? 0))
+                          .reduce((s, p) => s + (((p.target_weight_ideal ?? 0) - p.currentWeight) / 100) * totalValue, 0);
+                        return total > 0 ? (
+                          <tr className="border-t-2 border-emerald-500/30 font-semibold">
+                            <td className="px-3 py-1.5 text-foreground">Total</td>
+                            <td className="px-3 py-1.5 text-right text-emerald-400">${total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                          </tr>
+                        ) : null;
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -503,6 +514,20 @@ export default function NorthStar() {
                       {enrichedPositions.filter((p) => (p.derivedStatus === "reduce" || p.status === "exit") && p.currentWeight > 0).length === 0 && (
                         <tr><td colSpan={2} className="px-3 py-3 text-center text-xs text-muted-foreground">No sells needed</td></tr>
                       )}
+                      {(() => {
+                        const total = enrichedPositions
+                          .filter((p) => (p.derivedStatus === "reduce" || p.status === "exit") && p.currentWeight > 0)
+                          .reduce((s, p) => {
+                            const targetIdeal = p.status === "exit" ? 0 : (p.target_weight_ideal ?? 0);
+                            return s + ((p.currentWeight - targetIdeal) / 100) * totalValue;
+                          }, 0);
+                        return total > 0 ? (
+                          <tr className="border-t-2 border-amber-500/30 font-semibold">
+                            <td className="px-3 py-1.5 text-foreground">Total</td>
+                            <td className="px-3 py-1.5 text-right text-amber-400">${total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                          </tr>
+                        ) : null;
+                      })()}
                     </tbody>
                   </table>
                 </div>
