@@ -436,6 +436,20 @@ export default function NorthStar() {
                         )}
                       </td>
                     </tr>
+                    {/* Total row */}
+                    <tr className="border-t-2 border-border font-semibold bg-secondary/20">
+                      <td className="px-3 py-2 text-foreground">Total</td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">
+                        {(enrichedPositions.reduce((s, p) => s + p.currentWeight, 0) + cashWeight).toFixed(1)}%
+                      </td>
+                      <td className="px-3 py-2 text-right text-foreground">
+                        {(enrichedPositions.reduce((s, p) => s + (p.target_weight_ideal ?? 0), 0) + (parseFloat(cashTarget.ideal) || 0)).toFixed(1)}%
+                      </td>
+                      <td className="px-3 py-2 text-right text-foreground">
+                        ${(enrichedPositions.reduce((s, p) => s + ((p.target_weight_ideal ?? 0) / 100) * totalValue, 0) + ((parseFloat(cashTarget.ideal) || 0) / 100) * totalValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </td>
+                      <td className="px-3 py-2" colSpan={4}></td>
+                    </tr>
                   </tbody>
                 </table>
                 {nsPositions.length === 0 && (
