@@ -321,17 +321,33 @@ export function PositionsTable({
                     )}
                     <td className="py-3">
                       <div className="flex items-center gap-1.5">
-                        <button
-                          className="cursor-pointer hover:scale-110 transition-transform"
-                          onClick={() => onOpenThesis?.(position)}
-                          title={position.thesis_notes && position.confidence_level ? "View thesis" : "Add thesis"}
-                        >
-                          {position.thesis_notes && position.confidence_level ? (
-                            <Feather className="w-3.5 h-3.5 text-emerald-500" />
-                          ) : (
-                            <AlertTriangle className="w-3.5 h-3.5 text-muted-foreground" />
-                          )}
-                        </button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                className="cursor-pointer hover:scale-110 transition-transform"
+                                onClick={() => onOpenThesis?.(position)}
+                              >
+                                {(() => {
+                                  const hasThesis = !!position.thesis_notes;
+                                  const hasInvalidation = !!position.invalidation_trigger;
+                                  if (hasThesis && hasInvalidation) {
+                                    return <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" />;
+                                  } else if (hasThesis || hasInvalidation) {
+                                    return <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500" />;
+                                  } else {
+                                    return <span className="inline-block w-2.5 h-2.5 rounded-full bg-destructive" />;
+                                  }
+                                })()}
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {position.thesis_notes && position.invalidation_trigger
+                                ? "View thesis"
+                                : "Add thesis"}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         <button
                           className="font-bold text-foreground hover:text-primary transition-colors flex items-center gap-1 text-base"
                           onClick={() => setExpandedId(isExpanded ? null : position.id)}
