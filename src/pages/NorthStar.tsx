@@ -184,12 +184,15 @@ export default function NorthStar() {
 
   const handleAddPosition = async () => {
     if (!newPos.ticker.trim()) return;
+    const ideal = parseFloat(newPos.target_weight_ideal) || 0;
+    const min = Math.round(ideal * 0.85 * 10) / 10;
+    const max = Math.round(ideal * 1.15 * 10) / 10;
     await addPosition({
       ticker: newPos.ticker.toUpperCase(),
       name: newPos.name || null,
-      target_weight_ideal: parseFloat(newPos.target_weight_ideal) || null,
-      target_weight_min: parseFloat(newPos.target_weight_min) || null,
-      target_weight_max: parseFloat(newPos.target_weight_max) || null,
+      target_weight_ideal: ideal || null,
+      target_weight_min: min || null,
+      target_weight_max: max || null,
       status: newPos.status,
       priority: newPos.priority,
       rationale: newPos.rationale || null,
@@ -217,7 +220,11 @@ export default function NorthStar() {
       const editingPos = enrichedPositions.find(p => p.id === editingId);
       if (!editingPos) return;
 
-      await updatePosition({ id: editingId, ...editForm });
+      const ideal = editForm.target_weight_ideal ?? 0;
+      const min = Math.round(ideal * 0.85 * 10) / 10;
+      const max = Math.round(ideal * 1.15 * 10) / 10;
+
+      await updatePosition({ id: editingId, ...editForm, target_weight_min: min, target_weight_max: max });
       setEditingId(null);
     } catch (e: any) {
       toast.error(e.message);
@@ -373,9 +380,7 @@ export default function NorthStar() {
                     </Select>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <Input placeholder="Min %" type="number" value={newPos.target_weight_min} onChange={(e) => setNewPos({ ...newPos, target_weight_min: e.target.value })} />
-                    <Input placeholder="Max %" type="number" value={newPos.target_weight_max} onChange={(e) => setNewPos({ ...newPos, target_weight_max: e.target.value })} />
-                    <Input placeholder="Rationale" value={newPos.rationale} onChange={(e) => setNewPos({ ...newPos, rationale: e.target.value })} className="col-span-2" />
+                    <Input placeholder="Rationale" value={newPos.rationale} onChange={(e) => setNewPos({ ...newPos, rationale: e.target.value })} className="col-span-2 sm:col-span-4" />
                   </div>
                   <div className="flex gap-2 justify-end">
                     <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}><X className="w-4 h-4" /></Button>
@@ -461,10 +466,12 @@ export default function NorthStar() {
                             })()}
                             <td className="px-3 py-2 text-right text-sm text-muted-foreground">
                               {isEditing ? (
-                                <div className="flex gap-1 justify-end">
-                                  <Input type="number" className="w-14 h-7 text-sm" value={editForm.target_weight_min ?? ""} onChange={(e) => setEditForm({ ...editForm, target_weight_min: parseFloat(e.target.value) || null })} />
-                                  <Input type="number" className="w-14 h-7 text-sm" value={editForm.target_weight_max ?? ""} onChange={(e) => setEditForm({ ...editForm, target_weight_max: parseFloat(e.target.value) || null })} />
-                                </div>
+                                (() => {
+                                  const ideal = editForm.target_weight_ideal ?? 0;
+                                  const min = Math.round(ideal * 0.85);
+                                  const max = Math.round(ideal * 1.15);
+                                  return `${min}–${max}%`;
+                                })()
                               ) : (
                                 `${pos.target_weight_min?.toFixed(0) ?? "?"}–${pos.target_weight_max?.toFixed(0) ?? "?"}%`
                               )}
