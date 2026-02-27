@@ -861,6 +861,45 @@ export type Database = {
         }
         Relationships: []
       }
+      portfolio_strategy: {
+        Row: {
+          constraints: string | null
+          id: string
+          mandate: string | null
+          philosophy: string | null
+          positions_to_build: Json | null
+          positions_to_exit: Json | null
+          priorities: string[] | null
+          target_description: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          constraints?: string | null
+          id?: string
+          mandate?: string | null
+          philosophy?: string | null
+          positions_to_build?: Json | null
+          positions_to_exit?: Json | null
+          priorities?: string[] | null
+          target_description?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          constraints?: string | null
+          id?: string
+          mandate?: string | null
+          philosophy?: string | null
+          positions_to_build?: Json | null
+          positions_to_exit?: Json | null
+          priorities?: string[] | null
+          target_description?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       positions: {
         Row: {
           avg_cost: number | null

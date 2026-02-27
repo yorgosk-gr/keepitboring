@@ -325,6 +325,7 @@ serve(async (req) => {
       portfolio_mode,
       risk_profile,
       behavioral_alignment,
+      portfolio_strategy,
     } = await req.json();
 
     // ── Deterministic Rule Evaluation ─────────────────────────────────
@@ -692,6 +693,23 @@ ${behavioral_alignment ? `BEHAVIORAL ALIGNMENT:
 - Aligned ratio: ${behavioral_alignment.aligned_ratio} (${behavioral_alignment.aligned_count}/${behavioral_alignment.total_signals} recent trades matched stated profile)` : "No behavioral signals available."}
 
 PORTFOLIO MODE: ${portfolio_mode ?? "balanced"}
+
+${portfolio_strategy ? `PORTFOLIO STRATEGY BRIEF (living document — all recommendations must align):
+- Mandate: ${portfolio_strategy.mandate || "Not set"}
+- Philosophy: ${portfolio_strategy.philosophy || "Not set"}
+- Target Description: ${portfolio_strategy.target_description || "Not set"}
+- Strategic Priorities: ${(portfolio_strategy.priorities || []).map((p: string) => `\n  • ${p}`).join("") || "None"}
+- Positions to Build: ${(portfolio_strategy.positions_to_build || []).map((p: any) => `\n  • ${p.ticker}: ${p.rationale}`).join("") || "None"}
+- Positions to Exit: ${(portfolio_strategy.positions_to_exit || []).map((p: any) => `\n  • ${p.ticker}: ${p.rationale}`).join("") || "None"}
+- Constraints: ${portfolio_strategy.constraints || "None"}
+
+STRATEGY ALIGNMENT RULES:
+- All recommendations MUST be directionally consistent with this strategy.
+- When recommending buys, PRIORITIZE positions_to_build tickers.
+- When recommending sells, PRIORITIZE positions_to_exit tickers.
+- Flag any recommendation that conflicts with the stated strategy.
+- Never recommend buying a ticker listed in positions_to_exit.
+- Never recommend selling a ticker listed in positions_to_build (unless a HARD rule breach).` : "No portfolio strategy brief set."}
 
 Analyze this portfolio and return the JSON response.`;
 
