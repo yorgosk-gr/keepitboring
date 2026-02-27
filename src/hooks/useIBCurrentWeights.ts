@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 export interface IBCurrentWeights {
-  /** ticker → percent_of_nav from ib_positions */
+  /** ticker → percent of total portfolio (positions + cash) */
   weights: Record<string, number>;
   /** cash weight as % of total portfolio */
   cashWeight: number;
@@ -47,10 +47,11 @@ export function useIBCurrentWeights(): IBCurrentWeights {
   const totalPositionValue = positions.reduce((s, p) => s + (p.position_value ?? 0), 0);
   const totalValue = totalPositionValue + cashBalance;
 
+  // Calculate weights as % of total portfolio (positions + cash), not just NAV
   const weights: Record<string, number> = {};
   for (const p of positions) {
     if (p.symbol) {
-      weights[p.symbol] = p.percent_of_nav ?? 0;
+      weights[p.symbol] = totalValue > 0 ? ((p.position_value ?? 0) / totalValue) * 100 : 0;
     }
   }
 
@@ -71,7 +72,6 @@ export function deriveStatus(
   targetMax: number | null,
   manualStatus: string | null
 ): "build" | "hold" | "reduce" | "exit" {
-  // Exit is always manual override
   if (manualStatus === "exit") return "exit";
 
   const min = targetMin ?? 0;

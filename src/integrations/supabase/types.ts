@@ -764,6 +764,9 @@ export type Database = {
       }
       north_star_portfolio: {
         Row: {
+          cash_target_ideal: number | null
+          cash_target_max: number | null
+          cash_target_min: number | null
           created_at: string | null
           description: string | null
           id: string
@@ -772,6 +775,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cash_target_ideal?: number | null
+          cash_target_max?: number | null
+          cash_target_min?: number | null
           created_at?: string | null
           description?: string | null
           id?: string
@@ -780,6 +786,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cash_target_ideal?: number | null
+          cash_target_max?: number | null
+          cash_target_min?: number | null
           created_at?: string | null
           description?: string | null
           id?: string
