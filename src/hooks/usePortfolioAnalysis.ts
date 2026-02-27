@@ -11,6 +11,7 @@ import { useSettings } from "./useSettings";
 import { useRiskProfile } from "./useRiskProfile";
 import { selectSmartInsights } from "./useSmartInsightSelection";
 import { usePortfolioStrategy } from "./usePortfolioStrategy";
+import { useNorthStar } from "./useNorthStar";
 import { toast } from "sonner";
 
 export interface AllocationBreakdownItem {
@@ -137,6 +138,7 @@ export function usePortfolioAnalysis() {
   const { settings } = useSettings();
   const { activeProfile, behavioralSignals } = useRiskProfile();
   const { strategy } = usePortfolioStrategy();
+  const { positions: nsPositions } = useNorthStar();
   const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisResult | null>(null);
 
   // Fetch analysis history
@@ -291,6 +293,15 @@ export function usePortfolioAnalysis() {
             positions_to_exit: strategy.positions_to_exit,
             constraints: strategy.constraints,
           } : null,
+          north_star: nsPositions.length > 0 ? nsPositions.map(ns => ({
+            ticker: ns.ticker,
+            name: ns.name,
+            target_weight_ideal: ns.target_weight_ideal,
+            target_weight_min: ns.target_weight_min,
+            target_weight_max: ns.target_weight_max,
+            status: ns.status,
+            priority: ns.priority,
+          })) : null,
         },
       });
 
