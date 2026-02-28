@@ -22,6 +22,8 @@ export interface SectorTilt {
   sector: string;
   direction: string;
   conviction: string;
+  portfolio_tickers?: string[];
+  reasoning?: string;
 }
 
 export interface InsightsSummary {
