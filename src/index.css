@@ -23,7 +23,7 @@
     --secondary-foreground: 210 40% 98%;
 
     --muted: 217 33% 22%;
-    --muted-foreground: 215 20% 78%;
+    --muted-foreground: 215 20% 85%;
 
     --accent: 160 84% 39%;
     --accent-foreground: 210 40% 98%;
@@ -44,7 +44,7 @@
     --radius: 0.5rem;
 
     --sidebar-background: 222 47% 9%;
-    --sidebar-foreground: 215 20% 78%;
+    --sidebar-foreground: 215 20% 85%;
     --sidebar-primary: 160 84% 39%;
     --sidebar-primary-foreground: 210 40% 98%;
     --sidebar-accent: 217 33% 17%;
@@ -77,7 +77,7 @@
     --secondary-foreground: 210 40% 98%;
 
     --muted: 217 33% 22%;
-    --muted-foreground: 215 20% 78%;
+    --muted-foreground: 215 20% 85%;
 
     --accent: 160 84% 39%;
     --accent-foreground: 210 40% 98%;
@@ -100,6 +100,22 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
     font-size: 16px;
+  }
+
+  /* Enforce 16px minimum across all elements */
+  p, span, a, li, td, th, label, input, textarea, select, button, div {
+    font-size: max(1em, 16px);
+  }
+
+  /* Allow intentional small utility text (badges, etc.) but still keep readable */
+  .text-xs {
+    font-size: 13px !important;
+    line-height: 1.4;
+  }
+
+  .text-sm {
+    font-size: 16px !important;
+    line-height: 1.5;
   }
 }
 
