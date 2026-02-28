@@ -96,14 +96,24 @@ function SectorTiltCard({ tilt }: { tilt: SectorTilt }) {
   );
 }
 
-function splitLetter(letter: string, sectionTitles: InsightsSummary["section_titles"]) {
-  // Try to split on section markers like "SECTION 1", "SECTION 2", etc.
-  // or on the section titles themselves
+function splitLetter(summary: InsightsSummary) {
+  const defaultTitles = {
+    market: "State of the Market",
+    portfolio: "What This Means For Your Portfolio",
+    invest: "Where to Invest",
+    watch: "Watch This Week",
+  };
+
+  const titles = summary.section_titles ?? defaultTitles;
+  const letter = summary.letter ?? "";
+
+  if (!letter) return { market: "" };
+
   const markers = [
-    { key: "market" as const, patterns: ["SECTION 1", sectionTitles.market.toUpperCase()] },
-    { key: "portfolio" as const, patterns: ["SECTION 2", sectionTitles.portfolio.toUpperCase()] },
-    { key: "invest" as const, patterns: ["SECTION 3", sectionTitles.invest.toUpperCase()] },
-    { key: "watch" as const, patterns: ["SECTION 4", sectionTitles.watch.toUpperCase()] },
+    { key: "market" as const, patterns: ["SECTION 1", titles.market.toUpperCase()] },
+    { key: "portfolio" as const, patterns: ["SECTION 2", titles.portfolio.toUpperCase()] },
+    { key: "invest" as const, patterns: ["SECTION 3", titles.invest.toUpperCase()] },
+    { key: "watch" as const, patterns: ["SECTION 4", titles.watch.toUpperCase()] },
   ];
 
   const upper = letter.toUpperCase();
@@ -113,7 +123,7 @@ function splitLetter(letter: string, sectionTitles: InsightsSummary["section_tit
     for (const pat of m.patterns) {
       const idx = upper.indexOf(pat);
       if (idx !== -1) {
-        positions.push({ key: m.key, title: sectionTitles[m.key], pos: idx });
+        positions.push({ key: m.key, title: titles[m.key], pos: idx });
         break;
       }
     }
@@ -127,7 +137,6 @@ function splitLetter(letter: string, sectionTitles: InsightsSummary["section_tit
       const start = positions[i].pos;
       const end = i + 1 < positions.length ? positions[i + 1].pos : letter.length;
       let text = letter.substring(start, end).trim();
-      // Remove the section header line
       const firstNewline = text.indexOf("\n");
       if (firstNewline !== -1) text = text.substring(firstNewline).trim();
       sections[positions[i].key] = text;
@@ -142,7 +151,15 @@ function splitLetter(letter: string, sectionTitles: InsightsSummary["section_tit
 function SummaryContent({ summary }: { summary: InsightsSummary }) {
   const [expanded, setExpanded] = useState(true);
 
-  const sections = splitLetter(summary.letter, summary.section_titles);
+  if (!summary.letter) {
+    return (
+      <div className="text-sm text-muted-foreground p-4">
+        Brief format not yet generated. Click Regenerate to get the new letter format.
+      </div>
+    );
+  }
+
+  const sections = splitLetter(summary);
 
   return (
     <Card className="border-primary/30 bg-card">

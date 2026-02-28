@@ -62,18 +62,18 @@ export function useInsightsSummary() {
       if (!data) return null;
 
       return {
-        letter: (data as any).letter ?? data.executive_summary ?? "",
-        section_titles: (data as any).section_titles ?? {
+        letter: data.letter ?? null,
+        section_titles: (data.section_titles as InsightsSummary["section_titles"]) ?? {
           market: "State of the Market",
           portfolio: "What This Means For Your Portfolio",
           invest: "Where to Invest",
           watch: "Watch This Week",
         },
-        stocks_to_research: ((data as any).stocks_to_research as StockToResearch[] ?? []),
-        country_tilts: ((data as any).country_tilts as CountryTilt[] ?? []),
-        sector_tilts: ((data as any).sector_tilts as SectorTilt[] ?? []),
-        crowded_trades: ((data as any).crowded_trades as string[] ?? []),
-        weekly_priority: (data as any).weekly_priority ?? null,
+        stocks_to_research: (data.stocks_to_research as unknown as StockToResearch[]) ?? [],
+        country_tilts: (data.country_tilts as unknown as CountryTilt[]) ?? [],
+        sector_tilts: (data.sector_tilts as unknown as SectorTilt[]) ?? [],
+        crowded_trades: data.crowded_trades ?? [],
+        weekly_priority: data.weekly_priority ?? null,
         executive_summary: data.executive_summary ?? "",
         newsletters_analyzed: data.newsletters_analyzed ?? 0,
         insights_analyzed: data.insights_analyzed ?? 0,
