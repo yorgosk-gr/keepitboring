@@ -36,24 +36,27 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const body = await req.json();
-
-    // Validate Cloudmailin shared secret (header or body field)
-    const cloudmailinSecret = Deno.env.get("CLOUDMAILIN_SECRET");
-    if (cloudmailinSecret) {
-      const providedSecret = req.headers.get("x-cloudmailin-secret") || body?.secret;
-      if (providedSecret !== cloudmailinSecret) {
-        return new Response(
-          JSON.stringify({ error: "Unauthorized" }),
-          {
-            status: 401,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+    // Basic auth verification (Cloudmailin sends credentials in the URL)
+    const CLOUDMAILIN_USER = "ingest";
+    const CLOUDMAILIN_PASS = Deno.env.get("CLOUDMAILIN_PASS") ?? "";
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (authHeader.startsWith("Basic ")) {
+      const decoded = atob(authHeader.slice(6));
+      const [user, pass] = decoded.split(":");
+      if (user !== CLOUDMAILIN_USER || pass !== CLOUDMAILIN_PASS) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     } else {
-      console.warn("CLOUDMAILIN_SECRET not configured — endpoint is unprotected. Set this secret to secure the webhook.");
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+
+    const body = await req.json();
 
     // Extract fields from Cloudmailin payload
     const subject =
