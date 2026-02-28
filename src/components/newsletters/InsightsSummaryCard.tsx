@@ -28,9 +28,9 @@ import {
 } from "@/hooks/useInsightsSummary";
 
 const directionIcons: Record<string, React.ReactNode> = {
-  overweight: <TrendingUp className="w-3.5 h-3.5 text-primary" />,
-  underweight: <TrendingDown className="w-3.5 h-3.5 text-destructive" />,
-  neutral: <Minus className="w-3.5 h-3.5 text-muted-foreground" />,
+  overweight: <TrendingUp className="w-4 h-4 text-primary" />,
+  underweight: <TrendingDown className="w-4 h-4 text-destructive" />,
+  neutral: <Minus className="w-4 h-4 text-muted-foreground" />,
 };
 
 const directionLabels: Record<string, { text: string; className: string }> = {
@@ -49,10 +49,10 @@ const convictionColors: Record<string, string> = {
 function LetterSection({ title, content }: { title: string; content: string }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-foreground mb-2 uppercase tracking-wide">{title}</h3>
+      <h3 className="text-base font-bold text-foreground mb-3 uppercase tracking-wide">{title}</h3>
       <div className="space-y-3">
         {content.split("\n\n").map((para, i) => (
-          <p key={i} className="text-sm text-muted-foreground leading-relaxed">{para}</p>
+          <p key={i} className="text-[15px] text-foreground/80 leading-relaxed">{para}</p>
         ))}
       </div>
     </div>
@@ -61,34 +61,34 @@ function LetterSection({ title, content }: { title: string; content: string }) {
 
 function StockCard({ stock }: { stock: StockToResearch }) {
   return (
-    <div className="p-3 rounded-lg bg-secondary/50 border border-border/50">
-      <div className="flex items-center gap-2 mb-1">
-        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">{stock.ticker}</Badge>
-        <span className="text-sm font-medium text-foreground">{stock.name}</span>
+    <div className="p-3.5 rounded-lg bg-secondary/50 border border-border/50">
+      <div className="flex items-center gap-2 mb-1.5">
+        <Badge variant="secondary" className="text-xs px-2 py-0.5 font-mono">{stock.ticker}</Badge>
+        <span className="text-[15px] font-medium text-foreground">{stock.name}</span>
         {stock.mentioned_in > 1 && (
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-auto">
+          <Badge variant="outline" className="text-xs px-2 py-0.5 ml-auto">
             {stock.mentioned_in} sources
           </Badge>
         )}
       </div>
-      <p className="text-xs text-muted-foreground">{stock.thesis}</p>
+      <p className="text-sm text-foreground/70">{stock.thesis}</p>
     </div>
   );
 }
 
 function CountryTiltCard({ tilt }: { tilt: CountryTilt }) {
   return (
-    <div className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/50 border border-border/50">
-      {directionIcons[tilt.direction] ?? <Minus className="w-3.5 h-3.5" />}
+    <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 border border-border/50">
+      {directionIcons[tilt.direction] ?? <Minus className="w-4 h-4" />}
       <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium text-foreground">{tilt.region}</span>
-        <span className="text-xs text-muted-foreground ml-2">{tilt.direction}</span>
+        <span className="text-[15px] font-medium text-foreground">{tilt.region}</span>
+        <span className="text-sm text-foreground/60 ml-2">{tilt.direction}</span>
       </div>
       {tilt.etf_proxy && (
-        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">{tilt.etf_proxy}</Badge>
+        <Badge variant="secondary" className="text-xs px-2 py-0.5 font-mono">{tilt.etf_proxy}</Badge>
       )}
       {tilt.in_portfolio && (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-primary border-primary/30">held</Badge>
+        <Badge variant="outline" className="text-xs px-2 py-0.5 text-primary border-primary/30">held</Badge>
       )}
     </div>
   );
@@ -99,19 +99,19 @@ function SectorTiltCard({ tilt }: { tilt: SectorTilt }) {
   const relatedTickers = tilt.portfolio_tickers ?? [];
 
   return (
-    <div className="p-2.5 rounded-lg bg-secondary/50 border border-border/50 space-y-1.5">
+    <div className="p-3 rounded-lg bg-secondary/50 border border-border/50 space-y-2">
       <div className="flex items-center gap-3">
-        {directionIcons[tilt.direction] ?? <Minus className="w-3.5 h-3.5" />}
-        <span className="text-sm font-medium text-foreground flex-1">{tilt.sector}</span>
-        <span className={`text-xs font-medium ${label.className}`}>{label.text}</span>
-        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${convictionColors[tilt.conviction] ?? ""}`}>
+        {directionIcons[tilt.direction] ?? <Minus className="w-4 h-4" />}
+        <span className="text-[15px] font-medium text-foreground flex-1">{tilt.sector}</span>
+        <span className={`text-sm font-medium ${label.className}`}>{label.text}</span>
+        <Badge variant="outline" className={`text-xs px-2 py-0.5 ${convictionColors[tilt.conviction] ?? ""}`}>
           {tilt.conviction}
         </Badge>
       </div>
       {relatedTickers.length > 0 && (
-        <div className="flex gap-1 flex-wrap ml-6">
+        <div className="flex gap-1.5 flex-wrap ml-7">
           {relatedTickers.map((t) => (
-            <Badge key={t} variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">
+            <Badge key={t} variant="secondary" className="text-xs px-2 py-0.5 font-mono">
               {t}
             </Badge>
           ))}
@@ -125,39 +125,39 @@ function ContrarianCard({ opp }: { opp: ContrarianOpportunity }) {
   const horizonLabel = opp.time_horizon === "long" ? "2-5 years" : "6-18 months";
 
   return (
-    <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-2">
+    <div className="p-3.5 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-2.5">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-sm font-semibold text-foreground">{opp.title}</span>
-        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30">
+        <span className="text-[15px] font-semibold text-foreground">{opp.title}</span>
+        <Badge variant="secondary" className="text-xs px-2 py-0.5 font-mono bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30">
           {opp.ticker}
         </Badge>
         {opp.ticker_name && (
-          <span className="text-xs text-muted-foreground">{opp.ticker_name}</span>
+          <span className="text-sm text-foreground/60">{opp.ticker_name}</span>
         )}
-        <div className="flex gap-1 ml-auto">
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/30 text-amber-700 dark:text-amber-400">
-            <Clock className="w-2.5 h-2.5 mr-0.5" />
+        <div className="flex gap-1.5 ml-auto">
+          <Badge variant="outline" className="text-xs px-2 py-0.5 border-amber-500/30 text-amber-700 dark:text-amber-400">
+            <Clock className="w-3 h-3 mr-1" />
             {horizonLabel}
           </Badge>
-          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${convictionColors[opp.conviction] ?? ""}`}>
+          <Badge variant="outline" className={`text-xs px-2 py-0.5 ${convictionColors[opp.conviction] ?? ""}`}>
             {opp.conviction}
           </Badge>
           {opp.in_portfolio && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-primary border-primary/30">held</Badge>
+            <Badge variant="outline" className="text-xs px-2 py-0.5 text-primary border-primary/30">held</Badge>
           )}
         </div>
       </div>
-      <div className="space-y-1.5 text-xs text-muted-foreground">
+      <div className="space-y-1.5 text-sm text-foreground/70">
         <div>
-          <span className="font-medium text-amber-700 dark:text-amber-400">Macro tailwind: </span>
+          <span className="font-semibold text-amber-700 dark:text-amber-400">Macro tailwind: </span>
           {opp.macro_tailwind}
         </div>
         <div>
-          <span className="font-medium text-amber-700 dark:text-amber-400">The non-obvious link: </span>
+          <span className="font-semibold text-amber-700 dark:text-amber-400">The non-obvious link: </span>
           {opp.second_order_logic}
         </div>
         <div>
-          <span className="font-medium text-muted-foreground/70">Why not crowded: </span>
+          <span className="font-semibold text-foreground/50">Why not crowded: </span>
           {opp.why_not_crowded}
         </div>
       </div>
@@ -198,7 +198,6 @@ function splitLetter(summary: InsightsSummary) {
     }
   }
 
-  // If we found sections, split accordingly
   if (positions.length >= 2) {
     positions.sort((a, b) => a.pos - b.pos);
     const sections: Record<string, string> = {};
@@ -213,7 +212,6 @@ function splitLetter(summary: InsightsSummary) {
     return sections;
   }
 
-  // Fallback: just return the whole letter as "market"
   return { market: letter };
 }
 
@@ -222,7 +220,7 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
 
   if (!summary.letter) {
     return (
-      <div className="text-sm text-muted-foreground p-4">
+      <div className="text-base text-foreground/60 p-4">
         Brief format not yet generated. Click Regenerate to get the new letter format.
       </div>
     );
@@ -236,8 +234,8 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
-            <CardTitle className="text-lg">Weekly Letter</CardTitle>
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
+            <CardTitle className="text-xl">Weekly Letter</CardTitle>
+            <Badge variant="outline" className="text-xs px-2 py-0.5 text-foreground/60">
               {summary.newsletters_analyzed} newsletters · {summary.insights_analyzed} insights
             </Badge>
           </div>
@@ -247,18 +245,18 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
         </div>
 
         {summary.weekly_priority && (
-          <div className="mt-3 p-3 rounded-lg bg-primary/10 border border-primary/30">
+          <div className="mt-3 p-3.5 rounded-lg bg-primary/10 border border-primary/30">
             <div className="flex items-center gap-2 mb-1">
               <Target className="w-4 h-4 text-primary" />
-              <span className="text-xs font-semibold text-primary uppercase">This Week's Priority</span>
+              <span className="text-sm font-bold text-primary uppercase">This Week's Priority</span>
             </div>
-            <p className="text-sm text-foreground font-medium">{summary.weekly_priority}</p>
+            <p className="text-[15px] text-foreground font-medium">{summary.weekly_priority}</p>
           </div>
         )}
       </CardHeader>
 
       {expanded && (
-        <CardContent className="space-y-6 pt-0">
+        <CardContent className="space-y-8 pt-0">
           {/* Letter Sections */}
           {sections.market && (
             <LetterSection title={summary.section_titles.market} content={sections.market} />
@@ -272,29 +270,29 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
 
           {/* Structured: Country Tilts */}
           <div>
-            <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+            <h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
               <Globe className="w-4 h-4 text-accent" />
               Country / Region Tilts
             </h3>
             {summary.country_tilts?.length > 0 ? (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {summary.country_tilts.map((t, i) => (
                   <CountryTiltCard key={i} tilt={t} />
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground italic">No geographic signals this week</p>
+              <p className="text-sm text-foreground/50 italic">No geographic signals this week</p>
             )}
           </div>
 
           {/* Structured: Sector Tilts */}
           {summary.sector_tilts?.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+              <h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-accent" />
                 Sector Tilts
               </h3>
-              <div className="grid gap-1.5 sm:grid-cols-2">
+              <div className="grid gap-2 sm:grid-cols-2">
                 {summary.sector_tilts.map((t, i) => (
                   <SectorTiltCard key={i} tilt={t} />
                 ))}
@@ -305,7 +303,7 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
           {/* Structured: Stocks to Research */}
           {summary.stocks_to_research?.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+              <h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
                 <Search className="w-4 h-4 text-accent" />
                 Stocks to Research
               </h3>
@@ -320,10 +318,10 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
           {/* Contrarian Opportunities */}
           {summary.contrarian_opportunities?.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+              <h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
                 <Lightbulb className="w-4 h-4 text-amber-500" />
                 Contrarian Opportunities
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/30 text-amber-700 dark:text-amber-400">
+                <Badge variant="outline" className="text-xs px-2 py-0.5 border-amber-500/30 text-amber-700 dark:text-amber-400">
                   speculative
                 </Badge>
               </h3>
@@ -342,13 +340,13 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
           {/* Crowded Trades */}
           {summary.crowded_trades?.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+              <h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-warning" />
                 Crowded Trades
               </h3>
-              <ul className="space-y-1.5">
+              <ul className="space-y-2">
                 {summary.crowded_trades.map((trade, i) => (
-                  <li key={i} className="text-xs text-muted-foreground flex gap-2 p-2 rounded-lg bg-warning/5 border border-warning/20">
+                  <li key={i} className="text-sm text-foreground/70 flex gap-2 p-2.5 rounded-lg bg-warning/5 border border-warning/20">
                     <span className="text-warning mt-0.5">⚠</span>
                     {trade}
                   </li>
@@ -357,7 +355,7 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
             </div>
           )}
 
-          <p className="text-[10px] text-muted-foreground text-right">
+          <p className="text-xs text-foreground/40 text-right">
             Generated {new Date(summary.generated_at).toLocaleString()}
           </p>
         </CardContent>
@@ -376,8 +374,8 @@ export function InsightsSummaryCard() {
           <CardContent className="flex flex-col items-center justify-center py-8 gap-3">
             <Sparkles className="w-8 h-8 text-muted-foreground" />
             <div className="text-center">
-              <p className="text-sm font-medium text-foreground">Weekly Intelligence Letter</p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-base font-medium text-foreground">Weekly Intelligence Letter</p>
+              <p className="text-sm text-foreground/60 mt-1">
                 Generate an opinionated weekly letter from your last 30 days of newsletter insights
               </p>
             </div>
