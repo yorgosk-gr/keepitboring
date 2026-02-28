@@ -39,7 +39,7 @@ export function PortfolioValue({
             <Layers className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Positions</p>
+            <p className="text-sm text-muted-foreground uppercase tracking-wide">Positions</p>
             <p className="text-lg font-semibold text-foreground">{positionsCount}</p>
           </div>
         </div>
@@ -48,7 +48,7 @@ export function PortfolioValue({
             <Wallet className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Cash</p>
+            <p className="text-sm text-muted-foreground uppercase tracking-wide">Cash</p>
             <p className="text-lg font-semibold text-foreground">
               ${cashBalance.toLocaleString("en-US", { minimumFractionDigits: 0 })}
             </p>

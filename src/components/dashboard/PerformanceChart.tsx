@@ -261,13 +261,13 @@ export function PerformanceChart() {
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
             <XAxis
               dataKey="date"
-              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 14 }}
               tickFormatter={(v) => format(new Date(v), "MMM d")}
               axisLine={false}
               tickLine={false}
             />
             <YAxis
-              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 14 }}
               tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
               axisLine={false}
               tickLine={false}
@@ -278,7 +278,7 @@ export function PerformanceChart() {
                 backgroundColor: "hsl(var(--card))",
                 border: "1px solid hsl(var(--border))",
                 borderRadius: "8px",
-                fontSize: "12px",
+                fontSize: "14px",
               }}
               labelFormatter={(v) => format(new Date(v), "MMM d, yyyy")}
               formatter={(value: number) => [`$${value.toLocaleString()}`, "NAV"]}

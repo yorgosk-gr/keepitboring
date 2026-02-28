@@ -160,7 +160,7 @@ export function RiskProfileCard({ positions, etfMetadata, totalValue, cashBalanc
         </div>
 
         {/* Table header */}
-        <div className="grid grid-cols-[1fr_80px_80px_40px] gap-2 px-1 mb-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="grid grid-cols-[1fr_80px_80px_40px] gap-2 px-1 mb-2 text-sm font-medium text-muted-foreground uppercase tracking-wider">
           <span>Category</span>
           <span className="text-right">Current</span>
           <span className="text-right">Ideal</span>
@@ -186,13 +186,13 @@ export function RiskProfileCard({ positions, etfMetadata, totalValue, cashBalanc
                 <div className="flex justify-end">
                   {isOff ? (
                     <span className={cn(
-                      "text-[10px] font-mono font-medium px-1.5 py-0.5 rounded",
+                      "text-sm font-mono font-medium px-1.5 py-0.5 rounded",
                       isOver ? "bg-amber-500/15 text-amber-500" : "bg-blue-400/15 text-blue-400"
                     )}>
                       {isOver ? "+" : ""}{diff.toFixed(0)}
                     </span>
                   ) : (
-                    <span className="text-[10px] text-primary">✓</span>
+                    <span className="text-sm text-primary">✓</span>
                   )}
                 </div>
               </div>

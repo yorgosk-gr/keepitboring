@@ -393,7 +393,7 @@ export function PositionsTable({
                           <span className={color}>
                             {sign}{formatWholeNumber(pnl.value)}
                             {pnl.percent !== 0 && (
-                              <span className="text-[10px] ml-1 opacity-70">
+                              <span className="text-sm ml-1 opacity-80">
                                 ({sign}{pnl.percent.toFixed(1)}%)
                               </span>
                             )}

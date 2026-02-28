@@ -46,7 +46,7 @@ export function AppHeader() {
           >
             <Search className="w-4 h-4" />
             <span className="hidden lg:inline">Search</span>
-            <kbd className="hidden lg:inline-flex h-5 items-center gap-1 rounded border bg-secondary px-1.5 text-[10px] font-medium">
+            <kbd className="hidden lg:inline-flex h-5 items-center gap-1 rounded border bg-secondary px-1.5 text-xs font-medium">
               <span className="text-xs">⌘</span>K
             </kbd>
           </Button>
