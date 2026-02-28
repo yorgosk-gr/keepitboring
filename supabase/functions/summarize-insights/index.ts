@@ -166,6 +166,7 @@ Flag any Taleb-style risks: correlation clusters, untested positions, narrative-
 SECTION 3 — WHERE TO INVEST
 Be concrete and opinionated. Cover three things:
 - COUNTRY/REGION TILTS: Which geographies are newsletters overweighting or underweighting? Does this suggest adding to or trimming any of the geographic ETFs in the portfolio?
+  COUNTRY TILTS: Always generate at least 3 country/region tilts based on the macro signals. Infer from context — if energy/oil is bullish, Middle East tensions are relevant; if AI hardware is strong, US and Taiwan are relevant; if inflation is sticky, EM is at risk. Map each to the closest ETF in the portfolio. Never return an empty country_tilts array.
 - SECTOR TILTS: Which sectors are seeing upgrades or downgrades across newsletters? Map these to actual or potential holdings.
 - STOCKS TO RESEARCH: List 2-4 specific stocks mentioned positively across multiple newsletters that are NOT currently in the portfolio but are worth investigating. For each: ticker, one-sentence thesis, and why it fits the investment philosophy.
 

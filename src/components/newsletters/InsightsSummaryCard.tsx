@@ -30,10 +30,32 @@ const directionIcons: Record<string, React.ReactNode> = {
   neutral: <Minus className="w-3.5 h-3.5 text-muted-foreground" />,
 };
 
+const directionLabels: Record<string, { text: string; className: string }> = {
+  overweight: { text: "Overweight", className: "text-primary" },
+  underweight: { text: "Underweight", className: "text-destructive" },
+  neutral: { text: "Neutral", className: "text-muted-foreground" },
+};
+
 const convictionColors: Record<string, string> = {
   high: "bg-destructive/20 text-destructive border-destructive/30",
   medium: "bg-warning/20 text-warning border-warning/30",
   low: "bg-muted text-muted-foreground border-border",
+};
+
+const sectorToTickers: Record<string, string[]> = {
+  "Energy": ["IGLN", "CMOD"],
+  "Technology": ["IUQA", "AMZN", "CRWD", "KLAR", "MELI", "PGY"],
+  "Bonds": ["IB01", "IDTM"],
+  "Fixed Income": ["IB01", "IDTM"],
+  "Gold": ["IGLN", "CMOD"],
+  "Commodities": ["IGLN", "CMOD"],
+  "Japan": ["IJPA"],
+  "Europe": ["IMEU"],
+  "Emerging Markets": ["EIMI"],
+  "Global": ["CSPX", "IUQA"],
+  "Broad": ["CSPX", "IUQA"],
+  "Infrastructure": ["CBUX"],
+  "Greece": ["GRE"],
 };
 
 function LetterSection({ title, content }: { title: string; content: string }) {
@@ -84,14 +106,41 @@ function CountryTiltCard({ tilt }: { tilt: CountryTilt }) {
   );
 }
 
+function getSectorTickers(sector: string): string[] {
+  const tickers: string[] = [];
+  for (const [key, vals] of Object.entries(sectorToTickers)) {
+    if (sector.toLowerCase().includes(key.toLowerCase())) {
+      for (const v of vals) {
+        if (!tickers.includes(v)) tickers.push(v);
+      }
+    }
+  }
+  return tickers;
+}
+
 function SectorTiltCard({ tilt }: { tilt: SectorTilt }) {
+  const label = directionLabels[tilt.direction] ?? { text: tilt.direction, className: "text-muted-foreground" };
+  const relatedTickers = getSectorTickers(tilt.sector);
+
   return (
-    <div className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/50 border border-border/50">
-      {directionIcons[tilt.direction] ?? <Minus className="w-3.5 h-3.5" />}
-      <span className="text-sm font-medium text-foreground flex-1">{tilt.sector}</span>
-      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${convictionColors[tilt.conviction] ?? ""}`}>
-        {tilt.conviction}
-      </Badge>
+    <div className="p-2.5 rounded-lg bg-secondary/50 border border-border/50 space-y-1.5">
+      <div className="flex items-center gap-3">
+        {directionIcons[tilt.direction] ?? <Minus className="w-3.5 h-3.5" />}
+        <span className="text-sm font-medium text-foreground flex-1">{tilt.sector}</span>
+        <span className={`text-xs font-medium ${label.className}`}>{label.text}</span>
+        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${convictionColors[tilt.conviction] ?? ""}`}>
+          {tilt.conviction}
+        </Badge>
+      </div>
+      {relatedTickers.length > 0 && (
+        <div className="flex gap-1 flex-wrap ml-6">
+          {relatedTickers.map((t) => (
+            <Badge key={t} variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">
+              {t}
+            </Badge>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -202,19 +251,21 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
           )}
 
           {/* Structured: Country Tilts */}
-          {summary.country_tilts?.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
-                <Globe className="w-4 h-4 text-accent" />
-                Country / Region Tilts
-              </h3>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+              <Globe className="w-4 h-4 text-accent" />
+              Country / Region Tilts
+            </h3>
+            {summary.country_tilts?.length > 0 ? (
               <div className="space-y-1.5">
                 {summary.country_tilts.map((t, i) => (
                   <CountryTiltCard key={i} tilt={t} />
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="text-xs text-muted-foreground italic">No geographic signals this week</p>
+            )}
+          </div>
 
           {/* Structured: Sector Tilts */}
           {summary.sector_tilts?.length > 0 && (
