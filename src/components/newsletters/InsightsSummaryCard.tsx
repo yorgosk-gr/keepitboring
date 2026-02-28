@@ -3,20 +3,15 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
-  AlertTriangle,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   Target,
   Globe,
   BarChart3,
-  Shield,
-  Zap,
   Loader2,
-  FileText,
-  Lightbulb,
-  Repeat,
-  Swords,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  AlertTriangle,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,202 +19,130 @@ import { Badge } from "@/components/ui/badge";
 import {
   useInsightsSummary,
   type InsightsSummary,
-  type KeyPoint,
-  type ActionItem,
-  type MarketTheme,
-  type ContrarianSignal,
-  type PersistentSignal,
+  type StockToResearch,
+  type CountryTilt,
+  type SectorTilt,
 } from "@/hooks/useInsightsSummary";
 
-const categoryIcons: Record<string, React.ReactNode> = {
-  macro: <Globe className="w-4 h-4" />,
-  sector: <BarChart3 className="w-4 h-4" />,
-  stock: <Target className="w-4 h-4" />,
-  risk: <Shield className="w-4 h-4" />,
-  opportunity: <Zap className="w-4 h-4" />,
+const directionIcons: Record<string, React.ReactNode> = {
+  overweight: <TrendingUp className="w-3.5 h-3.5 text-primary" />,
+  underweight: <TrendingDown className="w-3.5 h-3.5 text-destructive" />,
+  neutral: <Minus className="w-3.5 h-3.5 text-muted-foreground" />,
 };
 
-const relevanceColors: Record<string, string> = {
+const convictionColors: Record<string, string> = {
   high: "bg-destructive/20 text-destructive border-destructive/30",
   medium: "bg-warning/20 text-warning border-warning/30",
   low: "bg-muted text-muted-foreground border-border",
 };
 
-const urgencyColors: Record<string, string> = {
-  high: "bg-destructive/20 text-destructive border-destructive/30",
-  medium: "bg-warning/20 text-warning border-warning/30",
-  low: "bg-primary/20 text-primary border-primary/30",
-};
-
-const sentimentIcons: Record<string, React.ReactNode> = {
-  bullish: <TrendingUp className="w-4 h-4 text-primary" />,
-  bearish: <TrendingDown className="w-4 h-4 text-destructive" />,
-  mixed: <Minus className="w-4 h-4 text-warning" />,
-};
-
-function AlignmentScore({ score }: { score?: number }) {
-  if (score == null) return null;
-  const color = score >= 7 ? "text-destructive" : score >= 4 ? "text-warning" : "text-muted-foreground";
+function LetterSection({ title, content }: { title: string; content: string }) {
   return (
-    <span className={`text-[10px] font-mono font-bold ${color}`} title="Portfolio alignment score">
-      {score}/10
-    </span>
-  );
-}
-
-function TickerBadges({ tickers }: { tickers?: string[] }) {
-  if (!tickers?.length) return null;
-  return (
-    <div className="flex flex-wrap gap-1 mt-1.5">
-      {tickers.map((t) => (
-        <Badge key={t} variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">
-          {t}
-        </Badge>
-      ))}
-    </div>
-  );
-}
-
-function SourceInfo({ count, names, singleSource }: { count?: number; names?: string[]; singleSource?: boolean }) {
-  if (!count) return null;
-  return (
-    <span className="text-[10px] text-muted-foreground" title={names?.join(", ")}>
-      {count} source{count !== 1 ? "s" : ""}
-      {singleSource && <span className="text-warning ml-1">⚠ single source</span>}
-    </span>
-  );
-}
-
-function KeyPointItem({ point }: { point: KeyPoint }) {
-  return (
-    <div className="flex gap-3 p-3 rounded-lg bg-secondary/50 border border-border/50">
-      <div className="mt-0.5 text-muted-foreground">
-        {categoryIcons[point.category] ?? <FileText className="w-4 h-4" />}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <span className="font-medium text-sm text-foreground">{point.title}</span>
-          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${relevanceColors[point.relevance]}`}>
-            {point.relevance}
-          </Badge>
-          <AlignmentScore score={point.portfolio_alignment_score} />
-          <SourceInfo count={point.source_count} names={point.source_names} singleSource={point.single_source} />
-        </div>
-        <p className="text-xs text-muted-foreground leading-relaxed">{point.detail}</p>
-        <TickerBadges tickers={point.exposed_tickers} />
+    <div>
+      <h3 className="text-sm font-semibold text-foreground mb-2 uppercase tracking-wide">{title}</h3>
+      <div className="space-y-3">
+        {content.split("\n\n").map((para, i) => (
+          <p key={i} className="text-sm text-muted-foreground leading-relaxed">{para}</p>
+        ))}
       </div>
     </div>
   );
 }
 
-function ActionItemRow({ item }: { item: ActionItem }) {
-  return (
-    <div className="flex gap-3 p-3 rounded-lg bg-secondary/50 border border-border/50">
-      <div className="mt-0.5">
-        <AlertTriangle className={`w-4 h-4 ${
-          item.urgency === "high" ? "text-destructive" : 
-          item.urgency === "medium" ? "text-warning" : "text-primary"
-        }`} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="font-medium text-sm text-foreground">{item.action}</span>
-          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${urgencyColors[item.urgency]}`}>
-            {item.urgency}
-          </Badge>
-        </div>
-        <p className="text-xs text-muted-foreground">{item.reasoning}</p>
-      </div>
-    </div>
-  );
-}
-
-function ThemeCard({ theme }: { theme: MarketTheme }) {
+function StockCard({ stock }: { stock: StockToResearch }) {
   return (
     <div className="p-3 rounded-lg bg-secondary/50 border border-border/50">
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
-        {sentimentIcons[theme.sentiment]}
-        <span className="font-medium text-sm text-foreground">{theme.theme}</span>
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-          {theme.source_count} source{theme.source_count !== 1 ? "s" : ""}
-        </Badge>
-        <AlignmentScore score={theme.portfolio_alignment_score} />
+      <div className="flex items-center gap-2 mb-1">
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">{stock.ticker}</Badge>
+        <span className="text-sm font-medium text-foreground">{stock.name}</span>
+        {stock.mentioned_in > 1 && (
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-auto">
+            {stock.mentioned_in} sources
+          </Badge>
+        )}
       </div>
-      <p className="text-xs text-muted-foreground">{theme.portfolio_impact}</p>
-      <TickerBadges tickers={theme.exposed_tickers} />
+      <p className="text-xs text-muted-foreground">{stock.thesis}</p>
     </div>
   );
 }
 
-function ContrarianSignalCard({ signal }: { signal: ContrarianSignal }) {
+function CountryTiltCard({ tilt }: { tilt: CountryTilt }) {
   return (
-    <div className="p-3 rounded-lg bg-secondary/50 border border-border/50">
-      <div className="flex items-center gap-2 mb-2">
-        <Swords className="w-4 h-4 text-warning" />
-        <span className="font-medium text-sm text-foreground">{signal.topic}</span>
+    <div className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/50 border border-border/50">
+      {directionIcons[tilt.direction] ?? <Minus className="w-3.5 h-3.5" />}
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium text-foreground">{tilt.region}</span>
+        <span className="text-xs text-muted-foreground ml-2">{tilt.direction}</span>
       </div>
-      <div className="grid grid-cols-2 gap-3 mb-2">
-        <div className="p-2 rounded bg-primary/10 border border-primary/20">
-          <div className="flex items-center gap-1 mb-1">
-            <TrendingUp className="w-3 h-3 text-primary" />
-            <span className="text-[10px] font-semibold text-primary uppercase">Bull Case</span>
-          </div>
-          <p className="text-xs text-muted-foreground">{signal.bull_case}</p>
-        </div>
-        <div className="p-2 rounded bg-destructive/10 border border-destructive/20">
-          <div className="flex items-center gap-1 mb-1">
-            <TrendingDown className="w-3 h-3 text-destructive" />
-            <span className="text-[10px] font-semibold text-destructive uppercase">Bear Case</span>
-          </div>
-          <p className="text-xs text-muted-foreground">{signal.bear_case}</p>
-        </div>
-      </div>
-      <div className="flex items-center justify-between">
-        <TickerBadges tickers={signal.your_exposure} />
-        <span className="text-[10px] text-muted-foreground italic">{signal.recommended_stance}</span>
-      </div>
+      {tilt.etf_proxy && (
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">{tilt.etf_proxy}</Badge>
+      )}
+      {tilt.in_portfolio && (
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-primary border-primary/30">held</Badge>
+      )}
     </div>
   );
 }
 
-function PersistentSignalItem({ signal }: { signal: PersistentSignal }) {
-  const trendIcon = signal.trend === "strengthening" ? "📈" : signal.trend === "weakening" ? "📉" : "➡️";
+function SectorTiltCard({ tilt }: { tilt: SectorTilt }) {
   return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-      <Repeat className="w-3 h-3 text-warning flex-shrink-0" />
-      <span>{signal.signal}</span>
-      <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-auto flex-shrink-0">
-        {signal.weeks_active}w {trendIcon}
+    <div className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/50 border border-border/50">
+      {directionIcons[tilt.direction] ?? <Minus className="w-3.5 h-3.5" />}
+      <span className="text-sm font-medium text-foreground flex-1">{tilt.sector}</span>
+      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${convictionColors[tilt.conviction] ?? ""}`}>
+        {tilt.conviction}
       </Badge>
     </div>
   );
 }
 
-function isStructuredContrarian(signal: string | ContrarianSignal): signal is ContrarianSignal {
-  return typeof signal === "object" && signal !== null && "topic" in signal;
-}
+function splitLetter(letter: string, sectionTitles: InsightsSummary["section_titles"]) {
+  // Try to split on section markers like "SECTION 1", "SECTION 2", etc.
+  // or on the section titles themselves
+  const markers = [
+    { key: "market" as const, patterns: ["SECTION 1", sectionTitles.market.toUpperCase()] },
+    { key: "portfolio" as const, patterns: ["SECTION 2", sectionTitles.portfolio.toUpperCase()] },
+    { key: "invest" as const, patterns: ["SECTION 3", sectionTitles.invest.toUpperCase()] },
+    { key: "watch" as const, patterns: ["SECTION 4", sectionTitles.watch.toUpperCase()] },
+  ];
 
-function tryParseContrarian(signal: string | ContrarianSignal): ContrarianSignal | null {
-  if (isStructuredContrarian(signal)) return signal;
-  if (typeof signal === "string") {
-    try {
-      const parsed = JSON.parse(signal);
-      if (parsed && typeof parsed === "object" && "topic" in parsed) return parsed;
-    } catch {
-      // not JSON
+  const upper = letter.toUpperCase();
+  const positions: { key: string; title: string; pos: number }[] = [];
+
+  for (const m of markers) {
+    for (const pat of m.patterns) {
+      const idx = upper.indexOf(pat);
+      if (idx !== -1) {
+        positions.push({ key: m.key, title: sectionTitles[m.key], pos: idx });
+        break;
+      }
     }
   }
-  return null;
+
+  // If we found sections, split accordingly
+  if (positions.length >= 2) {
+    positions.sort((a, b) => a.pos - b.pos);
+    const sections: Record<string, string> = {};
+    for (let i = 0; i < positions.length; i++) {
+      const start = positions[i].pos;
+      const end = i + 1 < positions.length ? positions[i + 1].pos : letter.length;
+      let text = letter.substring(start, end).trim();
+      // Remove the section header line
+      const firstNewline = text.indexOf("\n");
+      if (firstNewline !== -1) text = text.substring(firstNewline).trim();
+      sections[positions[i].key] = text;
+    }
+    return sections;
+  }
+
+  // Fallback: just return the whole letter as "market"
+  return { market: letter };
 }
 
 function SummaryContent({ summary }: { summary: InsightsSummary }) {
   const [expanded, setExpanded] = useState(true);
 
-  const parsedContrarians = (summary.contrarian_signals ?? []).map(tryParseContrarian);
-  const structuredContrarians = parsedContrarians.filter((s): s is ContrarianSignal => s !== null);
-  const stringContrarians = (summary.contrarian_signals ?? []).filter(
-    (s, i) => parsedContrarians[i] === null && typeof s === "string"
-  ) as string[];
+  const sections = splitLetter(summary.letter, summary.section_titles);
 
   return (
     <Card className="border-primary/30 bg-card">
@@ -227,7 +150,7 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
-            <CardTitle className="text-lg">Intelligence Brief</CardTitle>
+            <CardTitle className="text-lg">Weekly Letter</CardTitle>
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
               {summary.newsletters_analyzed} newsletters · {summary.insights_analyzed} insights
             </Badge>
@@ -236,11 +159,7 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </Button>
         </div>
-        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-          {summary.executive_summary}
-        </p>
 
-        {/* Weekly Priority */}
         {summary.weekly_priority && (
           <div className="mt-3 p-3 rounded-lg bg-primary/10 border border-primary/30">
             <div className="flex items-center gap-2 mb-1">
@@ -254,93 +173,79 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
 
       {expanded && (
         <CardContent className="space-y-6 pt-0">
-          {/* Persistent Signals */}
-          {summary.persistent_signals && summary.persistent_signals.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                <Repeat className="w-4 h-4 text-warning" />
-                Persistent Signals
-              </h3>
-              <div className="space-y-2 p-3 rounded-lg bg-warning/5 border border-warning/20">
-                {summary.persistent_signals.map((sig, i) => (
-                  <PersistentSignalItem key={i} signal={sig} />
-                ))}
-              </div>
-            </div>
+          {/* Letter Sections */}
+          {sections.market && (
+            <LetterSection title={summary.section_titles.market} content={sections.market} />
+          )}
+          {sections.portfolio && (
+            <LetterSection title={summary.section_titles.portfolio} content={sections.portfolio} />
+          )}
+          {sections.invest && (
+            <LetterSection title={summary.section_titles.invest} content={sections.invest} />
           )}
 
-          {/* Key Points */}
-          {summary.key_points?.length > 0 && (
+          {/* Structured: Country Tilts */}
+          {summary.country_tilts?.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                <Lightbulb className="w-4 h-4 text-warning" />
-                Key Points
-              </h3>
-              <div className="space-y-2">
-                {summary.key_points.map((point, i) => (
-                  <KeyPointItem key={i} point={point} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Action Items */}
-          {summary.action_items?.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                <Target className="w-4 h-4 text-primary" />
-                Action Items
-              </h3>
-              <div className="space-y-2">
-                {summary.action_items.map((item, i) => (
-                  <ActionItemRow key={i} item={item} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Market Themes */}
-          {summary.market_themes?.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
                 <Globe className="w-4 h-4 text-accent" />
-                Market Themes
+                Country / Region Tilts
               </h3>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {summary.market_themes.map((theme, i) => (
-                  <ThemeCard key={i} theme={theme} />
+              <div className="space-y-1.5">
+                {summary.country_tilts.map((t, i) => (
+                  <CountryTiltCard key={i} tilt={t} />
                 ))}
               </div>
             </div>
           )}
 
-          {/* Contrarian Signals — structured */}
-          {structuredContrarians.length > 0 && (
+          {/* Structured: Sector Tilts */}
+          {summary.sector_tilts?.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                <Swords className="w-4 h-4 text-warning" />
-                Contrarian Signals
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-accent" />
+                Sector Tilts
+              </h3>
+              <div className="grid gap-1.5 sm:grid-cols-2">
+                {summary.sector_tilts.map((t, i) => (
+                  <SectorTiltCard key={i} tilt={t} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Structured: Stocks to Research */}
+          {summary.stocks_to_research?.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                <Search className="w-4 h-4 text-accent" />
+                Stocks to Research
               </h3>
               <div className="space-y-2">
-                {structuredContrarians.map((signal, i) => (
-                  <ContrarianSignalCard key={i} signal={signal} />
+                {summary.stocks_to_research.map((s, i) => (
+                  <StockCard key={i} stock={s} />
                 ))}
               </div>
             </div>
           )}
 
-          {/* Contrarian Signals — legacy string fallback */}
-          {stringContrarians.length > 0 && structuredContrarians.length === 0 && (
+          {/* Watch This Week */}
+          {sections.watch && (
+            <LetterSection title={summary.section_titles.watch} content={sections.watch} />
+          )}
+
+          {/* Crowded Trades */}
+          {summary.crowded_trades?.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-warning" />
-                Contrarian Signals
+                Crowded Trades
               </h3>
               <ul className="space-y-1.5">
-                {stringContrarians.map((signal, i) => (
-                  <li key={i} className="text-xs text-muted-foreground flex gap-2">
-                    <span className="text-warning mt-0.5">⚡</span>
-                    {signal}
+                {summary.crowded_trades.map((trade, i) => (
+                  <li key={i} className="text-xs text-muted-foreground flex gap-2 p-2 rounded-lg bg-warning/5 border border-warning/20">
+                    <span className="text-warning mt-0.5">⚠</span>
+                    {trade}
                   </li>
                 ))}
               </ul>
@@ -366,9 +271,9 @@ export function InsightsSummaryCard() {
           <CardContent className="flex flex-col items-center justify-center py-8 gap-3">
             <Sparkles className="w-8 h-8 text-muted-foreground" />
             <div className="text-center">
-              <p className="text-sm font-medium text-foreground">AI Intelligence Brief</p>
+              <p className="text-sm font-medium text-foreground">Weekly Intelligence Letter</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Generate an actionable summary of your last 30 days of newsletter insights
+                Generate an opinionated weekly letter from your last 30 days of newsletter insights
               </p>
             </div>
             <Button
@@ -379,12 +284,12 @@ export function InsightsSummaryCard() {
               {isGenerating ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Analyzing...
+                  Writing letter...
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  Generate Brief
+                  Generate Letter
                 </>
               )}
             </Button>

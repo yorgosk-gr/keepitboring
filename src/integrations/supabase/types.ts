@@ -652,41 +652,62 @@ export type Database = {
         Row: {
           action_items: Json | null
           contrarian_signals: string[] | null
+          country_tilts: Json | null
           created_at: string
+          crowded_trades: string[] | null
           executive_summary: string | null
           generated_at: string
           id: string
           insights_analyzed: number | null
           key_points: Json | null
+          letter: string | null
           market_themes: Json | null
           newsletters_analyzed: number | null
+          section_titles: Json | null
+          sector_tilts: Json | null
+          stocks_to_research: Json | null
           user_id: string
+          weekly_priority: string | null
         }
         Insert: {
           action_items?: Json | null
           contrarian_signals?: string[] | null
+          country_tilts?: Json | null
           created_at?: string
+          crowded_trades?: string[] | null
           executive_summary?: string | null
           generated_at?: string
           id?: string
           insights_analyzed?: number | null
           key_points?: Json | null
+          letter?: string | null
           market_themes?: Json | null
           newsletters_analyzed?: number | null
+          section_titles?: Json | null
+          sector_tilts?: Json | null
+          stocks_to_research?: Json | null
           user_id: string
+          weekly_priority?: string | null
         }
         Update: {
           action_items?: Json | null
           contrarian_signals?: string[] | null
+          country_tilts?: Json | null
           created_at?: string
+          crowded_trades?: string[] | null
           executive_summary?: string | null
           generated_at?: string
           id?: string
           insights_analyzed?: number | null
           key_points?: Json | null
+          letter?: string | null
           market_themes?: Json | null
           newsletters_analyzed?: number | null
+          section_titles?: Json | null
+          sector_tilts?: Json | null
+          stocks_to_research?: Json | null
           user_id?: string
+          weekly_priority?: string | null
         }
         Relationships: []
       }
