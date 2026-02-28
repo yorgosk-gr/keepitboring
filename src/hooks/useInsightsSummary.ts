@@ -4,66 +4,50 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
-export interface KeyPoint {
-  title: string;
-  detail: string;
-  relevance: "high" | "medium" | "low";
-  category: "macro" | "sector" | "stock" | "risk" | "opportunity";
-  portfolio_alignment_score?: number;
-  exposed_tickers?: string[];
-  source_count?: number;
-  source_names?: string[];
-  single_source?: boolean;
+export interface StockToResearch {
+  ticker: string;
+  name: string;
+  thesis: string;
+  mentioned_in: number;
 }
 
-export interface ActionItem {
-  action: string;
-  urgency: "high" | "medium" | "low";
-  reasoning: string;
+export interface CountryTilt {
+  region: string;
+  direction: string;
+  etf_proxy: string;
+  in_portfolio: boolean;
 }
 
-export interface MarketTheme {
-  theme: string;
-  sentiment: "bullish" | "bearish" | "mixed";
-  source_count: number;
-  source_names?: string[];
-  portfolio_impact: string;
-  portfolio_alignment_score?: number;
-  exposed_tickers?: string[];
-}
-
-export interface ContrarianSignal {
-  topic: string;
-  bull_case: string;
-  bear_case: string;
-  your_exposure: string[];
-  recommended_stance: string;
-}
-
-export interface PersistentSignal {
-  signal: string;
-  weeks_active: number;
-  trend: "strengthening" | "stable" | "weakening";
+export interface SectorTilt {
+  sector: string;
+  direction: string;
+  conviction: string;
 }
 
 export interface InsightsSummary {
-  executive_summary: string;
-  weekly_priority?: string | null;
-  key_points: KeyPoint[];
-  action_items: ActionItem[];
-  market_themes: MarketTheme[];
-  contrarian_signals: (string | ContrarianSignal)[];
-  persistent_signals?: PersistentSignal[];
+  letter: string;
+  section_titles: {
+    market: string;
+    portfolio: string;
+    invest: string;
+    watch: string;
+  };
+  stocks_to_research: StockToResearch[];
+  country_tilts: CountryTilt[];
+  sector_tilts: SectorTilt[];
+  crowded_trades: string[];
+  weekly_priority: string | null;
   newsletters_analyzed: number;
   insights_analyzed: number;
   generated_at: string;
+  // Legacy fields for backward compat
+  executive_summary?: string;
 }
 
 export function useInsightsSummary() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Load the latest persisted brief
   const { data: summary, isLoading } = useQuery({
     queryKey: ["intelligence_brief", user?.id],
     queryFn: async () => {
@@ -78,13 +62,19 @@ export function useInsightsSummary() {
       if (!data) return null;
 
       return {
-        executive_summary: data.executive_summary ?? "",
+        letter: (data as any).letter ?? data.executive_summary ?? "",
+        section_titles: (data as any).section_titles ?? {
+          market: "State of the Market",
+          portfolio: "What This Means For Your Portfolio",
+          invest: "Where to Invest",
+          watch: "Watch This Week",
+        },
+        stocks_to_research: ((data as any).stocks_to_research as StockToResearch[] ?? []),
+        country_tilts: ((data as any).country_tilts as CountryTilt[] ?? []),
+        sector_tilts: ((data as any).sector_tilts as SectorTilt[] ?? []),
+        crowded_trades: ((data as any).crowded_trades as string[] ?? []),
         weekly_priority: (data as any).weekly_priority ?? null,
-        key_points: (data.key_points as any[] ?? []) as KeyPoint[],
-        action_items: (data.action_items as any[] ?? []) as ActionItem[],
-        market_themes: (data.market_themes as any[] ?? []) as MarketTheme[],
-        contrarian_signals: data.contrarian_signals ?? [],
-        persistent_signals: ((data as any).persistent_signals as PersistentSignal[] ?? []),
+        executive_summary: data.executive_summary ?? "",
         newsletters_analyzed: data.newsletters_analyzed ?? 0,
         insights_analyzed: data.insights_analyzed ?? 0,
         generated_at: data.generated_at,
@@ -95,32 +85,38 @@ export function useInsightsSummary() {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      // 1. Generate the brief
       const { data, error } = await supabase.functions.invoke("summarize-insights");
       if (error) throw error;
       if (data.error) throw new Error(data.error);
       const brief = data as InsightsSummary;
 
-      // 2. Delete old briefs for this user, then insert the new one
       await supabase.from("intelligence_briefs").delete().eq("user_id", user!.id);
 
       const { error: insertError } = await supabase.from("intelligence_briefs").insert({
         user_id: user!.id,
-        executive_summary: brief.executive_summary,
-        key_points: brief.key_points as any,
-        action_items: brief.action_items as any,
-        market_themes: brief.market_themes as any,
-        contrarian_signals: brief.contrarian_signals as any,
+        executive_summary: brief.letter?.substring(0, 500) ?? brief.executive_summary ?? "",
+        letter: brief.letter,
+        section_titles: brief.section_titles as any,
+        stocks_to_research: brief.stocks_to_research as any,
+        country_tilts: brief.country_tilts as any,
+        sector_tilts: brief.sector_tilts as any,
+        crowded_trades: brief.crowded_trades,
+        weekly_priority: brief.weekly_priority,
+        key_points: [] as any,
+        action_items: [] as any,
+        market_themes: [] as any,
+        contrarian_signals: brief.crowded_trades ?? [],
         newsletters_analyzed: brief.newsletters_analyzed,
         insights_analyzed: brief.insights_analyzed,
         generated_at: brief.generated_at,
-      });
+      } as any);
 
       if (insertError) {
         console.error("Failed to persist brief:", insertError);
+        throw insertError;
       }
 
-      // 3. Delete newsletters older than 60 days and their insights
+      // Cleanup old newsletters (60 days)
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - 60);
       const cutoffISO = cutoffDate.toISOString();
@@ -133,16 +129,7 @@ export function useInsightsSummary() {
       if (oldNewsletters && oldNewsletters.length > 0) {
         const oldIds = oldNewsletters.map((n) => n.id);
         await supabase.from("insights").delete().in("newsletter_id", oldIds);
-        const { error: deleteError } = await supabase
-          .from("newsletters")
-          .delete()
-          .in("id", oldIds);
-
-        if (deleteError) {
-          console.error("Failed to clean up old newsletters:", deleteError);
-        } else if (oldNewsletters.length > 0) {
-          toast.info(`Cleaned up ${oldNewsletters.length} newsletters older than 60 days`);
-        }
+        await supabase.from("newsletters").delete().in("id", oldIds);
       }
 
       return brief;
