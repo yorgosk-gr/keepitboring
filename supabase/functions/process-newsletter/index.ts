@@ -95,6 +95,30 @@ Analyze the newsletter text and return ONLY valid JSON (no markdown, no explanat
       "context": "surrounding context"
     }
   ],
+  "country_views": [
+    {
+      "country": "Japan",
+      "view": "summary of view",
+      "sentiment": "bullish",
+      "etf_proxy": "EWJ"
+    }
+  ],
+  "sector_tilts": [
+    {
+      "sector": "Energy",
+      "direction": "overweight",
+      "reasoning": "one sentence",
+      "conviction": "high"
+    }
+  ],
+  "stock_ideas": [
+    {
+      "ticker": "OXY",
+      "name": "Occidental Petroleum",
+      "thesis": "one sentence why",
+      "in_portfolio": false
+    }
+  ],
   "overall_sentiment": "bullish",
   "key_takeaways": ["takeaway 1", "takeaway 2"]
 }
@@ -105,6 +129,10 @@ Rules:
 - Identify stock tickers accurately (use standard symbols like AAPL, MSFT, etc.)
 - For bubble_signals, flag phrases like: "new paradigm", "this time is different", "can't lose", "guaranteed", "easy money", excessive optimism
 - confidence_language should capture phrases indicating conviction level
+- direction must be exactly "overweight", "underweight", or "neutral"
+- conviction must be exactly "high", "medium", or "low"
+- For stock_ideas, set in_portfolio to false (will be checked later)
+- For country_views, include an ETF proxy ticker if obvious (e.g. EWJ for Japan, FXI for China)
 - Return ONLY the JSON object, nothing else
 - If no items for a category, use empty array []`;
 
@@ -249,6 +277,42 @@ Rules:
         content: `"${bubble.phrase}" - ${bubble.context}`,
         sentiment: "bearish", // Bubble signals are warnings
         tickers_mentioned: [],
+        confidence_words: [],
+      });
+    }
+
+    // Country views → macro
+    for (const cv of insights.country_views || []) {
+      insightsToInsert.push({
+        newsletter_id: newsletterId,
+        insight_type: "macro",
+        content: `Country: ${cv.country}: ${cv.view}`,
+        sentiment: cv.sentiment,
+        tickers_mentioned: cv.etf_proxy ? [cv.etf_proxy] : [],
+        confidence_words: [],
+      });
+    }
+
+    // Sector tilts → recommendation
+    for (const st of insights.sector_tilts || []) {
+      insightsToInsert.push({
+        newsletter_id: newsletterId,
+        insight_type: "recommendation",
+        content: `Sector tilt: ${st.sector}: ${st.direction} — ${st.reasoning}`,
+        sentiment: st.direction === "overweight" ? "bullish" : st.direction === "underweight" ? "bearish" : "neutral",
+        tickers_mentioned: [],
+        confidence_words: st.conviction ? [st.conviction] : [],
+      });
+    }
+
+    // Stock ideas → stock_mention
+    for (const si of insights.stock_ideas || []) {
+      insightsToInsert.push({
+        newsletter_id: newsletterId,
+        insight_type: "stock_mention",
+        content: `${si.name || si.ticker}: ${si.thesis}`,
+        sentiment: "bullish",
+        tickers_mentioned: [si.ticker],
         confidence_words: [],
       });
     }
