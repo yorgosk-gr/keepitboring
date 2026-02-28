@@ -1,0 +1,1 @@
+ALTER TABLE public.intelligence_briefs ADD COLUMN IF NOT EXISTS contrarian_opportunities jsonb DEFAULT NULL;

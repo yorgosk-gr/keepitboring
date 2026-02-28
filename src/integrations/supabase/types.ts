@@ -651,6 +651,7 @@ export type Database = {
       intelligence_briefs: {
         Row: {
           action_items: Json | null
+          contrarian_opportunities: Json | null
           contrarian_signals: string[] | null
           country_tilts: Json | null
           created_at: string
@@ -671,6 +672,7 @@ export type Database = {
         }
         Insert: {
           action_items?: Json | null
+          contrarian_opportunities?: Json | null
           contrarian_signals?: string[] | null
           country_tilts?: Json | null
           created_at?: string
@@ -691,6 +693,7 @@ export type Database = {
         }
         Update: {
           action_items?: Json | null
+          contrarian_opportunities?: Json | null
           contrarian_signals?: string[] | null
           country_tilts?: Json | null
           created_at?: string
