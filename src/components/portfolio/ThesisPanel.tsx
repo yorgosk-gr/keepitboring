@@ -128,7 +128,7 @@ export function ThesisPanel({ open, onClose, position, onSave, isSaving }: Thesi
               max={10}
               step={1}
             />
-            <div className="flex justify-between text-[10px] text-muted-foreground">
+            <div className="flex justify-between text-sm text-muted-foreground">
               <span>Low</span>
               <span>High</span>
             </div>

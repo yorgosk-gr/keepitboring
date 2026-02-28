@@ -68,7 +68,7 @@ export function PhilosophyModeSection({ currentMode, onModeChange }: PhilosophyM
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">{mode.description}</p>
                 </div>
-                <p className="text-[11px] text-muted-foreground/70 leading-tight">{mode.details}</p>
+                <p className="text-sm text-muted-foreground leading-tight">{mode.details}</p>
                 {isSelected && (
                   <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
                 )}

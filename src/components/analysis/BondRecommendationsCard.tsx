@@ -131,7 +131,7 @@ function ActionRow({ action }: { action: BondAction }) {
     <div className="flex items-center justify-between gap-2 text-sm py-1.5 border-b border-border last:border-0">
       <div className="flex items-center gap-2 min-w-0">
         <span className="font-mono font-semibold text-foreground w-12 shrink-0">{action.ticker}</span>
-        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 shrink-0 ${actionColors[action.action] || ""}`}>
+        <Badge variant="outline" className={`text-sm px-1.5 py-0.5 shrink-0 ${actionColors[action.action] || ""}`}>
           {action.action}
         </Badge>
         {action.current_percent_of_bonds != null && action.current_percent_of_bonds !== action.target_percent_of_bonds && (
