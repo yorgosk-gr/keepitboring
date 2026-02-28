@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const OWNER_USER_ID = "593d853f-25d2-4cce-ad17-f77db49a377a";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -77,29 +79,11 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Get user_id from ib_accounts (single-user setup)
-    const { data: account, error: accountError } = await supabase
-      .from("ib_accounts")
-      .select("user_id")
-      .limit(1)
-      .single();
-
-    if (accountError || !account) {
-      console.error("Failed to find user:", accountError);
-      return new Response(
-        JSON.stringify({ error: "No user found in ib_accounts" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
     // Insert newsletter row and get the ID back
     const { data: newsletter, error: insertError } = await supabase
       .from("newsletters")
       .insert({
-        user_id: account.user_id,
+        user_id: OWNER_USER_ID,
         source_name: subject,
         raw_text: rawText,
         upload_date: new Date().toISOString().split("T")[0],
