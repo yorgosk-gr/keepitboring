@@ -176,6 +176,21 @@ SECTION 4 — WATCH THIS WEEK
 
 CROWDED TRADE WARNING: If more than 3 newsletters agree on the same bullish call, flag it at the end of the relevant section as: "Note: [theme] is becoming consensus — [X] of [Y] newsletters bullish. Lefèvre would be cautious here."
 
+SECTION: CONTRARIAN OPPORTUNITIES
+After analyzing the main themes, look for opportunities that meet ALL THREE of these criteria:
+1. MACRO TAILWIND: There is a structural, multi-year reason for this sector, country, or stock to appreciate — driven by rates, demographics, geopolitics, technology adoption, or capital flows
+2. NOT CROWDED: This opportunity is NOT the consensus trade. It should appear in fewer than 2 of the newsletters, or be mentioned only as a secondary/indirect beneficiary
+3. LOGICAL FOLLOW-ON: It follows logically from a signal that IS in the newsletters, but one step removed. Ask: if X is true, what else must also be true that nobody is talking about yet?
+
+For each opportunity, explain:
+- What the macro tailwind is
+- Why it is not yet crowded (what the market is missing)
+- What the second-order logic is
+- A specific ticker or ETF to express the trade (can be something not currently in the portfolio)
+- Time horizon: medium (6-18 months) or long (2-5 years)
+
+Be specific and opinionated. These should feel like genuine insights, not generic diversification advice. Limit to 2-3 opportunities maximum. Quality over quantity — only include if genuinely non-consensus and well-reasoned.
+
 TONE: Analytical but direct. Like the Economist meets a hedge fund letter. No excessive hedging. No 'it remains to be seen.' Have a view.
 
 RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose outside the JSON. Do not wrap in code blocks. Do not use unescaped double quotes inside string values — use single quotes instead.
@@ -211,6 +226,19 @@ RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose outside th
       "conviction": "high",
       "portfolio_tickers": ["IGLN", "CMOD"],
       "reasoning": "one sentence why"
+    }
+  ],
+  "contrarian_opportunities": [
+    {
+      "title": "Short headline",
+      "macro_tailwind": "The structural reason this goes up",
+      "why_not_crowded": "What the market is missing",
+      "second_order_logic": "If X then Y — the non-obvious link",
+      "ticker": "Specific ETF or stock",
+      "ticker_name": "Full name",
+      "in_portfolio": false,
+      "time_horizon": "medium",
+      "conviction": "high"
     }
   ],
   "crowded_trades": ["AI infrastructure — 4/5 newsletters bullish"],

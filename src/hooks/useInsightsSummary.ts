@@ -26,6 +26,18 @@ export interface SectorTilt {
   reasoning?: string;
 }
 
+export interface ContrarianOpportunity {
+  title: string;
+  macro_tailwind: string;
+  why_not_crowded: string;
+  second_order_logic: string;
+  ticker: string;
+  ticker_name: string;
+  in_portfolio: boolean;
+  time_horizon: string;
+  conviction: string;
+}
+
 export interface InsightsSummary {
   letter: string;
   section_titles: {
@@ -37,6 +49,7 @@ export interface InsightsSummary {
   stocks_to_research: StockToResearch[];
   country_tilts: CountryTilt[];
   sector_tilts: SectorTilt[];
+  contrarian_opportunities: ContrarianOpportunity[];
   crowded_trades: string[];
   weekly_priority: string | null;
   newsletters_analyzed: number;
@@ -74,6 +87,7 @@ export function useInsightsSummary() {
         stocks_to_research: (data.stocks_to_research as unknown as StockToResearch[]) ?? [],
         country_tilts: (data.country_tilts as unknown as CountryTilt[]) ?? [],
         sector_tilts: (data.sector_tilts as unknown as SectorTilt[]) ?? [],
+        contrarian_opportunities: (data.contrarian_opportunities as unknown as ContrarianOpportunity[]) ?? [],
         crowded_trades: data.crowded_trades ?? [],
         weekly_priority: data.weekly_priority ?? null,
         executive_summary: data.executive_summary ?? "",
@@ -102,6 +116,7 @@ export function useInsightsSummary() {
         stocks_to_research: brief.stocks_to_research as any,
         country_tilts: brief.country_tilts as any,
         sector_tilts: brief.sector_tilts as any,
+        contrarian_opportunities: brief.contrarian_opportunities as any,
         crowded_trades: brief.crowded_trades,
         weekly_priority: brief.weekly_priority,
         key_points: [] as any,

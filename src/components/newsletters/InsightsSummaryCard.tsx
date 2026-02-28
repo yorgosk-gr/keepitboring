@@ -12,6 +12,8 @@ import {
   Minus,
   AlertTriangle,
   Search,
+  Lightbulb,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +24,7 @@ import {
   type StockToResearch,
   type CountryTilt,
   type SectorTilt,
+  type ContrarianOpportunity,
 } from "@/hooks/useInsightsSummary";
 
 const directionIcons: Record<string, React.ReactNode> = {
@@ -114,6 +117,50 @@ function SectorTiltCard({ tilt }: { tilt: SectorTilt }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function ContrarianCard({ opp }: { opp: ContrarianOpportunity }) {
+  const horizonLabel = opp.time_horizon === "long" ? "2-5 years" : "6-18 months";
+
+  return (
+    <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm font-semibold text-foreground">{opp.title}</span>
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30">
+          {opp.ticker}
+        </Badge>
+        {opp.ticker_name && (
+          <span className="text-xs text-muted-foreground">{opp.ticker_name}</span>
+        )}
+        <div className="flex gap-1 ml-auto">
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/30 text-amber-700 dark:text-amber-400">
+            <Clock className="w-2.5 h-2.5 mr-0.5" />
+            {horizonLabel}
+          </Badge>
+          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${convictionColors[opp.conviction] ?? ""}`}>
+            {opp.conviction}
+          </Badge>
+          {opp.in_portfolio && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-primary border-primary/30">held</Badge>
+          )}
+        </div>
+      </div>
+      <div className="space-y-1.5 text-xs text-muted-foreground">
+        <div>
+          <span className="font-medium text-amber-700 dark:text-amber-400">Macro tailwind: </span>
+          {opp.macro_tailwind}
+        </div>
+        <div>
+          <span className="font-medium text-amber-700 dark:text-amber-400">The non-obvious link: </span>
+          {opp.second_order_logic}
+        </div>
+        <div>
+          <span className="font-medium text-muted-foreground/70">Why not crowded: </span>
+          {opp.why_not_crowded}
+        </div>
+      </div>
     </div>
   );
 }
@@ -270,7 +317,24 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
             </div>
           )}
 
-          {/* Watch This Week */}
+          {/* Contrarian Opportunities */}
+          {summary.contrarian_opportunities?.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                <Lightbulb className="w-4 h-4 text-amber-500" />
+                Contrarian Opportunities
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/30 text-amber-700 dark:text-amber-400">
+                  speculative
+                </Badge>
+              </h3>
+              <div className="space-y-2">
+                {summary.contrarian_opportunities.map((opp, i) => (
+                  <ContrarianCard key={i} opp={opp} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {sections.watch && (
             <LetterSection title={summary.section_titles.watch} content={sections.watch} />
           )}
