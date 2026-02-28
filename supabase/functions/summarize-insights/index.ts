@@ -150,98 +150,84 @@ serve(async (req) => {
       sourceMap[n.id] = n.source_name;
     }
 
-    const systemPrompt = `You are an investment research analyst. Synthesize newsletter insights into an actionable, portfolio-specific intelligence brief.
+    const systemPrompt = `You are a sharp, opinionated investment analyst writing a weekly letter to a single sophisticated investor. You have read all their newsletters and know their portfolio intimately.
 
-RECENCY WEIGHTING:
-- Each insight has an "age_days" field indicating how many days old it is.
-- Insights from the last 14 days (age_days <= 14) should carry MORE weight than older ones. Treat recent insights as higher-confidence and more actionable.
-- Older insights (age_days > 14) should still be included for context and trend detection, but give them less influence when there is conflicting information between recent and older sources.
-- When ranking key_points, break ties in portfolio_alignment_score by recency (newer wins).
+Write in first-person analytical prose — like a trusted friend who happens to be a portfolio manager. Direct, specific, no fluff. Reference their actual holdings by ticker. Have a point of view.
 
-RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose, no explanation outside the JSON. Do not wrap in \`\`\`json code blocks. Do not use unescaped double quotes inside string values — use single quotes instead (e.g., use 'crushed' not "crushed").
+The letter has four sections. Write each as flowing prose, not bullet points or headers within sections.
 
-CRITICAL RULES:
-- For every claim, cite how many source newsletters support it. Never make a claim supported by only one source without flagging it as "single_source": true.
-- Prioritize insights that directly affect the user's portfolio holdings.
-- Be specific: mention tickers, percentages, dates.
-- Flag consensus (>2 sources agree) and contrarian views explicitly.
-- When computing portfolio_alignment_score (1-10), score based on how directly the signal impacts the user's ACTUAL holdings — 10 means direct impact on a top holding, 1 means tangential/no holdings exposed.
+SECTION 1 — STATE OF THE MARKET
+2-3 paragraphs. What is the macro environment doing right now? What is the dominant theme across this week's newsletters? What does the weight of evidence suggest about the direction of markets, rates, and risk appetite? Name the Kindleberger phase for the most relevant sector if applicable (Displacement / Credit Expansion / Euphoria / Distress / Revulsion). Be direct about what you think is happening, not just what newsletters said.
 
-OUTPUT FORMAT (valid JSON):
+SECTION 2 — WHAT THIS MEANS FOR YOUR PORTFOLIO
+2-3 paragraphs. Go through the portfolio systematically. Which positions are being validated by this week's signals? Which are being challenged? For each meaningful holding affected, say specifically what the signal means and whether it changes anything. Connect newsletter themes to actual tickers. If a position has no signal this week, say so briefly.
+Flag any Taleb-style risks: correlation clusters, untested positions, narrative-driven theses.
+
+SECTION 3 — WHERE TO INVEST
+Be concrete and opinionated. Cover three things:
+- COUNTRY/REGION TILTS: Which geographies are newsletters overweighting or underweighting? Does this suggest adding to or trimming any of the geographic ETFs in the portfolio?
+- SECTOR TILTS: Which sectors are seeing upgrades or downgrades across newsletters? Map these to actual or potential holdings.
+- STOCKS TO RESEARCH: List 2-4 specific stocks mentioned positively across multiple newsletters that are NOT currently in the portfolio but are worth investigating. For each: ticker, one-sentence thesis, and why it fits the investment philosophy.
+
+SECTION 4 — WATCH THIS WEEK
+2-3 sentences. The single most important thing to monitor. Could be a data release, an earnings report, a technical level on a position, or a developing narrative. End with one actionable sentence — the ONE thing to do or decide this week.
+
+CROWDED TRADE WARNING: If more than 3 newsletters agree on the same bullish call, flag it at the end of the relevant section as: "Note: [theme] is becoming consensus — [X] of [Y] newsletters bullish. Lefèvre would be cautious here."
+
+TONE: Analytical but direct. Like the Economist meets a hedge fund letter. No excessive hedging. No 'it remains to be seen.' Have a view.
+
+RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose outside the JSON. Do not wrap in code blocks. Do not use unescaped double quotes inside string values — use single quotes instead.
+
 {
-  "executive_summary": "2-3 sentence overview of the most important themes and actionable signals from the last 30 days.",
-  "weekly_priority": "A single sentence: the ONE thing the user should do this week with their specific portfolio tickers mentioned. Be concrete and specific.",
-  "key_points": [
+  "letter": "the full letter text as a single string with \\n\\n between paragraphs",
+  "section_titles": {
+    "market": "State of the Market",
+    "portfolio": "What This Means For Your Portfolio",
+    "invest": "Where to Invest",
+    "watch": "Watch This Week"
+  },
+  "stocks_to_research": [
     {
-      "title": "Short headline (5-8 words)",
-      "detail": "1-2 sentence explanation with specific data points",
-      "relevance": "high" | "medium" | "low",
-      "category": "macro" | "sector" | "stock" | "risk" | "opportunity",
-      "portfolio_alignment_score": 8,
-      "exposed_tickers": ["AMZN", "VWRA"],
-      "source_count": 3,
-      "source_names": ["Friday Brief", "Gold Tier Update"],
-      "single_source": false
+      "ticker": "OXY",
+      "name": "Occidental Petroleum",
+      "thesis": "one sentence",
+      "mentioned_in": 2
     }
   ],
-  "action_items": [
+  "country_tilts": [
     {
-      "action": "Specific actionable recommendation mentioning tickers",
-      "urgency": "high" | "medium" | "low",
-      "reasoning": "One sentence why"
+      "region": "Japan",
+      "direction": "overweight",
+      "etf_proxy": "IJPA",
+      "in_portfolio": true
     }
   ],
-  "market_themes": [
+  "sector_tilts": [
     {
-      "theme": "Theme name",
-      "sentiment": "bullish" | "bearish" | "mixed",
-      "source_count": 3,
-      "source_names": ["Newsletter A", "Newsletter B"],
-      "portfolio_impact": "Which of your holdings are affected and how",
-      "portfolio_alignment_score": 7,
-      "exposed_tickers": ["AMZN"]
+      "sector": "Energy",
+      "direction": "overweight",
+      "conviction": "high"
     }
   ],
-  "contrarian_signals": [
-    {
-      "topic": "The topic of disagreement",
-      "bull_case": "Newsletter X sees [bullish reasoning]",
-      "bear_case": "Newsletter Y flags [bearish reasoning]",
-      "your_exposure": ["AMZN", "IUQA"],
-      "recommended_stance": "Specific recommendation for this user"
-    }
-  ],
-  "persistent_signals": [
-    {
-      "signal": "Signal description",
-      "weeks_active": 2,
-      "trend": "strengthening" | "stable" | "weakening"
-    }
-  ]
-}
+  "crowded_trades": ["AI infrastructure — 4/5 newsletters bullish"],
+  "weekly_priority": "one sentence — the single action item",
+  "newsletters_analyzed": 0,
+  "insights_analyzed": 0
+}`;
 
-LIMITS:
-- key_points: 5-8 items max, sorted by portfolio_alignment_score descending
-- action_items: 3-5 items max
-- market_themes: 3-5 items max
-- contrarian_signals: 2-4 items max (structured objects, NOT strings)
-- persistent_signals: 2-5 items max
-- Do NOT fabricate data not present in the insights`;
-
-    const userPrompt = `PORTFOLIO HOLDINGS (with weights):
+    const userPrompt = `MY PORTFOLIO:
 ${JSON.stringify(portfolioContext, null, 2)}
 
 PORTFOLIO TICKERS: ${JSON.stringify(portfolioTickers)}
 
-NEWSLETTERS ANALYZED (${newsletters?.length ?? 0} sources):
+NEWSLETTERS THIS PERIOD (${newsletters?.length ?? 0} sources):
 ${(newsletters ?? []).map(n => `- "${n.source_name}" (${n.upload_date})`).join("\n")}
 
-PREVIOUS BRIEF SIGNALS (for persistence tracking):
-Previous key point titles: ${JSON.stringify(previousKeyPointTitles)}
-Previous market themes: ${JSON.stringify(previousThemeNames)}
-Flag any signals that appeared in the previous brief as persistent (weeks_active >= 2). If a signal is new, do not include it in persistent_signals.
+PREVIOUS BRIEF (for persistence tracking):
+Previous themes: ${JSON.stringify(previousThemeNames)}
+Previous key points: ${JSON.stringify(previousKeyPointTitles)}
 
-INSIGHTS (${insightsList.length} total):
+ALL INSIGHTS (${insightsList.length} total, sorted newest first):
 ${JSON.stringify(insightsList.map(i => {
   const ageDays = Math.floor((Date.now() - new Date(i.created_at).getTime()) / (1000 * 60 * 60 * 24));
   return {
@@ -249,14 +235,12 @@ ${JSON.stringify(insightsList.map(i => {
     content: i.content,
     sentiment: i.sentiment,
     tickers: i.tickers_mentioned,
-    confidence: i.confidence_words,
     source: (i.newsletters as any)?.source_name,
     age_days: ageDays,
-    recent: ageDays <= 14,
   };
 }), null, 2)}
 
-Synthesize these into an actionable intelligence brief. Focus on what matters for MY portfolio. Sort key_points by portfolio_alignment_score (highest first). For contrarian_signals, provide structured objects with named sources — not plain strings.`;
+Write the weekly letter. Be specific, be direct, reference my actual holdings. I want to read this on Monday morning and know exactly what to think about my portfolio and where to look next.`;
 
     console.log(`Summarizing ${insightsList.length} insights from ${newsletters?.length} newsletters...`);
 
@@ -272,7 +256,7 @@ Synthesize these into an actionable intelligence brief. Focus on what matters fo
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        max_tokens: 4096,
+        max_tokens: 8192,
       }),
     });
 
