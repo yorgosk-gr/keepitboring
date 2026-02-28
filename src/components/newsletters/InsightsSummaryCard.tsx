@@ -42,21 +42,6 @@ const convictionColors: Record<string, string> = {
   low: "bg-muted text-muted-foreground border-border",
 };
 
-const sectorToTickers: Record<string, string[]> = {
-  "Energy": ["IGLN", "CMOD"],
-  "Technology": ["IUQA", "AMZN", "CRWD", "KLAR", "MELI", "PGY"],
-  "Bonds": ["IB01", "IDTM"],
-  "Fixed Income": ["IB01", "IDTM"],
-  "Gold": ["IGLN", "CMOD"],
-  "Commodities": ["IGLN", "CMOD"],
-  "Japan": ["IJPA"],
-  "Europe": ["IMEU"],
-  "Emerging Markets": ["EIMI"],
-  "Global": ["CSPX", "IUQA"],
-  "Broad": ["CSPX", "IUQA"],
-  "Infrastructure": ["CBUX"],
-  "Greece": ["GRE"],
-};
 
 function LetterSection({ title, content }: { title: string; content: string }) {
   return (
@@ -106,21 +91,9 @@ function CountryTiltCard({ tilt }: { tilt: CountryTilt }) {
   );
 }
 
-function getSectorTickers(sector: string): string[] {
-  const tickers: string[] = [];
-  for (const [key, vals] of Object.entries(sectorToTickers)) {
-    if (sector.toLowerCase().includes(key.toLowerCase())) {
-      for (const v of vals) {
-        if (!tickers.includes(v)) tickers.push(v);
-      }
-    }
-  }
-  return tickers;
-}
-
 function SectorTiltCard({ tilt }: { tilt: SectorTilt }) {
   const label = directionLabels[tilt.direction] ?? { text: tilt.direction, className: "text-muted-foreground" };
-  const relatedTickers = getSectorTickers(tilt.sector);
+  const relatedTickers = tilt.portfolio_tickers ?? [];
 
   return (
     <div className="p-2.5 rounded-lg bg-secondary/50 border border-border/50 space-y-1.5">

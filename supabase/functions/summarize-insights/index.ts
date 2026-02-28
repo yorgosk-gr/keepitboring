@@ -168,6 +168,7 @@ Be concrete and opinionated. Cover three things:
 - COUNTRY/REGION TILTS: Which geographies are newsletters overweighting or underweighting? Does this suggest adding to or trimming any of the geographic ETFs in the portfolio?
   COUNTRY TILTS: Always generate at least 3 country/region tilts based on the macro signals. Infer from context — if energy/oil is bullish, Middle East tensions are relevant; if AI hardware is strong, US and Taiwan are relevant; if inflation is sticky, EM is at risk. Map each to the closest ETF in the portfolio. Never return an empty country_tilts array.
 - SECTOR TILTS: Which sectors are seeing upgrades or downgrades across newsletters? Map these to actual or potential holdings.
+  For each sector_tilt, add a 'portfolio_tickers' array containing any tickers from the user's actual portfolio that belong to that sector. Use your knowledge of each company's primary business to determine sector membership — do not rely on hardcoded rules. For example: AMZN is Technology/E-commerce, not Hardware; CRWD is Cybersecurity/Software; IGLN is Gold/Commodities; IB01 is Fixed Income; IJPA is Japan Equities. If no portfolio holdings belong to a sector, set portfolio_tickers to an empty array. Also never split Technology into Hardware vs Software unless the portfolio has holdings in both sub-sectors. Add a 'reasoning' field with one sentence explaining the tilt.
 - STOCKS TO RESEARCH: List 2-4 specific stocks mentioned positively across multiple newsletters that are NOT currently in the portfolio but are worth investigating. For each: ticker, one-sentence thesis, and why it fits the investment philosophy.
 
 SECTION 4 — WATCH THIS WEEK
@@ -207,7 +208,9 @@ RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose outside th
     {
       "sector": "Energy",
       "direction": "overweight",
-      "conviction": "high"
+      "conviction": "high",
+      "portfolio_tickers": ["IGLN", "CMOD"],
+      "reasoning": "one sentence why"
     }
   ],
   "crowded_trades": ["AI infrastructure — 4/5 newsletters bullish"],
