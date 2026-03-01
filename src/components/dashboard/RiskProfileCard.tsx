@@ -25,10 +25,10 @@ const PROFILE_CONFIG: Record<RiskProfileType, { label: string; color: string; ic
 };
 
 const PROFILE_TARGETS: Record<RiskProfileType, { broad: number; theme: number; stocks: number }> = {
-  cautious:   { broad: 55, theme: 10, stocks: 5 },
-  balanced:   { broad: 50, theme: 15, stocks: 15 },
-  growth:     { broad: 40, theme: 20, stocks: 25 },
-  aggressive: { broad: 30, theme: 25, stocks: 35 },
+  cautious:   { broad: 65, theme: 10, stocks: 5 },
+  balanced:   { broad: 55, theme: 15, stocks: 15 },
+  growth:     { broad: 50, theme: 20, stocks: 20 },
+  aggressive: { broad: 55, theme: 25, stocks: 15 },
 };
 
 const CASH_GUIDANCE: Record<RiskProfileType, { min: number; ideal: number; max: number }> = {
@@ -115,6 +115,8 @@ export function RiskProfileCard({ positions, etfMetadata, totalValue, cashBalanc
   ];
 
   const cashGuidance = CASH_GUIDANCE[profileType];
+  const cashIdealPct = cashGuidance.ideal * 100;
+  categories.push({ key: "cash", label: "Cash", current: buckets.cash, target: cashIdealPct });
   const cashPct = buckets.cash / 100;
   const cashAmount = cashBalance;
   const cashLabel = `$${(cashAmount / 1000).toFixed(0)}K`;
