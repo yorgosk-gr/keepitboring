@@ -46,13 +46,24 @@ export function useNewsletters() {
       const newsletterIds = newsletters.map((n) => n.id);
       if (newsletterIds.length === 0) return newsletters as Newsletter[];
 
-      const { data: insightsCounts } = await supabase
-        .from("insights")
-        .select("newsletter_id")
-        .in("newsletter_id", newsletterIds);
+      // Use range to fetch all rows (default limit is 1000)
+      let allInsights: { newsletter_id: string }[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      while (true) {
+        const { data } = await supabase
+          .from("insights")
+          .select("newsletter_id")
+          .in("newsletter_id", newsletterIds)
+          .range(from, from + batchSize - 1);
+        if (!data || data.length === 0) break;
+        allInsights = allInsights.concat(data);
+        if (data.length < batchSize) break;
+        from += batchSize;
+      }
 
       const countsMap: Record<string, number> = {};
-      insightsCounts?.forEach((i) => {
+      allInsights.forEach((i) => {
         countsMap[i.newsletter_id] = (countsMap[i.newsletter_id] || 0) + 1;
       });
 
