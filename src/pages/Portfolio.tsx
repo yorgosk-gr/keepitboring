@@ -71,22 +71,13 @@ export default function Portfolio() {
     const today = startOfDay(new Date());
     const tradeDay = startOfDay(latestTradeDate);
 
-    if (isSameDay(tradeDay, today) || isSameDay(tradeDay, subDays(today, 1))) {
-      return null; // fresh
-    }
+    if (isSameDay(tradeDay, today)) return null;
 
     const bizDays = businessDaysBetween(tradeDay, today);
 
-    if (bizDays <= 1) {
-      return {
-        level: "info" as const,
-        message: `Portfolio data is current as of ${format(tradeDay, "MMM d")}. Today's transactions will appear after market close.`,
-      };
-    }
-
     return {
-      level: "warning" as const,
-      message: `Portfolio data is current as of ${format(tradeDay, "MMM d")}. Sync to update.`,
+      level: bizDays > 1 ? "warning" as const : "info" as const,
+      message: `Portfolio data is current as of ${format(tradeDay, "MMM d")}`,
     };
   }, [latestTradeDate]);
 
@@ -363,33 +354,23 @@ export default function Portfolio() {
   return (
     <div className="space-y-6">
       {/* Data Freshness Notice */}
-      {(dataFreshnessNotice || lastPriceRefresh) && (
+      {dataFreshnessNotice && (
         <div className={`flex items-center justify-between p-4 rounded-lg border ${
-          dataFreshnessNotice?.level === "warning"
+          dataFreshnessNotice.level === "warning"
             ? "bg-amber-500/10 border-amber-500/20"
             : "bg-muted/50 border-border"
         }`}>
           <div className="flex items-center gap-3">
             <BarChart3 className={`w-5 h-5 ${
-              dataFreshnessNotice?.level === "warning" ? "text-amber-500" : "text-muted-foreground"
+              dataFreshnessNotice.level === "warning" ? "text-amber-500" : "text-muted-foreground"
             }`} />
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-              {dataFreshnessNotice && (
-                <p className={`text-sm ${
-                  dataFreshnessNotice.level === "warning" ? "text-amber-500" : "text-muted-foreground"
-                }`}>
-                  📊 {dataFreshnessNotice.message}
-                </p>
-              )}
-              {lastPriceRefresh && (
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  Prices: {formatDistanceToNow(lastPriceRefresh, { addSuffix: true })}
-                </span>
-              )}
-            </div>
+            <p className={`text-sm ${
+              dataFreshnessNotice.level === "warning" ? "text-amber-500" : "text-muted-foreground"
+            }`}>
+              {dataFreshnessNotice.message}
+            </p>
           </div>
-          {dataFreshnessNotice?.level === "warning" && isConnected && (
+          {dataFreshnessNotice.level === "warning" && isConnected && (
             <Button
               variant="outline"
               size="sm"
