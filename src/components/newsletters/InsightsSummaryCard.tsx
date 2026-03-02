@@ -78,17 +78,22 @@ function StockCard({ stock }: { stock: StockToResearch }) {
 
 function CountryTiltCard({ tilt }: { tilt: CountryTilt }) {
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 border border-border/50">
-      {directionIcons[tilt.direction] ?? <Minus className="w-4 h-4" />}
-      <div className="flex-1 min-w-0">
-        <span className="text-[15px] font-medium text-foreground">{tilt.region}</span>
-        <span className="text-sm text-foreground/60 ml-2">{tilt.direction}</span>
+    <div className="p-3 rounded-lg bg-secondary/50 border border-border/50 space-y-1.5">
+      <div className="flex items-center gap-3">
+        {directionIcons[tilt.direction] ?? <Minus className="w-4 h-4" />}
+        <div className="flex-1 min-w-0">
+          <span className="text-[15px] font-medium text-foreground">{tilt.region}</span>
+          <span className="text-sm text-foreground/60 ml-2">{tilt.direction}</span>
+        </div>
+        {tilt.etf_proxy && (
+          <Badge variant="secondary" className="text-xs px-2 py-0.5 font-mono">{tilt.etf_proxy}</Badge>
+        )}
+        {tilt.in_portfolio && (
+          <Badge variant="outline" className="text-xs px-2 py-0.5 text-primary border-primary/30">held</Badge>
+        )}
       </div>
-      {tilt.etf_proxy && (
-        <Badge variant="secondary" className="text-xs px-2 py-0.5 font-mono">{tilt.etf_proxy}</Badge>
-      )}
-      {tilt.in_portfolio && (
-        <Badge variant="outline" className="text-xs px-2 py-0.5 text-primary border-primary/30">held</Badge>
+      {tilt.reasoning && (
+        <p className="text-sm text-muted-foreground pl-7">{tilt.reasoning}</p>
       )}
     </div>
   );

@@ -216,7 +216,8 @@ RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose outside th
       "region": "Japan",
       "direction": "overweight",
       "etf_proxy": "IJPA",
-      "in_portfolio": true
+      "in_portfolio": true,
+      "reasoning": "one sentence explaining why this tilt"
     }
   ],
   "sector_tilts": [
