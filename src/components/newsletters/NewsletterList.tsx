@@ -161,8 +161,8 @@ export function NewsletterList({
                   )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  <span title={format(new Date(newsletter.upload_date), "PPP")}>
-                    {formatDistanceToNow(new Date(newsletter.upload_date), {
+                  <span title={format(new Date(newsletter.created_at), "PPP p")}>
+                    {formatDistanceToNow(new Date(newsletter.created_at), {
                       addSuffix: true,
                     })}
                   </span>
