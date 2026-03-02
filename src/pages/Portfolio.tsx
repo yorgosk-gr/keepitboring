@@ -14,9 +14,9 @@ import { PositionsTable } from "@/components/portfolio/PositionsTable";
 import { PositionModal } from "@/components/portfolio/PositionModal";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import { RefreshPricesModal } from "@/components/portfolio/RefreshPricesModal";
-import { CashBalanceEditor } from "@/components/portfolio/CashBalanceEditor";
 import { DeleteConfirmModal } from "@/components/portfolio/DeleteConfirmModal";
 import { ThesisPanel } from "@/components/portfolio/ThesisPanel";
+import { PortfolioValue } from "@/components/dashboard/PortfolioValue";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -422,23 +422,14 @@ export default function Portfolio() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Portfolio</h1>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-            <span>{positions.length} positions</span>
-            <span className="hidden sm:inline text-border">•</span>
-            <span className="font-mono">${totalValue.toLocaleString("en-US", { minimumFractionDigits: 0 })} total</span>
-            <span className="hidden sm:inline text-border">•</span>
-            <span className="flex items-center gap-1">
-              <DollarSign className="w-3.5 h-3.5" />
-              Cash: <span className="font-mono">${cashBalance.toLocaleString("en-US", { minimumFractionDigits: 0 })}</span>
-              {totalValue > 0 && (
-                <span className="text-xs">({((cashBalance / totalValue) * 100).toFixed(1)}%)</span>
-              )}
-            </span>
-          </div>
-        </div>
+      <PortfolioValue
+        totalValue={totalValue}
+        positionsCount={positions.length}
+        cashBalance={cashBalance}
+        isLoading={isLoading}
+      />
+
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-end">
         
         <div className="flex flex-wrap gap-2">
           <TooltipProvider delayDuration={300}>
