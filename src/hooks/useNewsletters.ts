@@ -42,29 +42,24 @@ export function useNewsletters() {
 
       if (error) throw error;
 
-      // Get insights count for each newsletter
+      // Get insights count for each newsletter using exact count queries
       const newsletterIds = newsletters.map((n) => n.id);
       if (newsletterIds.length === 0) return newsletters as Newsletter[];
 
-      // Use range to fetch all rows (default limit is 1000)
-      let allInsights: { newsletter_id: string }[] = [];
-      let from = 0;
-      const batchSize = 1000;
-      while (true) {
-        const { data } = await supabase
-          .from("insights")
-          .select("newsletter_id")
-          .in("newsletter_id", newsletterIds)
-          .range(from, from + batchSize - 1);
-        if (!data || data.length === 0) break;
-        allInsights = allInsights.concat(data);
-        if (data.length < batchSize) break;
-        from += batchSize;
-      }
+      // Batch count queries in parallel (exact count with head:true is efficient)
+      const countResults = await Promise.all(
+        newsletterIds.map(async (nId) => {
+          const { count } = await supabase
+            .from("insights")
+            .select("*", { count: "exact", head: true })
+            .eq("newsletter_id", nId);
+          return { id: nId, count: count ?? 0 };
+        })
+      );
 
       const countsMap: Record<string, number> = {};
-      allInsights.forEach((i) => {
-        countsMap[i.newsletter_id] = (countsMap[i.newsletter_id] || 0) + 1;
+      countResults.forEach((r) => {
+        countsMap[r.id] = r.count;
       });
 
       return newsletters.map((n) => ({
