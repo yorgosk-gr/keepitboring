@@ -668,6 +668,33 @@ export default function Portfolio() {
         }}
         isSaving={isUpdating}
       />
+
+      {/* Workflow Reference */}
+      <div className="rounded-lg border border-border bg-secondary/30 p-5 space-y-3">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Data Enrichment Workflow</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-muted-foreground">
+          <div className="flex gap-2">
+            <span className="font-bold text-foreground/70">① Sync IB</span>
+            <span>— Pull latest positions, trades & cash from your IB Flex Query.</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-bold text-foreground/70">② Reclassify</span>
+            <span>— Re-categorize positions (ETF vs Stock, Broad vs Thematic) using local ticker reference.</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-bold text-foreground/70">③ Verify</span>
+            <span>— AI web search to validate symbols & enrich metadata (name, exchange, currency). Cached 24h.</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-bold text-foreground/70">④ Prices</span>
+            <span>— Fetch live prices from Yahoo Finance, convert currencies to USD, update market values.</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-bold text-foreground/70">⑤ Fundamentals</span>
+            <span>— Fetch quality metrics (ROIC, earnings yield, debt ratios) for the analysis engine.</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
