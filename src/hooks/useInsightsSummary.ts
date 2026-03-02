@@ -16,6 +16,7 @@ export interface CountryTilt {
   direction: string;
   etf_proxy: string;
   in_portfolio: boolean;
+  reasoning?: string;
 }
 
 export interface SectorTilt {
