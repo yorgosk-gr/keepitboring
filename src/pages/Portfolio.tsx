@@ -363,23 +363,33 @@ export default function Portfolio() {
   return (
     <div className="space-y-6">
       {/* Data Freshness Notice */}
-      {dataFreshnessNotice && (
+      {(dataFreshnessNotice || lastPriceRefresh) && (
         <div className={`flex items-center justify-between p-4 rounded-lg border ${
-          dataFreshnessNotice.level === "warning"
+          dataFreshnessNotice?.level === "warning"
             ? "bg-amber-500/10 border-amber-500/20"
             : "bg-muted/50 border-border"
         }`}>
           <div className="flex items-center gap-3">
             <BarChart3 className={`w-5 h-5 ${
-              dataFreshnessNotice.level === "warning" ? "text-amber-500" : "text-muted-foreground"
+              dataFreshnessNotice?.level === "warning" ? "text-amber-500" : "text-muted-foreground"
             }`} />
-            <p className={`text-sm ${
-              dataFreshnessNotice.level === "warning" ? "text-amber-500" : "text-muted-foreground"
-            }`}>
-              📊 {dataFreshnessNotice.message}
-            </p>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+              {dataFreshnessNotice && (
+                <p className={`text-sm ${
+                  dataFreshnessNotice.level === "warning" ? "text-amber-500" : "text-muted-foreground"
+                }`}>
+                  📊 {dataFreshnessNotice.message}
+                </p>
+              )}
+              {lastPriceRefresh && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Prices: {formatDistanceToNow(lastPriceRefresh, { addSuffix: true })}
+                </span>
+              )}
+            </div>
           </div>
-          {dataFreshnessNotice.level === "warning" && isConnected && (
+          {dataFreshnessNotice?.level === "warning" && isConnected && (
             <Button
               variant="outline"
               size="sm"
@@ -415,17 +425,9 @@ export default function Portfolio() {
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Portfolio</h1>
-          <div className="flex items-center gap-3">
-            <p className="text-sm text-muted-foreground">
-              {positions.length} positions • ${totalValue.toLocaleString("en-US", { minimumFractionDigits: 0 })} total
-            </p>
-            {lastPriceRefresh && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                Prices: {formatDistanceToNow(lastPriceRefresh, { addSuffix: true })}
-              </span>
-            )}
-          </div>
+          <p className="text-sm text-muted-foreground">
+            {positions.length} positions • ${totalValue.toLocaleString("en-US", { minimumFractionDigits: 0 })} total
+          </p>
         </div>
         
         <div className="flex flex-wrap gap-2">
