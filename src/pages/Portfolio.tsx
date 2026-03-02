@@ -670,30 +670,25 @@ export default function Portfolio() {
       />
 
       {/* Workflow Reference */}
-      <div className="rounded-lg border border-border bg-secondary/30 p-5 space-y-3">
+      <div className="rounded-lg border border-border bg-secondary/30 p-5 space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Data Enrichment Workflow</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-muted-foreground">
-          <div className="flex gap-2">
-            <span className="font-bold text-foreground/70">① Sync IB</span>
-            <span>— Pull latest positions, trades & cash from your IB Flex Query.</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="font-bold text-foreground/70">② Reclassify</span>
-            <span>— Re-categorize positions (ETF vs Stock, Broad vs Thematic) using local ticker reference.</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="font-bold text-foreground/70">③ Verify</span>
-            <span>— AI web search to validate symbols & enrich metadata (name, exchange, currency). Cached 24h.</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="font-bold text-foreground/70">④ Prices</span>
-            <span>— Fetch live prices from Yahoo Finance, convert currencies to USD, update market values.</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="font-bold text-foreground/70">⑤ Fundamentals</span>
-            <span>— Fetch quality metrics (ROIC, earnings yield, debt ratios) for the analysis engine.</span>
-          </div>
-        </div>
+        <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+          {[
+            { step: "①", title: "Sync IB", desc: "Pull latest positions, trades & cash from your IB Flex Query." },
+            { step: "②", title: "Reclassify", desc: "Re-categorize positions (ETF vs Stock, Broad vs Thematic) using local ticker reference." },
+            { step: "③", title: "Verify", desc: "AI web search to validate symbols & enrich metadata. Cached 24h." },
+            { step: "④", title: "Prices", desc: "Fetch live prices from Yahoo Finance, convert currencies to USD, update market values." },
+            { step: "⑤", title: "Fundamentals", desc: "Fetch quality metrics (ROIC, earnings yield, debt ratios) for the analysis engine." },
+          ].map((item) => (
+            <li key={item.step} className="flex gap-3">
+              <span className="text-lg leading-5 text-primary">{item.step}</span>
+              <div>
+                <p className="font-semibold text-foreground">{item.title}</p>
+                <p className="text-muted-foreground mt-0.5">{item.desc}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
       </div>
     </div>
   );
