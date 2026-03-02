@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ClipboardPaste, Mail, Copy, Check, RefreshCw } from "lucide-react";
+import { ClipboardPaste, Mail, Copy, Check, RefreshCw, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNewsletters, type Newsletter } from "@/hooks/useNewsletters";
@@ -8,6 +8,7 @@ import { NewsletterList } from "@/components/newsletters/NewsletterList";
 import { InsightsModal } from "@/components/newsletters/InsightsModal";
 import { PasteTextModal } from "@/components/newsletters/PasteTextModal";
 import { InsightsSummaryCard } from "@/components/newsletters/InsightsSummaryCard";
+import { useInsightsSummary } from "@/hooks/useInsightsSummary";
 import { toast } from "sonner";
 
 export default function Newsletters() {
@@ -25,6 +26,8 @@ export default function Newsletters() {
     refetch: refetchNewsletters,
     isRefetching,
   } = useNewsletters();
+
+  const { summary, generateSummary, isGenerating } = useInsightsSummary();
 
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [viewingNewsletter, setViewingNewsletter] = useState<Newsletter | null>(null);
@@ -69,16 +72,32 @@ export default function Newsletters() {
             Upload investment newsletters to extract insights with AI
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 self-start"
-          onClick={() => refetchNewsletters()}
-          disabled={isRefetching}
-        >
-          <RefreshCw className={cn("w-4 h-4", isRefetching && "animate-spin")} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2 self-start">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => generateSummary()}
+            disabled={isGenerating}
+          >
+            {isGenerating ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            Regen Brief
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => refetchNewsletters()}
+            disabled={isRefetching}
+          >
+            <RefreshCw className={cn("w-4 h-4", isRefetching && "animate-spin")} />
+            Reload List
+          </Button>
+        </div>
       </div>
 
       {/* AI Intelligence Brief */}

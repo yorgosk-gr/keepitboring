@@ -400,27 +400,7 @@ export function InsightsSummaryCard() {
         </Card>
       )}
 
-      {summary && (
-        <div className="space-y-3">
-          <SummaryContent summary={summary} />
-          <div className="flex justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => generateSummary()}
-              disabled={isGenerating}
-              className="gap-2"
-            >
-              {isGenerating ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Sparkles className="w-4 h-4" />
-              )}
-              Regenerate
-            </Button>
-          </div>
-        </div>
-      )}
+      {summary && <SummaryContent summary={summary} />}
     </div>
   );
 }
