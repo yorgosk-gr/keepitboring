@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RefreshCw, Bell, LogOut, BookOpen, Search } from "lucide-react";
+import { LogOut, BookOpen, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
@@ -59,13 +59,6 @@ export function AppHeader() {
           >
             <BookOpen className="w-4 h-4" />
             <span className="hidden lg:inline">Log Decision</span>
-          </Button>
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-            <RefreshCw className="w-5 h-5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground relative">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full animate-pulse-glow" />
           </Button>
           {user && (
             <Button 
