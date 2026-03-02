@@ -35,9 +35,10 @@ interface UploadingFile {
 
 interface NewsletterUploadZoneProps {
   onUpload: (file: File, rawText: string, sourceName: string) => Promise<void>;
+  compact?: boolean;
 }
 
-export function NewsletterUploadZone({ onUpload }: NewsletterUploadZoneProps) {
+export function NewsletterUploadZone({ onUpload, compact }: NewsletterUploadZoneProps) {
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -192,21 +193,22 @@ export function NewsletterUploadZone({ onUpload }: NewsletterUploadZoneProps) {
         }}
         onDragLeave={() => setIsDragging(false)}
         className={cn(
-          "relative border-2 border-dashed rounded-lg p-12 text-center transition-all",
+          "relative border-2 border-dashed rounded-lg text-center transition-all",
           "hover:border-primary/50 hover:bg-primary/5",
-          isDragging ? "border-primary bg-primary/10" : "border-border"
+          isDragging ? "border-primary bg-primary/10" : "border-border",
+          compact ? "p-8" : "p-12"
         )}
       >
-        <div className="space-y-4">
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-            <Upload className="w-8 h-8 text-primary" />
+        <div className="space-y-3">
+          <div className={cn("rounded-full bg-primary/10 flex items-center justify-center mx-auto", compact ? "w-12 h-12" : "w-16 h-16")}>
+            <Upload className={cn("text-primary", compact ? "w-6 h-6" : "w-8 h-8")} />
           </div>
           <div>
-            <p className="text-lg font-medium text-foreground">
+            <p className={cn("font-medium text-foreground", compact ? "text-base" : "text-lg")}>
               Drop newsletter files here
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              PDF, DOCX, TXT, MD, CSV • Multiple files supported
+              PDF, DOCX, TXT, MD, CSV
             </p>
           </div>
           <Button variant="outline" className="relative">
