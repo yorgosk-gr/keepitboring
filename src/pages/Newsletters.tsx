@@ -69,21 +69,41 @@ export default function Newsletters() {
             Upload investment newsletters to extract insights with AI
           </p>
         </div>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
+          size="sm"
           className="gap-2 self-start"
-          onClick={() => setShowPasteModal(true)}
+          onClick={() => refetchNewsletters()}
+          disabled={isRefetching}
         >
-          <ClipboardPaste className="w-4 h-4" />
-          Paste Newsletter Text
+          <RefreshCw className={cn("w-4 h-4", isRefetching && "animate-spin")} />
+          Refresh
         </Button>
       </div>
 
       {/* AI Intelligence Brief */}
       <InsightsSummaryCard />
 
-      {/* Upload Zone */}
-      <NewsletterUploadZone onUpload={handleUpload} />
+      {/* Upload & Paste Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <NewsletterUploadZone onUpload={handleUpload} compact />
+        <div
+          className="flex flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed border-border p-8 text-center hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer"
+          onClick={() => setShowPasteModal(true)}
+        >
+          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+            <ClipboardPaste className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <p className="text-lg font-medium text-foreground">Paste newsletter text</p>
+            <p className="text-sm text-muted-foreground mt-1">Copy & paste content directly</p>
+          </div>
+          <Button variant="outline" onClick={() => setShowPasteModal(true)}>
+            <ClipboardPaste className="w-4 h-4 mr-2" />
+            Paste Text
+          </Button>
+        </div>
+      </div>
 
       {/* Email Forwarding Banner */}
       <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-secondary/50">
@@ -112,21 +132,9 @@ export default function Newsletters() {
 
       {/* Newsletter List */}
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-foreground">
-            Uploaded Newsletters
-          </h2>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => refetchNewsletters()}
-            disabled={isRefetching}
-          >
-            <RefreshCw className={cn("w-4 h-4", isRefetching && "animate-spin")} />
-            Refresh
-          </Button>
-        </div>
+        <h2 className="text-lg font-semibold text-foreground mb-4">
+          Uploaded Newsletters
+        </h2>
         <NewsletterList
           newsletters={newsletters}
           isLoading={isLoading}
