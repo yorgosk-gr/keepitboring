@@ -425,9 +425,19 @@ export default function Portfolio() {
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Portfolio</h1>
-          <p className="text-sm text-muted-foreground">
-            {positions.length} positions • ${totalValue.toLocaleString("en-US", { minimumFractionDigits: 0 })} total
-          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+            <span>{positions.length} positions</span>
+            <span className="hidden sm:inline text-border">•</span>
+            <span className="font-mono">${totalValue.toLocaleString("en-US", { minimumFractionDigits: 0 })} total</span>
+            <span className="hidden sm:inline text-border">•</span>
+            <span className="flex items-center gap-1">
+              <DollarSign className="w-3.5 h-3.5" />
+              Cash: <span className="font-mono">${cashBalance.toLocaleString("en-US", { minimumFractionDigits: 0 })}</span>
+              {totalValue > 0 && (
+                <span className="text-xs">({((cashBalance / totalValue) * 100).toFixed(1)}%)</span>
+              )}
+            </span>
+          </div>
         </div>
         
         <div className="flex flex-wrap gap-2">
@@ -549,15 +559,6 @@ export default function Portfolio() {
         </div>
       </div>
 
-      {/* Cash Balance Editor */}
-      <div className="max-w-sm">
-        <CashBalanceEditor
-          cashBalance={cashBalance}
-          cashPercent={totalValue > 0 ? (cashBalance / totalValue) * 100 : 0}
-          onUpdate={updateCashBalance}
-          isUpdating={isUpdatingCash}
-        />
-      </div>
 
       {/* Search Bar */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
