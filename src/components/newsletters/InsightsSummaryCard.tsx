@@ -181,7 +181,10 @@ function splitLetter(summary: InsightsSummary) {
     watch: "Watch This Week",
   };
 
-  const titles = summary.section_titles ?? defaultTitles;
+  const titles = {
+    ...defaultTitles,
+    ...(summary.section_titles ?? {}),
+  };
   const letter = summary.letter ?? "";
 
   if (!letter) return { market: "" };
@@ -267,13 +270,13 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
         <CardContent className="space-y-8 pt-0">
           {/* Letter Sections */}
           {sections.market && (
-            <LetterSection title={summary.section_titles.market} content={sections.market} />
+            <LetterSection title={summary.section_titles?.market ?? "State of the Market"} content={sections.market} />
           )}
           {sections.portfolio && (
-            <LetterSection title={summary.section_titles.portfolio} content={sections.portfolio} />
+            <LetterSection title={summary.section_titles?.portfolio ?? "What This Means For Your Portfolio"} content={sections.portfolio} />
           )}
           {sections.invest && (
-            <LetterSection title={summary.section_titles.invest} content={sections.invest} />
+            <LetterSection title={summary.section_titles?.invest ?? "Where to Invest"} content={sections.invest} />
           )}
 
           {/* Structured: Country Tilts */}
@@ -342,7 +345,7 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
           )}
 
           {sections.watch && (
-            <LetterSection title={summary.section_titles.watch} content={sections.watch} />
+            <LetterSection title={summary.section_titles?.watch ?? "Watch This Week"} content={sections.watch} />
           )}
 
           {/* Crowded Trades */}
