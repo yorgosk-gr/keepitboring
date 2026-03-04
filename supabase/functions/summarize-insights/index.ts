@@ -80,21 +80,21 @@ serve(async (req) => {
       );
     }
 
-    // Fetch last 30 days of insights with newsletter source names
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    // Fetch last 10 days of insights with newsletter source names
+    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
 
     const { data: newsletters } = await supabase
       .from("newsletters")
       .select("id, source_name, upload_date")
       .eq("user_id", user.id)
-      .gte("created_at", thirtyDaysAgo)
+      .gte("created_at", tenDaysAgo)
       .order("created_at", { ascending: false });
 
     const newsletterIds = (newsletters ?? []).map(n => n.id);
 
     if (newsletterIds.length === 0) {
       return new Response(JSON.stringify({
-        executive_summary: "No newsletters uploaded in the last 30 days. Upload some newsletters to get AI-generated insights.",
+        executive_summary: "No newsletters uploaded in the last 10 days. Upload some newsletters to get AI-generated insights.",
         weekly_priority: null,
         key_points: [],
         action_items: [],
@@ -248,6 +248,52 @@ RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose outside th
   "insights_analyzed": 0
 }`;
 
+    // Step: Fetch real-time market context via Perplexity
+    let marketContext = "";
+    const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
+    if (PERPLEXITY_API_KEY) {
+      try {
+        const today = new Date().toISOString().split("T")[0];
+        const perplexityRes = await fetch("https://api.perplexity.ai/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "sonar",
+            messages: [
+              {
+                role: "user",
+                content: `As of ${today}: Give me a concise factual summary of current market conditions. Include: S&P 500, Nasdaq, Dow Jones, and Euro Stoxx 50 levels and weekly % change; 10-year US Treasury yield; Fed funds rate and latest FOMC guidance; USD/EUR and USD/JPY; gold and oil prices; VIX level; and the 2-3 most important macro events or data releases this week. Facts only, no opinions. Cite sources.`,
+              },
+            ],
+            search_recency_filter: "week",
+          }),
+        });
+
+        if (perplexityRes.ok) {
+          const perplexityData = await perplexityRes.json();
+          marketContext = perplexityData.choices?.[0]?.message?.content ?? "";
+          const citations = perplexityData.citations ?? [];
+          if (citations.length > 0) {
+            marketContext += `\n\nSources: ${citations.join(", ")}`;
+          }
+          console.log("Perplexity market context fetched successfully");
+        } else {
+          console.warn("Perplexity API returned", perplexityRes.status, "— proceeding without market verification");
+        }
+      } catch (e) {
+        console.warn("Perplexity call failed, proceeding without market verification:", e);
+      }
+    } else {
+      console.warn("PERPLEXITY_API_KEY not configured — skipping real-time market verification");
+    }
+
+    const marketVerificationBlock = marketContext
+      ? `\n\nREAL-TIME MARKET CONTEXT (verified data as of today — use this to cross-check newsletter claims):\n${marketContext}\n\nIMPORTANT: Cross-check newsletter claims against the real-time market context above. If a newsletter claim contradicts current verified data, note the discrepancy in your letter and use the verified data. Do not repeat stale or inaccurate claims from newsletters.`
+      : "";
+
     const userPrompt = `MY PORTFOLIO:
 ${JSON.stringify(portfolioContext, null, 2)}
 
@@ -273,7 +319,7 @@ ${JSON.stringify(insightsList.map(i => {
   };
 }), null, 2)}
 
-Write the weekly letter. Be specific, be direct, reference my actual holdings. I want to read this on Monday morning and know exactly what to think about my portfolio and where to look next.`;
+Write the weekly letter. Be specific, be direct, reference my actual holdings. I want to read this on Monday morning and know exactly what to think about my portfolio and where to look next.${marketVerificationBlock}`;
 
     console.log(`Summarizing ${insightsList.length} insights from ${newsletters?.length} newsletters...`);
 
