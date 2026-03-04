@@ -45,14 +45,43 @@ const convictionColors: Record<string, string> = {
   low: "bg-muted text-muted-foreground border-border",
 };
 
+// Parse the narrative letter into named sections
+function parseLetterSections(letter: string) {
+  if (!letter) return {};
 
-function LetterSection({ title, content }: { title: string; content: string }) {
+  const sectionPattern = /═══\s*(.+?)\s*═══/g;
+  const matches: { title: string; pos: number }[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = sectionPattern.exec(letter)) !== null) {
+    matches.push({ title: match[1].trim(), pos: match.index });
+  }
+
+  if (matches.length === 0) return { full: letter };
+
+  const sections: Record<string, string> = {};
+  for (let i = 0; i < matches.length; i++) {
+    const headerEnd = letter.indexOf("\n", matches[i].pos);
+    const start = headerEnd !== -1 ? headerEnd + 1 : matches[i].pos;
+    const end = i + 1 < matches.length ? matches[i + 1].pos : letter.length;
+    const key = matches[i].title
+      .replace(/^SECTION \d+:\s*/i, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_|_$/g, "");
+    sections[key] = letter.substring(start, end).trim();
+  }
+
+  return sections;
+}
+
+function NarrativeSection({ title, content }: { title: string; content: string }) {
   return (
     <div>
       <h3 className="text-base font-bold text-foreground mb-3 uppercase tracking-wide">{title}</h3>
       <div className="space-y-3">
         {content.split("\n\n").map((para, i) => (
-          <p key={i} className="text-[15px] text-foreground/80 leading-relaxed">{para}</p>
+          <p key={i} className="text-[15px] text-foreground/80 leading-relaxed whitespace-pre-line">{para}</p>
         ))}
       </div>
     </div>
@@ -173,59 +202,6 @@ function ContrarianCard({ opp }: { opp: ContrarianOpportunity }) {
   );
 }
 
-function splitLetter(summary: InsightsSummary) {
-  const defaultTitles = {
-    market: "State of the Market",
-    portfolio: "What This Means For Your Portfolio",
-    invest: "Where to Invest",
-    watch: "Watch This Week",
-  };
-
-  const titles = {
-    ...defaultTitles,
-    ...(summary.section_titles ?? {}),
-  };
-  const letter = summary.letter ?? "";
-
-  if (!letter) return { market: "" };
-
-  const markers = [
-    { key: "market" as const, patterns: ["SECTION 1", titles.market.toUpperCase()] },
-    { key: "portfolio" as const, patterns: ["SECTION 2", titles.portfolio.toUpperCase()] },
-    { key: "invest" as const, patterns: ["SECTION 3", titles.invest.toUpperCase()] },
-    { key: "watch" as const, patterns: ["SECTION 4", titles.watch.toUpperCase()] },
-  ];
-
-  const upper = letter.toUpperCase();
-  const positions: { key: string; title: string; pos: number }[] = [];
-
-  for (const m of markers) {
-    for (const pat of m.patterns) {
-      const idx = upper.indexOf(pat);
-      if (idx !== -1) {
-        positions.push({ key: m.key, title: titles[m.key], pos: idx });
-        break;
-      }
-    }
-  }
-
-  if (positions.length >= 2) {
-    positions.sort((a, b) => a.pos - b.pos);
-    const sections: Record<string, string> = {};
-    for (let i = 0; i < positions.length; i++) {
-      const start = positions[i].pos;
-      const end = i + 1 < positions.length ? positions[i + 1].pos : letter.length;
-      let text = letter.substring(start, end).trim();
-      const firstNewline = text.indexOf("\n");
-      if (firstNewline !== -1) text = text.substring(firstNewline).trim();
-      sections[positions[i].key] = text;
-    }
-    return sections;
-  }
-
-  return { market: letter };
-}
-
 function SummaryContent({ summary }: { summary: InsightsSummary }) {
   const [expanded, setExpanded] = useState(true);
 
@@ -237,7 +213,7 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
     );
   }
 
-  const sections = splitLetter(summary);
+  const sections = parseLetterSections(summary.letter);
 
   return (
     <Card className="border-primary/30 bg-card">
@@ -268,15 +244,26 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
 
       {expanded && (
         <CardContent className="space-y-8 pt-0">
-          {/* Letter Sections */}
-          {sections.market && (
-            <LetterSection title={summary.section_titles?.market ?? "State of the Market"} content={sections.market} />
+          {/* Narrative: What To Do This Week */}
+          {sections.what_to_do_this_week && (
+            <NarrativeSection title="What To Do This Week" content={sections.what_to_do_this_week} />
           )}
-          {sections.portfolio && (
-            <LetterSection title={summary.section_titles?.portfolio ?? "What This Means For Your Portfolio"} content={sections.portfolio} />
+
+          {/* Narrative: One-Line Summary */}
+          {sections.one_line_summary && (
+            <div className="p-3.5 rounded-lg bg-primary/5 border border-primary/20">
+              <p className="text-[15px] font-semibold text-foreground">{sections.one_line_summary}</p>
+            </div>
           )}
-          {sections.invest && (
-            <LetterSection title={summary.section_titles?.invest ?? "Where to Invest"} content={sections.invest} />
+
+          {/* Narrative: State of the Market */}
+          {sections.state_of_the_market && (
+            <NarrativeSection title="State of the Market" content={sections.state_of_the_market} />
+          )}
+
+          {/* Narrative: Portfolio */}
+          {sections.what_this_means_for_your_portfolio && (
+            <NarrativeSection title="What This Means For Your Portfolio" content={sections.what_this_means_for_your_portfolio} />
           )}
 
           {/* Structured: Country Tilts */}
@@ -326,6 +313,11 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
             </div>
           )}
 
+          {/* Narrative: What to Watch */}
+          {sections.what_to_watch_next_week && (
+            <NarrativeSection title="What To Watch Next Week" content={sections.what_to_watch_next_week} />
+          )}
+
           {/* Contrarian Opportunities */}
           {summary.contrarian_opportunities?.length > 0 && (
             <div>
@@ -342,10 +334,6 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
                 ))}
               </div>
             </div>
-          )}
-
-          {sections.watch && (
-            <LetterSection title={summary.section_titles?.watch ?? "Watch This Week"} content={sections.watch} />
           )}
 
           {/* Crowded Trades */}
@@ -387,7 +375,7 @@ export function InsightsSummaryCard() {
             <div className="text-center">
               <p className="text-base font-medium text-foreground">Weekly Intelligence Letter</p>
               <p className="text-sm text-foreground/60 mt-1">
-                Generate an opinionated weekly letter from your last 30 days of newsletter insights
+                Generate an opinionated weekly letter from your last 10 days of newsletter insights
               </p>
             </div>
             <Button
