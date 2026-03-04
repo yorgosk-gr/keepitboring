@@ -113,6 +113,9 @@ function SectorTiltCard({ tilt }: { tilt: SectorTilt }) {
           {tilt.conviction}
         </Badge>
       </div>
+      {tilt.reasoning && (
+        <p className="text-sm text-muted-foreground ml-7">{tilt.reasoning}</p>
+      )}
       {relatedTickers.length > 0 && (
         <div className="flex gap-1.5 flex-wrap ml-7">
           {relatedTickers.map((t) => (
