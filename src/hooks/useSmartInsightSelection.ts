@@ -40,8 +40,8 @@ export async function selectSmartInsights(
   const thirtyDaysAgo = subDays(now, 30);
   const sevenDaysAgo = subDays(now, 7);
 
-  // Use hardcoded 30-day window for general insights
-  const windowDate = subDays(now, 30);
+  // Use 10-day window for general insights (matches brief analysis window)
+  const windowDate = subDays(now, 10);
 
   // Fetch all recent insights (up to 90 days for the extended rules)
   const { data: allInsights, error } = await supabase
