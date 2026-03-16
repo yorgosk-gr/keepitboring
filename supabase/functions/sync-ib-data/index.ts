@@ -56,7 +56,8 @@ function parseXMLAttributes(tag: string): Record<string, string> {
 
 function extractTags(xml: string, tagName: string): Record<string, string>[] {
   const results: Record<string, string>[] = [];
-  const regex = new RegExp(`<${tagName}\\s([^/]*?)/>`, "g");
+  // Match self-closing tags while allowing '/' inside attribute values (e.g. "A/S")
+  const regex = new RegExp(`<${tagName}\\b([^>]*)\\/>`, "g");
   let match;
   while ((match = regex.exec(xml)) !== null) {
     results.push(parseXMLAttributes(match[1]));
