@@ -1,0 +1,1 @@
+UPDATE public.positions SET position_type = 'etf' WHERE ticker IN ('SWRD', 'VWRA');
