@@ -268,6 +268,88 @@ function enforceCashConstraint(analysisResult: any, cashBalance: number): any {
   return analysisResult;
 }
 
+// ── Post-processing: validate & fix trade recommendation consistency ──
+function validateTradeConsistency(result: any, positions: any[]): any {
+  const trades = result.trade_recommendations;
+  if (!Array.isArray(trades)) return result;
+
+  const posMap: Record<string, any> = {};
+  for (const p of positions) {
+    posMap[p.ticker] = p;
+  }
+
+  let fixCount = 0;
+  for (const trade of trades) {
+    const cw = trade.current_weight ?? 0;
+    const tw = trade.target_weight ?? 0;
+    const currentShares = trade.current_shares ?? 0;
+    const recShares = trade.recommended_shares ?? currentShares;
+    const shareDelta = recShares - currentShares;
+
+    // Determine what the action SHOULD be based on numeric fields
+    let correctAction: string;
+    if (Math.abs(tw - cw) < 0.3 && shareDelta === 0) {
+      correctAction = "HOLD";
+    } else if (tw < cw || shareDelta < 0) {
+      correctAction = "SELL";
+    } else if (tw > cw || shareDelta > 0) {
+      correctAction = "BUY";
+    } else {
+      correctAction = "HOLD";
+    }
+
+    // Fix action if it contradicts the weight/shares direction
+    if (trade.action !== correctAction) {
+      console.warn(
+        `Trade consistency fix: ${trade.ticker} action ${trade.action} → ${correctAction} ` +
+        `(weight ${cw}→${tw}, shares ${currentShares}→${recShares})`
+      );
+      trade.action = correctAction;
+      fixCount++;
+    }
+
+    // Fix shares_to_trade sign consistency
+    if (trade.action === "SELL" && trade.shares_to_trade > 0) {
+      trade.shares_to_trade = -Math.abs(trade.shares_to_trade);
+      fixCount++;
+    } else if (trade.action === "BUY" && trade.shares_to_trade < 0) {
+      trade.shares_to_trade = Math.abs(trade.shares_to_trade);
+      fixCount++;
+    } else if (trade.action === "HOLD" && trade.shares_to_trade !== 0) {
+      trade.shares_to_trade = 0;
+      trade.recommended_shares = currentShares;
+      fixCount++;
+    }
+
+    // Fix estimated_value sign: sells should be positive (proceeds), buys positive (cost)
+    // but ensure absolute value is used
+    if (trade.estimated_value != null) {
+      trade.estimated_value = Math.abs(trade.estimated_value);
+    }
+  }
+
+  if (fixCount > 0) {
+    console.log(`validateTradeConsistency: fixed ${fixCount} inconsistencies`);
+
+    // Recalculate rebalancing_summary from corrected trades
+    const totalSells = trades
+      .filter((t: any) => t.action === "SELL")
+      .reduce((s: number, t: any) => s + Math.abs(t.estimated_value ?? 0), 0);
+    const totalBuys = trades
+      .filter((t: any) => t.action === "BUY")
+      .reduce((s: number, t: any) => s + Math.abs(t.estimated_value ?? 0), 0);
+
+    result.rebalancing_summary = {
+      ...result.rebalancing_summary,
+      total_sells: `$${Math.round(totalSells).toLocaleString()}`,
+      total_buys: `$${Math.round(totalBuys).toLocaleString()}`,
+      net_cash_impact: `${totalSells >= totalBuys ? "+" : "-"}$${Math.round(Math.abs(totalSells - totalBuys)).toLocaleString()}`,
+    };
+  }
+
+  return result;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -816,6 +898,9 @@ Analyze this portfolio and return the JSON response.`;
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // ── Validate trade recommendation consistency ───────────────────
+    analysisResult = validateTradeConsistency(analysisResult, positions ?? []);
 
     // ── Enforce cash constraint server-side ───────────────────────────
     analysisResult = enforceCashConstraint(analysisResult, cash_balance ?? 0);
