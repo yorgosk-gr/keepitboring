@@ -817,6 +817,9 @@ Analyze this portfolio and return the JSON response.`;
       );
     }
 
+    // ── Validate trade recommendation consistency ───────────────────
+    analysisResult = validateTradeConsistency(analysisResult, positions ?? []);
+
     // ── Enforce cash constraint server-side ───────────────────────────
     analysisResult = enforceCashConstraint(analysisResult, cash_balance ?? 0);
 
