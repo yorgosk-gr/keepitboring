@@ -14,6 +14,8 @@ import {
   Search,
   Lightbulb,
   Clock,
+  ArrowLeftRight,
+  Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +45,19 @@ const convictionColors: Record<string, string> = {
   high: "bg-destructive/20 text-destructive border-destructive/30",
   medium: "bg-warning/20 text-warning border-warning/30",
   low: "bg-muted text-muted-foreground border-border",
+};
+
+const signalTypeBadge: Record<string, { label: string; className: string }> = {
+  consensus: { label: "consensus", className: "bg-muted text-muted-foreground border-border" },
+  edge: { label: "edge", className: "bg-primary/15 text-primary border-primary/30" },
+  divergent: { label: "divergent", className: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30" },
+};
+
+const vsPriorBadge: Record<string, { label: string; className: string }> = {
+  new: { label: "NEW", className: "bg-primary/20 text-primary border-primary/30" },
+  reversed: { label: "REVERSED", className: "bg-destructive/20 text-destructive border-destructive/30" },
+  strengthened: { label: "↑ stronger", className: "bg-primary/15 text-primary border-primary/30" },
+  unchanged: { label: "unchanged", className: "bg-muted text-muted-foreground border-border" },
 };
 
 // Parse the narrative letter into named sections
@@ -89,36 +104,88 @@ function NarrativeSection({ title, content }: { title: string; content: string }
 }
 
 function StockCard({ stock }: { stock: StockToResearch }) {
+  const signalBadge = stock.consensus_or_edge ? signalTypeBadge[stock.consensus_or_edge] : null;
+
   return (
-    <div className="p-3.5 rounded-lg bg-secondary/50 border border-border/50">
-      <div className="flex items-center gap-2 mb-1.5">
+    <div className="p-3.5 rounded-lg bg-secondary/50 border border-border/50 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Badge variant="secondary" className="text-xs px-2 py-0.5 font-mono">{stock.ticker}</Badge>
         <span className="text-[15px] font-medium text-foreground">{stock.name}</span>
         {stock.mentioned_in > 1 && (
-          <Badge variant="outline" className="text-xs px-2 py-0.5 ml-auto">
+          <Badge variant="outline" className="text-xs px-2 py-0.5">
             {stock.mentioned_in} sources
           </Badge>
         )}
+        {signalBadge && (
+          <Badge variant="outline" className={`text-xs px-2 py-0.5 ${signalBadge.className}`}>
+            {signalBadge.label}
+          </Badge>
+        )}
+        {stock.risk_level && (
+          <Badge variant="outline" className="text-xs px-2 py-0.5 ml-auto">
+            {stock.risk_level} risk
+          </Badge>
+        )}
       </div>
-      <p className="text-sm text-foreground/70">{stock.thesis}</p>
+      {stock.setup && (
+        <div className="text-sm text-foreground/70">
+          <span className="font-semibold text-foreground/90">Setup: </span>{stock.setup}
+        </div>
+      )}
+      <div className="text-sm text-foreground/70">
+        <span className="font-semibold text-foreground/90">Thesis: </span>{stock.thesis}
+      </div>
+      {stock.trigger && (
+        <div className="text-sm text-foreground/70">
+          <span className="font-semibold text-foreground/90">Trigger: </span>{stock.trigger}
+        </div>
+      )}
+      {(stock.time_horizon || stock.source_confidence_avg) && (
+        <div className="flex gap-2 flex-wrap">
+          {stock.time_horizon && (
+            <Badge variant="outline" className="text-xs px-2 py-0.5">
+              <Clock className="w-3 h-3 mr-1" />{stock.time_horizon}
+            </Badge>
+          )}
+          {stock.source_confidence_avg != null && (
+            <Badge variant="outline" className="text-xs px-2 py-0.5">
+              confidence: {(stock.source_confidence_avg * 100).toFixed(0)}%
+            </Badge>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 function CountryTiltCard({ tilt }: { tilt: CountryTilt }) {
+  const signal = tilt.signal_type ? signalTypeBadge[tilt.signal_type] : null;
+  const prior = tilt.vs_prior_brief ? vsPriorBadge[tilt.vs_prior_brief] : null;
+
   return (
     <div className="p-3 rounded-lg bg-secondary/50 border border-border/50 space-y-1.5">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         {directionIcons[tilt.direction] ?? <Minus className="w-4 h-4" />}
         <div className="flex-1 min-w-0">
           <span className="text-[15px] font-medium text-foreground">{tilt.region}</span>
           <span className="text-sm text-foreground/60 ml-2">{tilt.direction}</span>
         </div>
+        {tilt.conviction && (
+          <Badge variant="outline" className={`text-xs px-2 py-0.5 ${convictionColors[tilt.conviction] ?? ""}`}>
+            {tilt.conviction}
+          </Badge>
+        )}
         {tilt.etf_proxy && (
           <Badge variant="secondary" className="text-xs px-2 py-0.5 font-mono">{tilt.etf_proxy}</Badge>
         )}
         {tilt.in_portfolio && (
           <Badge variant="outline" className="text-xs px-2 py-0.5 text-primary border-primary/30">held</Badge>
+        )}
+        {signal && (
+          <Badge variant="outline" className={`text-xs px-2 py-0.5 ${signal.className}`}>{signal.label}</Badge>
+        )}
+        {prior && prior.label !== "unchanged" && (
+          <Badge variant="outline" className={`text-xs px-2 py-0.5 ${prior.className}`}>{prior.label}</Badge>
         )}
       </div>
       {tilt.reasoning && (
@@ -131,16 +198,29 @@ function CountryTiltCard({ tilt }: { tilt: CountryTilt }) {
 function SectorTiltCard({ tilt }: { tilt: SectorTilt }) {
   const label = directionLabels[tilt.direction] ?? { text: tilt.direction, className: "text-muted-foreground" };
   const relatedTickers = tilt.portfolio_tickers ?? [];
+  const signal = tilt.signal_type ? signalTypeBadge[tilt.signal_type] : null;
+  const prior = tilt.vs_prior_brief ? vsPriorBadge[tilt.vs_prior_brief] : null;
 
   return (
     <div className="p-3 rounded-lg bg-secondary/50 border border-border/50 space-y-2">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         {directionIcons[tilt.direction] ?? <Minus className="w-4 h-4" />}
         <span className="text-[15px] font-medium text-foreground flex-1">{tilt.sector}</span>
         <span className={`text-sm font-medium ${label.className}`}>{label.text}</span>
         <Badge variant="outline" className={`text-xs px-2 py-0.5 ${convictionColors[tilt.conviction] ?? ""}`}>
           {tilt.conviction}
         </Badge>
+        {signal && (
+          <Badge variant="outline" className={`text-xs px-2 py-0.5 ${signal.className}`}>{signal.label}</Badge>
+        )}
+        {prior && prior.label !== "unchanged" && (
+          <Badge variant="outline" className={`text-xs px-2 py-0.5 ${prior.className}`}>{prior.label}</Badge>
+        )}
+        {tilt.earnings_pattern && tilt.earnings_pattern !== "no_data" && (
+          <Badge variant="outline" className="text-xs px-2 py-0.5">
+            earnings: {tilt.earnings_pattern}
+          </Badge>
+        )}
       </div>
       {tilt.reasoning && (
         <p className="text-sm text-muted-foreground ml-7">{tilt.reasoning}</p>
@@ -225,6 +305,15 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
             <Badge variant="outline" className="text-xs px-2 py-0.5 text-foreground/60">
               {summary.newsletters_analyzed} newsletters · {summary.insights_analyzed} insights
             </Badge>
+            {summary.signal_quality && (
+              <Badge variant="outline" className={`text-xs px-2 py-0.5 ${
+                summary.signal_quality === "high" ? "text-primary border-primary/30" :
+                summary.signal_quality === "low" ? "text-destructive border-destructive/30" :
+                "text-warning border-warning/30"
+              }`}>
+                signal: {summary.signal_quality}
+              </Badge>
+            )}
           </div>
           <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)}>
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -261,8 +350,23 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
             <NarrativeSection title="State of the Market" content={sections.state_of_the_market} />
           )}
 
-          {/* Narrative: Portfolio */}
-          {sections.what_this_means_for_your_portfolio && (
+          {/* Narrative: Consensus vs Divergence */}
+          {sections.consensus_vs_divergence && (
+            <div>
+              <h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2 uppercase tracking-wide">
+                <ArrowLeftRight className="w-4 h-4 text-accent" />
+                Consensus vs Divergence
+              </h3>
+              <div className="space-y-3">
+                {sections.consensus_vs_divergence.split("\n\n").map((para, i) => (
+                  <p key={i} className="text-[15px] text-foreground/80 leading-relaxed whitespace-pre-line">{para}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Legacy: What This Means For Your Portfolio (backward compat) */}
+          {!sections.consensus_vs_divergence && sections.what_this_means_for_your_portfolio && (
             <NarrativeSection title="What This Means For Your Portfolio" content={sections.what_this_means_for_your_portfolio} />
           )}
 
@@ -316,6 +420,33 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
           {/* Narrative: What to Watch */}
           {sections.what_to_watch_next_week && (
             <NarrativeSection title="What To Watch Next Week" content={sections.what_to_watch_next_week} />
+          )}
+
+          {/* Temporal Shifts */}
+          {summary.temporal_shifts && summary.temporal_shifts.length > 0 && (
+            <div>
+              <h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-accent" />
+                Signal Shifts
+              </h3>
+              <div className="space-y-2">
+                {summary.temporal_shifts.map((shift, i) => (
+                  <div key={i} className="p-3 rounded-lg bg-secondary/50 border border-border/50 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[15px] font-medium text-foreground">{shift.topic}</span>
+                      {shift.weeks_tracked && shift.weeks_tracked > 1 && (
+                        <Badge variant="outline" className="text-xs px-2 py-0.5">week {shift.weeks_tracked}</Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-foreground/70">
+                      <span className="text-muted-foreground">Was: </span>{shift.prior_view}
+                      <span className="text-muted-foreground"> → Now: </span>{shift.current_view}
+                    </p>
+                    <p className="text-sm text-foreground/60 italic">{shift.significance}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Contrarian Opportunities */}
