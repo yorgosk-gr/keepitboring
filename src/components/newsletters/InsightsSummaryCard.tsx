@@ -455,32 +455,6 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
             <NarrativeSection title="What To Watch Next Week" content={sections.what_to_watch_next_week} />
           )}
 
-          {/* Temporal Shifts */}
-          {summary.temporal_shifts && summary.temporal_shifts.length > 0 && (
-            <div>
-              <h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-accent" />
-                Signal Shifts
-              </h3>
-              <div className="space-y-2">
-                {summary.temporal_shifts.map((shift, i) => (
-                  <div key={i} className="p-3 rounded-lg bg-secondary/50 border border-border/50 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[15px] font-medium text-foreground">{shift.topic}</span>
-                      {shift.weeks_tracked && shift.weeks_tracked > 1 && (
-                        <Badge variant="outline" className="text-xs px-2 py-0.5">week {shift.weeks_tracked}</Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-foreground/70">
-                      <span className="text-muted-foreground">Was: </span>{shift.prior_view}
-                      <span className="text-muted-foreground"> → Now: </span>{shift.current_view}
-                    </p>
-                    <p className="text-sm text-foreground/60 italic">{shift.significance}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Contrarian Opportunities */}
           {summary.contrarian_opportunities?.length > 0 && (
