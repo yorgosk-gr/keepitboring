@@ -429,6 +429,7 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
 
     return new Response(JSON.stringify({
       ...result,
+      key_points: result.temporal_shifts ?? [],
       newsletters_analyzed: newsletters?.length ?? 0,
       insights_analyzed: insightsList.length,
       generated_at: new Date().toISOString(),

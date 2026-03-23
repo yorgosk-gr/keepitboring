@@ -15,7 +15,6 @@ import {
   Lightbulb,
   Clock,
   ArrowLeftRight,
-  Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -238,6 +237,36 @@ function SectorTiltCard({ tilt }: { tilt: SectorTilt }) {
   );
 }
 
+function TemporalShiftsSection({ shifts }: { shifts: any[] }) {
+  if (!shifts?.length) return null;
+  return (
+    <div>
+      <h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
+        <Clock className="w-4 h-4 text-accent" />
+        View Changes Since Last Brief
+      </h3>
+      <div className="space-y-2">
+        {shifts.map((s: any, i: number) => (
+          <div key={i} className="p-3 rounded-lg bg-secondary/50 border border-border/50 space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground">{s.topic}</span>
+              {s.weeks_tracked > 1 && (
+                <Badge variant="outline" className="text-xs">week {s.weeks_tracked}</Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              <span className="line-through">{s.prior_view}</span>
+              {" → "}
+              <span className="text-foreground">{s.current_view}</span>
+            </p>
+            <p className="text-xs text-foreground/60">{s.significance}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ContrarianCard({ opp }: { opp: ContrarianOpportunity }) {
   const horizonLabel = opp.time_horizon === "long" ? "2-5 years" : "6-18 months";
 
@@ -370,6 +399,9 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
             <NarrativeSection title="What This Means For Your Portfolio" content={sections.what_this_means_for_your_portfolio} />
           )}
 
+          {/* Temporal Shifts (from key_points) */}
+          <TemporalShiftsSection shifts={summary.temporal_shifts as any[]} />
+
           {/* Structured: Country Tilts */}
           <div>
             <h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
@@ -422,32 +454,6 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
             <NarrativeSection title="What To Watch Next Week" content={sections.what_to_watch_next_week} />
           )}
 
-          {/* Temporal Shifts */}
-          {summary.temporal_shifts && summary.temporal_shifts.length > 0 && (
-            <div>
-              <h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-accent" />
-                Signal Shifts
-              </h3>
-              <div className="space-y-2">
-                {summary.temporal_shifts.map((shift, i) => (
-                  <div key={i} className="p-3 rounded-lg bg-secondary/50 border border-border/50 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[15px] font-medium text-foreground">{shift.topic}</span>
-                      {shift.weeks_tracked && shift.weeks_tracked > 1 && (
-                        <Badge variant="outline" className="text-xs px-2 py-0.5">week {shift.weeks_tracked}</Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-foreground/70">
-                      <span className="text-muted-foreground">Was: </span>{shift.prior_view}
-                      <span className="text-muted-foreground"> → Now: </span>{shift.current_view}
-                    </p>
-                    <p className="text-sm text-foreground/60 italic">{shift.significance}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Contrarian Opportunities */}
           {summary.contrarian_opportunities?.length > 0 && (
