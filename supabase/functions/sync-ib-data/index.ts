@@ -11,10 +11,29 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Retry-aware fetch to handle transient DNS failures in edge runtime
+async function fetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const res = await fetch(url);
+      return res;
+    } catch (err) {
+      const isDNS = err.message?.includes("dns error") || err.message?.includes("Name or service not known");
+      if (isDNS && attempt < maxRetries - 1) {
+        console.log(`DNS error on attempt ${attempt + 1}, retrying in ${(attempt + 1) * 2}s...`);
+        await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("fetchWithRetry: exhausted retries");
+}
+
 // Step 1: Request a report — IB returns a reference code
 async function requestFlexReport(token: string, queryId: string): Promise<string> {
   const url = `https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.SendRequest?t=${token}&q=${queryId}&v=3`;
-  const res = await fetch(url);
+  const res = await fetchWithRetry(url);
   const text = await res.text();
   const refMatch = text.match(/<ReferenceCode>(.*?)<\/ReferenceCode>/);
   if (!refMatch) {
@@ -29,7 +48,7 @@ async function fetchFlexReport(token: string, referenceCode: string): Promise<st
   const url = `https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement?t=${token}&q=${referenceCode}&v=3`;
   for (let attempt = 0; attempt < 10; attempt++) {
     if (attempt > 0) await new Promise(r => setTimeout(r, 3000));
-    const res = await fetch(url);
+    const res = await fetchWithRetry(url);
     const text = await res.text();
     if (text.includes("Statement generation in progress")) {
       console.log(`Attempt ${attempt + 1}: statement still generating...`);
