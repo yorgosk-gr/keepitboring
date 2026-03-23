@@ -238,6 +238,36 @@ function SectorTiltCard({ tilt }: { tilt: SectorTilt }) {
   );
 }
 
+function TemporalShiftsSection({ shifts }: { shifts: any[] }) {
+  if (!shifts?.length) return null;
+  return (
+    <div>
+      <h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
+        <Clock className="w-4 h-4 text-accent" />
+        View Changes Since Last Brief
+      </h3>
+      <div className="space-y-2">
+        {shifts.map((s: any, i: number) => (
+          <div key={i} className="p-3 rounded-lg bg-secondary/50 border border-border/50 space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground">{s.topic}</span>
+              {s.weeks_tracked > 1 && (
+                <Badge variant="outline" className="text-xs">week {s.weeks_tracked}</Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              <span className="line-through">{s.prior_view}</span>
+              {" → "}
+              <span className="text-foreground">{s.current_view}</span>
+            </p>
+            <p className="text-xs text-foreground/60">{s.significance}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ContrarianCard({ opp }: { opp: ContrarianOpportunity }) {
   const horizonLabel = opp.time_horizon === "long" ? "2-5 years" : "6-18 months";
 
