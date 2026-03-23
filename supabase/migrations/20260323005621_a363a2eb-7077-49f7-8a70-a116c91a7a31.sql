@@ -1,0 +1,2 @@
+ALTER TABLE public.insights ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+COMMENT ON COLUMN public.insights.metadata IS 'Extended extraction: management_tone, guidance_revision, earnings_surprise, source_confidence, view_vs_prior';
