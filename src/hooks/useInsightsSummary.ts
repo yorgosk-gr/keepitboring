@@ -7,16 +7,25 @@ import { toast } from "sonner";
 export interface StockToResearch {
   ticker: string;
   name: string;
+  setup?: string;
   thesis: string;
+  trigger?: string;
+  time_horizon?: string;
+  risk_level?: string;
   mentioned_in: number;
+  source_confidence_avg?: number;
+  consensus_or_edge?: string;
 }
 
 export interface CountryTilt {
   region: string;
   direction: string;
+  conviction?: string;
   etf_proxy: string;
   in_portfolio: boolean;
   reasoning?: string;
+  signal_type?: string;
+  vs_prior_brief?: string;
 }
 
 export interface SectorTilt {
@@ -25,6 +34,9 @@ export interface SectorTilt {
   conviction: string;
   portfolio_tickers?: string[];
   reasoning?: string;
+  signal_type?: string;
+  vs_prior_brief?: string;
+  earnings_pattern?: string;
 }
 
 export interface ContrarianOpportunity {
@@ -37,6 +49,14 @@ export interface ContrarianOpportunity {
   in_portfolio: boolean;
   time_horizon: string;
   conviction: string;
+}
+
+export interface TemporalShift {
+  topic: string;
+  prior_view: string;
+  current_view: string;
+  weeks_tracked?: number;
+  significance: string;
 }
 
 export interface InsightsSummary {
@@ -52,11 +72,12 @@ export interface InsightsSummary {
   sector_tilts: SectorTilt[];
   contrarian_opportunities: ContrarianOpportunity[];
   crowded_trades: string[];
+  temporal_shifts?: TemporalShift[];
   weekly_priority: string | null;
+  signal_quality?: string;
   newsletters_analyzed: number;
   insights_analyzed: number;
   generated_at: string;
-  // Legacy fields for backward compat
   executive_summary?: string;
 }
 
@@ -81,7 +102,7 @@ export function useInsightsSummary() {
         letter: data.letter ?? null,
         section_titles: (data.section_titles as InsightsSummary["section_titles"]) ?? {
           market: "State of the Market",
-          portfolio: "What This Means For Your Portfolio",
+          portfolio: "Consensus vs Divergence",
           invest: "Where to Invest",
           watch: "Watch This Week",
         },
@@ -122,7 +143,7 @@ export function useInsightsSummary() {
         weekly_priority: brief.weekly_priority,
         key_points: [] as any,
         action_items: [] as any,
-        market_themes: [] as any,
+        market_themes: brief.temporal_shifts as any ?? [] as any,
         contrarian_signals: brief.crowded_trades ?? [],
         newsletters_analyzed: brief.newsletters_analyzed,
         insights_analyzed: brief.insights_analyzed,
