@@ -297,8 +297,9 @@ PREVIOUS BRIEF (for persistence tracking):
 Previous themes: ${JSON.stringify(previousThemeNames)}
 Previous key points: ${JSON.stringify(previousKeyPointTitles)}
 
-ALL INSIGHTS (${insightsList.length} total, sorted newest first):
+ALL INSIGHTS (${insightsList.length} total, with metadata, sorted newest first):
 ${JSON.stringify(insightsList.map(i => {
+  const meta = (i as any).metadata ?? {};
   const ageDays = Math.floor((Date.now() - new Date(i.created_at).getTime()) / (1000 * 60 * 60 * 24));
   return {
     type: i.insight_type,
@@ -307,6 +308,15 @@ ${JSON.stringify(insightsList.map(i => {
     tickers: i.tickers_mentioned,
     source: (i.newsletters as any)?.source_name,
     age_days: ageDays,
+    source_confidence: meta.source_confidence ?? 0.5,
+    management_tone: meta.management_tone,
+    guidance_revision: meta.guidance_revision,
+    earnings_surprise: meta.earnings_surprise,
+    claim_specificity: meta.claim_specificity,
+    data_backed: meta.data_backed,
+    conviction_level: meta.conviction_level,
+    is_consensus_view: meta.is_consensus_view,
+    catalyst: meta.catalyst,
   };
 }), null, 2)}
 
