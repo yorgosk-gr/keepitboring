@@ -176,6 +176,15 @@ That is ALL that goes in the "letter" field. Country tilts, sector tilts, stock 
 
 TONE: Direct, analytical, plain English. Like a smart friend who manages money.
 
+CROSS-NEWSLETTER ANALYSIS INSTRUCTIONS:
+- Consensus signal: if 3+ sources share a view, flag it explicitly as 'consensus' — consensus = crowded, lower edge
+- Divergence signal: if sources split on a ticker/sector/macro, name who disagrees and why it matters
+- Confidence weighting: insights with source_confidence > 0.7 AND data_backed=true should carry more weight in your synthesis; low-confidence vague claims should be noted as such
+- Temporal shift: compare current insights against PREVIOUS BRIEF themes/key_points — if a view has reversed or intensified, call it out explicitly ('Last week bearish on X, now 3/4 sources bullish — what changed?')
+- Management tone signals: if multiple stocks show negative management_tone or guidance_revision=lowered, note the earnings season pattern
+- Earnings surprises: aggregate beat/miss patterns across mentions — a sector-wide miss pattern is more important than any single name
+- Omit portfolio-specific framing in the letter sections — write as a market analyst, not as portfolio manager for this specific user
+
 RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown wrapping. Do not use unescaped double quotes inside string values — use single quotes instead.
 
 {
@@ -288,8 +297,9 @@ PREVIOUS BRIEF (for persistence tracking):
 Previous themes: ${JSON.stringify(previousThemeNames)}
 Previous key points: ${JSON.stringify(previousKeyPointTitles)}
 
-ALL INSIGHTS (${insightsList.length} total, sorted newest first):
+ALL INSIGHTS (${insightsList.length} total, with metadata, sorted newest first):
 ${JSON.stringify(insightsList.map(i => {
+  const meta = (i as any).metadata ?? {};
   const ageDays = Math.floor((Date.now() - new Date(i.created_at).getTime()) / (1000 * 60 * 60 * 24));
   return {
     type: i.insight_type,
@@ -298,6 +308,15 @@ ${JSON.stringify(insightsList.map(i => {
     tickers: i.tickers_mentioned,
     source: (i.newsletters as any)?.source_name,
     age_days: ageDays,
+    source_confidence: meta.source_confidence ?? 0.5,
+    management_tone: meta.management_tone,
+    guidance_revision: meta.guidance_revision,
+    earnings_surprise: meta.earnings_surprise,
+    claim_specificity: meta.claim_specificity,
+    data_backed: meta.data_backed,
+    conviction_level: meta.conviction_level,
+    is_consensus_view: meta.is_consensus_view,
+    catalyst: meta.catalyst,
   };
 }), null, 2)}
 

@@ -607,6 +607,7 @@ export type Database = {
           insight_type: string | null
           is_starred: boolean
           is_summarized: boolean
+          metadata: Json | null
           newsletter_id: string
           sentiment: string | null
           summarized_from_ids: string[] | null
@@ -620,6 +621,7 @@ export type Database = {
           insight_type?: string | null
           is_starred?: boolean
           is_summarized?: boolean
+          metadata?: Json | null
           newsletter_id: string
           sentiment?: string | null
           summarized_from_ids?: string[] | null
@@ -633,6 +635,7 @@ export type Database = {
           insight_type?: string | null
           is_starred?: boolean
           is_summarized?: boolean
+          metadata?: Json | null
           newsletter_id?: string
           sentiment?: string | null
           summarized_from_ids?: string[] | null

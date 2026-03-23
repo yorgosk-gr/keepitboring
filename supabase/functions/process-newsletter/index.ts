@@ -12,7 +12,6 @@ serve(async (req) => {
   }
 
   try {
-    // Authenticate user or service role
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -26,8 +25,6 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-
-    // Allow service role key for internal calls (e.g. from ingest-email)
     const isServiceRole = token === supabaseKey;
 
     if (!isServiceRole) {
@@ -60,39 +57,54 @@ serve(async (req) => {
 
     console.log(`Processing newsletter ${newsletterId}, text length: ${rawText.length}`);
 
-    // Truncate text if too long (keep first 50k chars for context window)
     const truncatedText = rawText.length > 50000 ? rawText.substring(0, 50000) + "\n\n[Text truncated...]" : rawText;
 
     const systemPrompt = `You are an expert financial analyst extracting structured insights from investment newsletters.
 
 Analyze the newsletter text and return ONLY valid JSON (no markdown, no explanation, no code blocks):
 {
+  "source_profile": {
+    "name": "inferred newsletter name if detectable",
+    "style": "macro|equity|quant|generalist",
+    "confidence_score": 0.8,
+    "confidence_rationale": "why this score: track record signals, specificity of claims, use of data vs opinion"
+  },
   "stock_mentions": [
     {
       "ticker": "AAPL",
       "sentiment": "bullish",
       "summary": "Brief summary of the view",
-      "confidence_language": ["strong buy", "conviction"]
+      "confidence_language": ["strong buy", "conviction"],
+      "management_tone": "positive|negative|neutral|mixed|not_mentioned",
+      "guidance_revision": "raised|lowered|maintained|initiated|not_mentioned",
+      "earnings_surprise": "beat|miss|in_line|not_mentioned",
+      "claim_specificity": "high|medium|low",
+      "data_backed": true
     }
   ],
   "macro_views": [
     {
       "topic": "inflation",
       "view": "Summary of the view",
-      "sentiment": "bullish"
+      "sentiment": "bullish",
+      "conviction_level": "high|medium|low",
+      "is_consensus_view": true,
+      "supporting_data": "specific data point cited if any"
     }
   ],
   "sector_views": [
     {
       "sector": "technology",
       "view": "Summary",
-      "sentiment": "bullish"
+      "sentiment": "bullish",
+      "conviction_level": "medium"
     }
   ],
   "bubble_signals": [
     {
       "phrase": "exact quote",
-      "context": "surrounding context"
+      "context": "surrounding context",
+      "severity": "high|medium|low"
     }
   ],
   "country_views": [
@@ -100,7 +112,8 @@ Analyze the newsletter text and return ONLY valid JSON (no markdown, no explanat
       "country": "Japan",
       "view": "summary of view",
       "sentiment": "bullish",
-      "etf_proxy": "EWJ"
+      "etf_proxy": "EWJ",
+      "conviction_level": "high"
     }
   ],
   "sector_tilts": [
@@ -116,23 +129,29 @@ Analyze the newsletter text and return ONLY valid JSON (no markdown, no explanat
       "ticker": "OXY",
       "name": "Occidental Petroleum",
       "thesis": "one sentence why",
-      "in_portfolio": false
+      "claim_specificity": "high|medium|low",
+      "catalyst": "specific catalyst mentioned if any"
     }
   ],
   "overall_sentiment": "bullish",
-  "key_takeaways": ["takeaway 1", "takeaway 2"]
+  "overall_conviction": "high|medium|low",
+  "key_takeaways": ["takeaway 1", "takeaway 2"],
+  "notable_omissions": ["topic conspicuously not mentioned that peers typically cover"]
 }
 
 Rules:
 - sentiment must be exactly "bullish", "bearish", or "neutral"
 - topic must be one of: "inflation", "rates", "growth", "recession", "other"
-- Identify stock tickers accurately (use standard symbols like AAPL, MSFT, etc.)
-- For bubble_signals, flag phrases like: "new paradigm", "this time is different", "can't lose", "guaranteed", "easy money", excessive optimism
-- confidence_language should capture phrases indicating conviction level
+- management_tone: infer from language about management commentary, earnings calls, guidance language
+- guidance_revision: explicit forward guidance changes only; "not_mentioned" if not discussed
+- earnings_surprise: only if earnings are discussed; "not_mentioned" otherwise
+- source_profile.confidence_score: 0.0-1.0. High (0.8+) = specific data, named sources, track record signals. Low (<0.5) = vague claims, no data, excessive hedging
+- claim_specificity: "high" = specific price targets/dates/data, "medium" = directional with reasoning, "low" = vague opinion
+- data_backed: true only if a specific data point, study, or named source supports the claim
+- is_consensus_view: true if the view feels like conventional wisdom rather than differentiated insight
 - direction must be exactly "overweight", "underweight", or "neutral"
 - conviction must be exactly "high", "medium", or "low"
-- For stock_ideas, set in_portfolio to false (will be checked later)
-- For country_views, include an ETF proxy ticker if obvious (e.g. EWJ for Japan, FXI for China)
+- notable_omissions: what topics are conspicuously absent (e.g. a macro letter ignoring China, an equity letter ignoring rates)
 - Return ONLY the JSON object, nothing else
 - If no items for a category, use empty array []`;
 
@@ -190,7 +209,6 @@ Rules:
       );
     }
 
-    // Check if response was truncated due to token limit
     if (finishReason === "length") {
       console.error("AI response truncated (finish_reason: length)");
       return new Response(
@@ -199,7 +217,6 @@ Rules:
       );
     }
 
-    // Parse the JSON response
     let insights;
     try {
       let jsonString = content.trim();
@@ -213,7 +230,6 @@ Rules:
       try {
         insights = JSON.parse(jsonString);
       } catch {
-        // Fallback: collapse all whitespace to handle newlines inside string values
         const singleLine = jsonString.replace(/\r?\n/g, " ").replace(/\s+/g, " ");
         insights = JSON.parse(singleLine);
       }
@@ -230,7 +246,7 @@ Rules:
     // Delete existing insights for this newsletter (in case of reprocessing)
     await supabase.from("insights").delete().eq("newsletter_id", newsletterId);
 
-    // Insert insights into database
+    const sourceConfidence = insights.source_profile?.confidence_score ?? 0.5;
     const insightsToInsert = [];
 
     // Stock mentions
@@ -242,10 +258,18 @@ Rules:
         sentiment: stock.sentiment,
         tickers_mentioned: [stock.ticker],
         confidence_words: stock.confidence_language || [],
+        metadata: {
+          management_tone: stock.management_tone,
+          guidance_revision: stock.guidance_revision,
+          earnings_surprise: stock.earnings_surprise,
+          claim_specificity: stock.claim_specificity,
+          data_backed: stock.data_backed,
+          source_confidence: sourceConfidence,
+        },
       });
     }
 
-    // Macro views - use "macro" type
+    // Macro views
     for (const macro of insights.macro_views || []) {
       insightsToInsert.push({
         newsletter_id: newsletterId,
@@ -253,11 +277,17 @@ Rules:
         content: `${macro.topic}: ${macro.view}`,
         sentiment: macro.sentiment,
         tickers_mentioned: [],
-        confidence_words: [],
+        confidence_words: macro.conviction_level ? [macro.conviction_level] : [],
+        metadata: {
+          conviction_level: macro.conviction_level,
+          is_consensus_view: macro.is_consensus_view,
+          supporting_data: macro.supporting_data,
+          source_confidence: sourceConfidence,
+        },
       });
     }
 
-    // Sector views - use "recommendation" type
+    // Sector views
     for (const sector of insights.sector_views || []) {
       insightsToInsert.push({
         newsletter_id: newsletterId,
@@ -266,6 +296,10 @@ Rules:
         sentiment: sector.sentiment,
         tickers_mentioned: [],
         confidence_words: [],
+        metadata: {
+          conviction_level: sector.conviction_level,
+          source_confidence: sourceConfidence,
+        },
       });
     }
 
@@ -275,13 +309,17 @@ Rules:
         newsletter_id: newsletterId,
         insight_type: "bubble_signal",
         content: `"${bubble.phrase}" - ${bubble.context}`,
-        sentiment: "bearish", // Bubble signals are warnings
+        sentiment: "bearish",
         tickers_mentioned: [],
         confidence_words: [],
+        metadata: {
+          severity: bubble.severity,
+          source_confidence: sourceConfidence,
+        },
       });
     }
 
-    // Country views → macro
+    // Country views
     for (const cv of insights.country_views || []) {
       insightsToInsert.push({
         newsletter_id: newsletterId,
@@ -290,10 +328,14 @@ Rules:
         sentiment: cv.sentiment,
         tickers_mentioned: cv.etf_proxy ? [cv.etf_proxy] : [],
         confidence_words: [],
+        metadata: {
+          conviction_level: cv.conviction_level,
+          source_confidence: sourceConfidence,
+        },
       });
     }
 
-    // Sector tilts → recommendation
+    // Sector tilts
     for (const st of insights.sector_tilts || []) {
       insightsToInsert.push({
         newsletter_id: newsletterId,
@@ -302,10 +344,14 @@ Rules:
         sentiment: st.direction === "overweight" ? "bullish" : st.direction === "underweight" ? "bearish" : "neutral",
         tickers_mentioned: [],
         confidence_words: st.conviction ? [st.conviction] : [],
+        metadata: {
+          conviction_level: st.conviction,
+          source_confidence: sourceConfidence,
+        },
       });
     }
 
-    // Stock ideas → stock_mention
+    // Stock ideas
     for (const si of insights.stock_ideas || []) {
       insightsToInsert.push({
         newsletter_id: newsletterId,
@@ -314,10 +360,15 @@ Rules:
         sentiment: "bullish",
         tickers_mentioned: [si.ticker],
         confidence_words: [],
+        metadata: {
+          claim_specificity: si.claim_specificity,
+          catalyst: si.catalyst,
+          source_confidence: sourceConfidence,
+        },
       });
     }
 
-    // Key takeaways - use "sentiment" type for overall takeaways
+    // Key takeaways
     for (const takeaway of insights.key_takeaways || []) {
       insightsToInsert.push({
         newsletter_id: newsletterId,
@@ -326,6 +377,11 @@ Rules:
         sentiment: insights.overall_sentiment || "neutral",
         tickers_mentioned: [],
         confidence_words: [],
+        metadata: {
+          overall_conviction: insights.overall_conviction,
+          source_confidence: sourceConfidence,
+          notable_omissions: insights.notable_omissions || [],
+        },
       });
     }
 
@@ -357,6 +413,7 @@ Rules:
         success: true,
         insights_count: insightsToInsert.length,
         overall_sentiment: insights.overall_sentiment,
+        source_confidence: sourceConfidence,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
