@@ -111,6 +111,7 @@ export function useInsightsSummary() {
         sector_tilts: (data.sector_tilts as unknown as SectorTilt[]) ?? [],
         contrarian_opportunities: (data.contrarian_opportunities as unknown as ContrarianOpportunity[]) ?? [],
         crowded_trades: data.crowded_trades ?? [],
+        temporal_shifts: (data.key_points as unknown as TemporalShift[]) ?? [],
         weekly_priority: data.weekly_priority ?? null,
         executive_summary: data.executive_summary ?? "",
         newsletters_analyzed: data.newsletters_analyzed ?? 0,
