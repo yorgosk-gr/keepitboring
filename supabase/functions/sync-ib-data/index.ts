@@ -48,7 +48,7 @@ async function fetchFlexReport(token: string, referenceCode: string): Promise<st
   const url = `https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement?t=${token}&q=${referenceCode}&v=3`;
   for (let attempt = 0; attempt < 10; attempt++) {
     if (attempt > 0) await new Promise(r => setTimeout(r, 3000));
-    const res = await fetch(url);
+    const res = await fetchWithRetry(url);
     const text = await res.text();
     if (text.includes("Statement generation in progress")) {
       console.log(`Attempt ${attempt + 1}: statement still generating...`);
