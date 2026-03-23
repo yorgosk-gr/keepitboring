@@ -67,37 +67,64 @@ Analyze the newsletter text and return ONLY valid JSON (no markdown, no explanat
     "name": "inferred newsletter name if detectable",
     "style": "macro|equity|quant|generalist",
     "confidence_score": 0.8,
-    "confidence_rationale": "why this score: track record signals, specificity of claims, use of data vs opinion"
+    "confidence_rationale": "specific data cited, named sources, track record signals vs vague opinion"
   },
   "stock_mentions": [
     {
       "ticker": "AAPL",
       "sentiment": "bullish",
-      "summary": "Brief summary of the view",
-      "confidence_language": ["strong buy", "conviction"],
+      "summary": "what the newsletter actually says about this stock",
+      "confidence_language": ["strong buy", "high conviction"],
       "management_tone": "positive|negative|neutral|mixed|not_mentioned",
       "guidance_revision": "raised|lowered|maintained|initiated|not_mentioned",
       "earnings_surprise": "beat|miss|in_line|not_mentioned",
       "claim_specificity": "high|medium|low",
-      "data_backed": true
+      "data_backed": true,
+      "catalyst": "specific catalyst mentioned, or null"
     }
   ],
   "macro_views": [
     {
-      "topic": "inflation",
-      "view": "Summary of the view",
-      "sentiment": "bullish",
+      "topic": "inflation|rates|growth|recession|other",
+      "view": "what the newsletter says",
+      "sentiment": "bullish|bearish|neutral",
       "conviction_level": "high|medium|low",
       "is_consensus_view": true,
-      "supporting_data": "specific data point cited if any"
+      "supporting_data": "specific data point or named source cited, or null"
     }
   ],
   "sector_views": [
     {
       "sector": "technology",
-      "view": "Summary",
-      "sentiment": "bullish",
-      "conviction_level": "medium"
+      "view": "summary",
+      "sentiment": "bullish|bearish|neutral",
+      "conviction_level": "high|medium|low"
+    }
+  ],
+  "country_views": [
+    {
+      "country": "Japan",
+      "view": "summary",
+      "sentiment": "bullish|bearish|neutral",
+      "etf_proxy": "EWJ",
+      "conviction_level": "high|medium|low"
+    }
+  ],
+  "sector_tilts": [
+    {
+      "sector": "Energy",
+      "direction": "overweight|underweight|neutral",
+      "reasoning": "one sentence",
+      "conviction": "high|medium|low"
+    }
+  ],
+  "stock_ideas": [
+    {
+      "ticker": "OXY",
+      "name": "Occidental Petroleum",
+      "thesis": "one sentence why",
+      "claim_specificity": "high|medium|low",
+      "catalyst": "specific catalyst or null"
     }
   ],
   "bubble_signals": [
@@ -107,53 +134,23 @@ Analyze the newsletter text and return ONLY valid JSON (no markdown, no explanat
       "severity": "high|medium|low"
     }
   ],
-  "country_views": [
-    {
-      "country": "Japan",
-      "view": "summary of view",
-      "sentiment": "bullish",
-      "etf_proxy": "EWJ",
-      "conviction_level": "high"
-    }
-  ],
-  "sector_tilts": [
-    {
-      "sector": "Energy",
-      "direction": "overweight",
-      "reasoning": "one sentence",
-      "conviction": "high"
-    }
-  ],
-  "stock_ideas": [
-    {
-      "ticker": "OXY",
-      "name": "Occidental Petroleum",
-      "thesis": "one sentence why",
-      "claim_specificity": "high|medium|low",
-      "catalyst": "specific catalyst mentioned if any"
-    }
-  ],
-  "overall_sentiment": "bullish",
+  "overall_sentiment": "bullish|bearish|neutral",
   "overall_conviction": "high|medium|low",
   "key_takeaways": ["takeaway 1", "takeaway 2"],
-  "notable_omissions": ["topic conspicuously not mentioned that peers typically cover"]
+  "notable_omissions": ["topic conspicuously absent that peers typically cover"]
 }
 
-Rules:
-- sentiment must be exactly "bullish", "bearish", or "neutral"
-- topic must be one of: "inflation", "rates", "growth", "recession", "other"
-- management_tone: infer from language about management commentary, earnings calls, guidance language
-- guidance_revision: explicit forward guidance changes only; "not_mentioned" if not discussed
-- earnings_surprise: only if earnings are discussed; "not_mentioned" otherwise
-- source_profile.confidence_score: 0.0-1.0. High (0.8+) = specific data, named sources, track record signals. Low (<0.5) = vague claims, no data, excessive hedging
-- claim_specificity: "high" = specific price targets/dates/data, "medium" = directional with reasoning, "low" = vague opinion
-- data_backed: true only if a specific data point, study, or named source supports the claim
-- is_consensus_view: true if the view feels like conventional wisdom rather than differentiated insight
-- direction must be exactly "overweight", "underweight", or "neutral"
-- conviction must be exactly "high", "medium", or "low"
-- notable_omissions: what topics are conspicuously absent (e.g. a macro letter ignoring China, an equity letter ignoring rates)
+EXTRACTION RULES:
+- management_tone: infer from earnings call language, CEO commentary, forward guidance tone — not_mentioned if absent
+- guidance_revision: explicit forward guidance changes only — raised/lowered/maintained/initiated — not_mentioned if not discussed
+- earnings_surprise: only populate if earnings results are actually discussed — not_mentioned otherwise
+- source_profile.confidence_score: 0.0–1.0. High (≥0.8) = specific data, price targets, named sources, cited studies. Medium (0.5–0.79) = directional with reasoning. Low (<0.5) = vague claims, no data, excessive hedging or certainty without basis
+- claim_specificity: high = price targets or specific dates or hard data; medium = directional with reasoning; low = vague directional opinion
+- data_backed: true only if a specific statistic, study, or named source is cited in support
+- is_consensus_view: true if the view is conventional wisdom broadly held — false if it is differentiated or contrarian
+- notable_omissions: what major topics does this letter conspicuously ignore? (e.g. a macro letter silent on China, an equity letter ignoring rates)
 - Return ONLY the JSON object, nothing else
-- If no items for a category, use empty array []`;
+- Empty array [] for any category with no items`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
