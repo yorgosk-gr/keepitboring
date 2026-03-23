@@ -370,6 +370,9 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
             <NarrativeSection title="What This Means For Your Portfolio" content={sections.what_this_means_for_your_portfolio} />
           )}
 
+          {/* Temporal Shifts (from key_points) */}
+          <TemporalShiftsSection shifts={summary.temporal_shifts as any[]} />
+
           {/* Structured: Country Tilts */}
           <div>
             <h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
