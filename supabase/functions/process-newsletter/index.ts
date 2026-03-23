@@ -261,6 +261,7 @@ EXTRACTION RULES:
           earnings_surprise: stock.earnings_surprise,
           claim_specificity: stock.claim_specificity,
           data_backed: stock.data_backed,
+          catalyst: stock.catalyst || null,
           source_confidence: sourceConfidence,
         },
       });
