@@ -405,6 +405,58 @@ EXTRACTION RULES:
       console.error("Failed to update newsletter:", updateError);
     }
 
+    // Update source reputation scores
+    try {
+      const { data: nl } = await supabase
+        .from("newsletters")
+        .select("source_name, user_id")
+        .eq("id", newsletterId)
+        .single();
+
+      if (nl) {
+        const highConviction = insightsToInsert.filter(i =>
+          i.metadata?.source_confidence >= 0.8 || i.metadata?.conviction_level === "high"
+        ).length;
+        const dataBacked = insightsToInsert.filter(i => i.metadata?.data_backed === true).length;
+        const avgConfidence = insightsToInsert.length > 0
+          ? insightsToInsert.reduce((sum, i) => sum + (i.metadata?.source_confidence ?? 0.5), 0) / insightsToInsert.length
+          : 0.5;
+
+        const { data: existing } = await supabase
+          .from("newsletter_sources")
+          .select("id, total_insights, high_conviction_insights, data_backed_insights, avg_confidence_score")
+          .eq("user_id", nl.user_id)
+          .eq("source_name", nl.source_name)
+          .maybeSingle();
+
+        if (existing) {
+          const newTotal = existing.total_insights + insightsToInsert.length;
+          const newHC = existing.high_conviction_insights + highConviction;
+          const newDB = existing.data_backed_insights + dataBacked;
+          const newAvg = (existing.avg_confidence_score * existing.total_insights + avgConfidence * insightsToInsert.length) / newTotal;
+
+          await supabase.from("newsletter_sources").update({
+            total_insights: newTotal,
+            high_conviction_insights: newHC,
+            data_backed_insights: newDB,
+            avg_confidence_score: parseFloat(newAvg.toFixed(3)),
+            last_seen_at: new Date().toISOString(),
+          }).eq("id", existing.id);
+        } else {
+          await supabase.from("newsletter_sources").insert({
+            user_id: nl.user_id,
+            source_name: nl.source_name,
+            total_insights: insightsToInsert.length,
+            high_conviction_insights: highConviction,
+            data_backed_insights: dataBacked,
+            avg_confidence_score: parseFloat(avgConfidence.toFixed(3)),
+          });
+        }
+      }
+    } catch (reputationError) {
+      console.warn("Failed to update source reputation (non-fatal):", reputationError);
+    }
+
     console.log(`Successfully processed newsletter ${newsletterId}, inserted ${insightsToInsert.length} insights`);
 
     return new Response(

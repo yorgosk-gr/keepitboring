@@ -9,6 +9,8 @@ import { InsightsModal } from "@/components/newsletters/InsightsModal";
 import { PasteTextModal } from "@/components/newsletters/PasteTextModal";
 import { InsightsSummaryCard } from "@/components/newsletters/InsightsSummaryCard";
 import { useInsightsSummary } from "@/hooks/useInsightsSummary";
+import { SourceReputationPanel } from "@/components/newsletters/SourceReputationPanel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
 export default function Newsletters() {
