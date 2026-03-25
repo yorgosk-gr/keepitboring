@@ -110,8 +110,8 @@ export default function Auth() {
             <TrendingUp className="w-7 h-7 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">YK InvestAgent</h1>
-            <p className="text-sm text-muted-foreground">Portfolio Analytics</p>
+            <h1 className="text-2xl font-bold text-foreground">KeepItBoring</h1>
+            <p className="text-sm text-muted-foreground">Personal Portfolio Intelligence</p>
           </div>
         </div>
 

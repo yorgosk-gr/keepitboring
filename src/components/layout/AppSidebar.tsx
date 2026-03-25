@@ -79,8 +79,8 @@ export function AppSidebar() {
               <TrendingUp className="w-5 h-5 text-primary" />
             </div>
             <div className="flex flex-col">
-              <span className="font-semibold text-foreground">YK InvestAgent</span>
-              <span className="text-xs text-muted-foreground">Portfolio Analytics</span>
+              <span className="font-semibold text-foreground">KeepItBoring</span>
+              <span className="text-xs text-muted-foreground">Personal Portfolio Intelligence</span>
             </div>
           </div>
 
@@ -105,8 +105,8 @@ export function AppSidebar() {
         </div>
         {!collapsed && (
           <div className="flex flex-col">
-            <span className="font-semibold text-foreground">YK InvestAgent</span>
-            <span className="text-xs text-muted-foreground">Portfolio Analytics</span>
+            <span className="font-semibold text-foreground">KeepItBoring</span>
+            <span className="text-xs text-muted-foreground">Personal Portfolio Intelligence</span>
           </div>
         )}
       </div>

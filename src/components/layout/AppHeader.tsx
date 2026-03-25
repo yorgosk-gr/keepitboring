@@ -25,7 +25,7 @@ export function AppHeader() {
     <>
       <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-card/50">
         <div className={isMobile ? "pl-12" : ""}>
-          <h1 className="text-xl font-semibold text-foreground">YK InvestAgent</h1>
+          <h1 className="text-xl font-semibold text-foreground">KeepItBoring</h1>
           <p className="text-sm text-muted-foreground">
             Last synced: {lastSyncDate}
           </p>

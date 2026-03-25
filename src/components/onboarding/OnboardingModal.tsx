@@ -25,7 +25,7 @@ interface OnboardingModalProps {
 const STEPS = [
   {
     id: "welcome",
-    title: "Welcome to YK InvestAgent",
+    title: "Welcome to KeepItBoring",
     description:
       "Your AI-powered investment companion that helps you make better decisions through structured analysis and philosophy-driven insights.",
     icon: TrendingUp,
@@ -66,7 +66,7 @@ const STEPS = [
     id: "ready",
     title: "You're All Set!",
     description:
-      "You're ready to start using YK InvestAgent. Remember: focus on process over outcomes, and stay humble.",
+      "You're ready to start using KeepItBoring. Remember: focus on process over outcomes, and stay humble.",
     icon: BarChart3,
     tips: [
       "Run AI Analysis to check portfolio health",
