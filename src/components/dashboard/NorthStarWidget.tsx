@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
-import { Compass, ArrowRight } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Compass, ArrowRight, TrendingUp, TrendingDown, CheckCircle2, Target } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useNorthStar } from "@/hooks/useNorthStar";
 import { useIBCurrentWeights, deriveStatus } from "@/hooks/useIBCurrentWeights";
 import { useMemo } from "react";
@@ -10,82 +11,140 @@ export function NorthStarWidget() {
   const { portfolio, positions: nsPositions, isLoading } = useNorthStar();
   const { weights: ibWeights, totalValue } = useIBCurrentWeights();
 
-  const { score, topBuy, topExit } = useMemo(() => {
-    if (nsPositions.length === 0) return { score: 0, topBuy: null, topExit: null };
+  const { score, topMoves, exitPositions, aligned, total } = useMemo(() => {
+    if (nsPositions.length === 0) return { score: 0, topMoves: [], exitPositions: [], aligned: 0, total: 0 };
 
     const enriched = nsPositions.map((pos) => {
       const currentWeight = ibWeights[pos.ticker] ?? 0;
       const derived = deriveStatus(currentWeight, pos.target_weight_min, pos.target_weight_max, pos.status);
-      return { ...pos, currentWeight, derivedStatus: derived };
+      const gap = (pos.target_weight_ideal ?? 0) - currentWeight;
+      const gapUSD = (gap / 100) * totalValue;
+      return { ...pos, currentWeight, derivedStatus: derived, gap, gapUSD };
     });
 
-    const nonExit = enriched.filter((p) => p.status !== "exit");
-    const exitPositions = enriched.filter((p) => p.status === "exit");
+    const nonExit = enriched.filter(p => p.status !== "exit");
+    const exits = enriched.filter(p => p.status === "exit" && p.currentWeight > 0);
+    const alignedNonExit = nonExit.filter(p => p.derivedStatus === "hold").length;
+    const alignedExits = enriched.filter(p => p.status === "exit" && p.currentWeight === 0).length;
+    const totalCount = nonExit.length + enriched.filter(p => p.status === "exit").length;
+    const s = totalCount > 0 ? Math.round(((alignedNonExit + alignedExits) / totalCount) * 100) : 0;
 
-    const alignedNonExit = nonExit.filter((p) => p.derivedStatus === "hold").length;
-    const alignedExit = exitPositions.filter((p) => p.currentWeight === 0).length;
+    // Top moves: build positions furthest from target
+    const buildMoves = enriched
+      .filter(p => p.status === "build" && p.gap > 0.5)
+      .sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap))
+      .slice(0, 2)
+      .map(p => ({ ticker: p.ticker, action: "build" as const, gap: p.gap, gapUSD: p.gapUSD }));
 
-    const total = nonExit.length + exitPositions.length;
-    const s = total > 0 ? Math.round(((alignedNonExit + alignedExit) / total) * 100) : 0;
+    // Reduce moves
+    const reduceMoves = enriched
+      .filter(p => p.status === "reduce" && p.gap < -0.5)
+      .sort((a, b) => Math.abs(a.gap) - Math.abs(b.gap))
+      .slice(0, 1)
+      .map(p => ({ ticker: p.ticker, action: "reduce" as const, gap: p.gap, gapUSD: p.gapUSD }));
 
-    // Top build action
-    const buildPositions = enriched
-      .filter((p) => p.derivedStatus === "build" && p.currentWeight < (p.target_weight_ideal ?? 0))
-      .sort((a, b) => ((b.target_weight_ideal ?? 0) - b.currentWeight) - ((a.target_weight_ideal ?? 0) - a.currentWeight));
-
-    let topBuyItem: { ticker: string; usd: number } | null = null;
-    if (buildPositions.length > 0) {
-      const p = buildPositions[0];
-      const usd = (((p.target_weight_ideal ?? 0) - p.currentWeight) / 100) * totalValue;
-      topBuyItem = { ticker: p.ticker, usd };
-    }
-
-    // Top exit action
-    const exitWithWeight = exitPositions.filter((p) => p.currentWeight > 0);
-    let topExitItem: { ticker: string } | null = null;
-    if (exitWithWeight.length > 0) {
-      topExitItem = { ticker: exitWithWeight[0].ticker };
-    }
-
-    return { score: s, topBuy: topBuyItem, topExit: topExitItem };
+    return {
+      score: s,
+      topMoves: [...buildMoves, ...reduceMoves],
+      exitPositions: exits.slice(0, 2),
+      aligned: alignedNonExit + alignedExits,
+      total: totalCount,
+    };
   }, [nsPositions, ibWeights, totalValue]);
 
   if (isLoading || !portfolio) return null;
 
+  const scoreColor = score >= 80 ? "text-emerald-500" : score >= 60 ? "text-amber-500" : "text-destructive";
+  const progressColor = score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-amber-500" : "bg-destructive";
+
   return (
-    <Link to="/north-star">
-      <Card className="hover:border-primary/40 transition-colors cursor-pointer">
-        <CardContent className="pt-4 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <Compass className="w-5 h-5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-medium text-foreground">North Star</span>
-                <span className="text-lg font-bold text-primary">{score}%</span>
-              </div>
-              <Progress value={score} className="h-1.5" />
-              <div className="mt-1.5 space-y-0.5">
-                {topBuy && (
-                  <p className="text-xs text-emerald-500 truncate">
-                    Buy {topBuy.ticker} (+${Math.round(topBuy.usd / 1000)}k)
-                  </p>
-                )}
-                {topExit && (
-                  <p className="text-xs text-amber-500 truncate">
-                    Exit {topExit.ticker}
-                  </p>
-                )}
-                {!topBuy && !topExit && (
-                  <p className="text-xs text-muted-foreground">{score}% aligned with target</p>
-                )}
-              </div>
-            </div>
-            <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
+    <div className="stat-card space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Compass className="w-4 h-4 text-primary" />
           </div>
-        </CardContent>
-      </Card>
-    </Link>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">North Star Alignment</h3>
+            <p className="text-xs text-muted-foreground">{aligned} of {total} positions on target</p>
+          </div>
+        </div>
+        <Link to="/north-star">
+          <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground h-7">
+            Full view <ArrowRight className="w-3 h-3" />
+          </Button>
+        </Link>
+      </div>
+
+      {/* Score bar */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Portfolio alignment</span>
+          <span className={`text-2xl font-bold tabular-nums ${scoreColor}`}>{score}%</span>
+        </div>
+        <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${progressColor}`}
+            style={{ width: `${score}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Top moves */}
+      {(topMoves.length > 0 || exitPositions.length > 0) && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Top moves to close gap</p>
+          <div className="grid gap-1.5">
+            {topMoves.map(move => (
+              <div key={move.ticker} className="flex items-center justify-between py-1.5 px-2.5 rounded-md bg-secondary/50">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                  <span className="font-mono text-sm font-semibold">{move.ticker}</span>
+                  <Badge variant="outline" className="text-xs px-1.5 py-0 text-emerald-500 border-emerald-500/30">
+                    Build
+                  </Badge>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  +{move.gap.toFixed(1)}% · ${Math.round(Math.abs(move.gapUSD) / 1000)}k
+                </span>
+              </div>
+            ))}
+            {exitPositions.map(pos => (
+              <div key={pos.ticker} className="flex items-center justify-between py-1.5 px-2.5 rounded-md bg-secondary/50">
+                <div className="flex items-center gap-2">
+                  <TrendingDown className="w-3.5 h-3.5 text-destructive" />
+                  <span className="font-mono text-sm font-semibold">{pos.ticker}</span>
+                  <Badge variant="outline" className="text-xs px-1.5 py-0 text-destructive border-destructive/30">
+                    Exit
+                  </Badge>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {pos.currentWeight.toFixed(1)}% remaining
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* All aligned state */}
+      {score >= 90 && topMoves.length === 0 && exitPositions.length === 0 && (
+        <div className="flex items-center gap-2 text-emerald-500 text-sm">
+          <CheckCircle2 className="w-4 h-4" />
+          <span>Portfolio is well-aligned with your target</span>
+        </div>
+      )}
+
+      {/* No north star set */}
+      {total === 0 && (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Target className="w-4 h-4" />
+          <Link to="/north-star" className="hover:text-primary transition-colors">
+            Define your target portfolio →
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }
