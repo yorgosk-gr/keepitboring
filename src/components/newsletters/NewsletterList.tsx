@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Newsletter } from "@/hooks/useNewsletters";
+import { SourceQualityBadge } from "@/components/newsletters/SourceQualityBadge";
 
 interface NewsletterListProps {
   newsletters: Newsletter[];
@@ -110,6 +111,7 @@ export function NewsletterList({
               <TableHead>Upload Date</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-center">Insights</TableHead>
+              <TableHead className="text-center">Quality</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -182,6 +184,14 @@ export function NewsletterList({
                   <span className="text-muted-foreground">
                     {newsletter.insights_count || 0}
                   </span>
+                </TableCell>
+                <TableCell className="text-center">
+                  <div className="flex justify-center">
+                    <SourceQualityBadge
+                      confidenceScore={(newsletter as any).source_confidence}
+                      insightsCount={newsletter.insights_count}
+                    />
+                  </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-end gap-1">
