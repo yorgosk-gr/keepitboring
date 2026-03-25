@@ -129,7 +129,15 @@ export function useInsightsSummary() {
       if (data.error) throw new Error(data.error);
       const brief = data as InsightsSummary;
 
-      await supabase.from("intelligence_briefs").delete().eq("user_id", user!.id);
+      // Keep last 10 briefs - delete oldest beyond that
+      const { data: existingBriefs } = await supabase
+        .from("intelligence_briefs")
+        .select("id, created_at")
+        .order("created_at", { ascending: false });
+      if (existingBriefs && existingBriefs.length >= 10) {
+        const toDelete = existingBriefs.slice(9).map((b: any) => b.id);
+        await supabase.from("intelligence_briefs").delete().in("id", toDelete);
+      }
 
       const { error: insertError } = await supabase.from("intelligence_briefs").insert({
         user_id: user!.id,

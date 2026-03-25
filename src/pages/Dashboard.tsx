@@ -5,6 +5,7 @@ import { DonutChart } from "@/components/dashboard/DonutChart";
 
 
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { ConvictionReviewWidget } from "@/components/dashboard/ConvictionReviewWidget";
 import { useAllETFMetadata } from "@/hooks/useAllETFMetadata";
 
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
@@ -157,6 +158,9 @@ export default function Dashboard() {
           </Button>
         </div>
       )}
+
+      {/* Conviction Reviews */}
+      <ConvictionReviewWidget />
 
       {/* Portfolio Value + Stats */}
       <PortfolioValue 
