@@ -46,9 +46,9 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY is not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
+      console.error("ANTHROPIC_API_KEY is not configured");
       return new Response(
         JSON.stringify({ error: "AI service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -152,14 +152,15 @@ EXTRACTION RULES:
 - Return ONLY the JSON object, nothing else
 - Empty array [] for any category with no items`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://ai.api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "claude-sonnet-4-20250514",
         messages: [
           { role: "system", content: systemPrompt },
           {
@@ -195,8 +196,8 @@ EXTRACTION RULES:
     }
 
     const aiResponse = await response.json();
-    const content = aiResponse.choices?.[0]?.message?.content;
-    const finishReason = aiResponse.choices?.[0]?.finish_reason;
+    const content = aiResponse.content?.[0]?.text;
+    const finishReason = aiResponse.stop_reason;
 
     if (!content) {
       console.error("No content in AI response:", aiResponse);
@@ -206,7 +207,7 @@ EXTRACTION RULES:
       );
     }
 
-    if (finishReason === "length") {
+    if (finishReason === "max_tokens") {
       console.error("AI response truncated (finish_reason: length)");
       return new Response(
         JSON.stringify({ error: "Newsletter too long — try splitting it into smaller sections" }),

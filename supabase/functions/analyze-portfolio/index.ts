@@ -386,8 +386,8 @@ serve(async (req) => {
       aggressive: { min: 1, max: 5 },
     };
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
       return new Response(
         JSON.stringify({ error: "AI service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -410,6 +410,8 @@ serve(async (req) => {
       portfolio_strategy,
       north_star,
     } = await req.json();
+
+    console.log("Body parsed successfully, positions count:", positions?.length);
 
     // ── Deterministic Rule Evaluation ─────────────────────────────────
     const ruleEvaluation = computeRuleEvaluation(
@@ -808,16 +810,17 @@ Analyze this portfolio and return the JSON response.`;
 
     console.log("Calling Lovable AI gateway for portfolio analysis...");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "claude-sonnet-4-20250514",
+        system: systemPrompt,
         messages: [
-          { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
         max_tokens: 16000,
@@ -848,8 +851,8 @@ Analyze this portfolio and return the JSON response.`;
     }
 
     const aiResponse = await response.json();
-    const content = aiResponse.choices?.[0]?.message?.content;
-    const finishReason = aiResponse.choices?.[0]?.finish_reason;
+    const content = aiResponse.content?.[0]?.text;
+    const finishReason = aiResponse.stop_reason;
 
     if (!content) {
       console.error("Empty AI response:", JSON.stringify(aiResponse));
@@ -859,7 +862,7 @@ Analyze this portfolio and return the JSON response.`;
       );
     }
 
-    if (finishReason === "length") {
+    if (finishReason === "max_tokens") {
       console.error("AI response truncated (hit max_tokens)");
       return new Response(
         JSON.stringify({ error: "Analysis response was truncated. Re-run with fewer insights or a shorter brief." }),

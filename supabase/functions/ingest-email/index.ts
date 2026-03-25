@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const OWNER_USER_ID = "593d853f-25d2-4cce-ad17-f77db49a377a";
+const OWNER_USER_ID = "38ce8fa7-9327-4424-b247-c14755e32852";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -31,8 +31,8 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
       return new Response(JSON.stringify({ error: "AI service not configured" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -113,18 +113,17 @@ JSON OUTPUT:
 
     const userMessage = "Generate the ideal " + budgetFormatted + " portfolio using Ireland-domiciled UCITS ETFs. Return only the JSON object.";
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://ai.api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: "Bearer " + LOVABLE_API_KEY,
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
+        model: "claude-sonnet-4-20250514",
+        system: systemPrompt,
+        messages: [{ role: "user", content: userMessage }],
         max_tokens: 4000,
       }),
     });
@@ -148,8 +147,8 @@ JSON OUTPUT:
     }
 
     const aiData = await response.json();
-    const content = aiData.choices?.[0]?.message?.content?.trim() || "";
-    const finishReason = aiData.choices?.[0]?.finish_reason;
+    const content = aiData.content?.[0]?.text?.trim() || "";
+    const finishReason = aiData.stop_reason;
 
     if (!content) {
       return new Response(JSON.stringify({ error: "AI returned empty response." }), {
@@ -157,7 +156,7 @@ JSON OUTPUT:
       });
     }
 
-    if (finishReason === "length") {
+    if (finishReason === "max_tokens") {
       return new Response(JSON.stringify({ error: "Response truncated. Try again." }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

@@ -72,8 +72,8 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
       return new Response(
         JSON.stringify({ error: "AI service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -293,7 +293,7 @@ RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown. No code blocks. Use
 
         if (perplexityRes.ok) {
           const perplexityData = await perplexityRes.json();
-          marketContext = perplexityData.choices?.[0]?.message?.content ?? "";
+          marketContext = perplexityData.content?.[0]?.text ?? "";
           const citations = perplexityData.citations ?? [];
           if (citations.length > 0) {
             marketContext += `\n\nSources: ${citations.join(", ")}`;
@@ -352,18 +352,17 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
 
     console.log(`Summarizing ${insightsList.length} insights from ${newsletters?.length} newsletters...`);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://ai.api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
+        model: "claude-sonnet-4-20250514",
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
         max_tokens: 8192,
       }),
     });
@@ -390,7 +389,7 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
     }
 
     const aiResponse = await response.json();
-    const content = aiResponse.choices?.[0]?.message?.content;
+    const content = aiResponse.content?.[0]?.text;
 
     if (!content) {
       return new Response(
