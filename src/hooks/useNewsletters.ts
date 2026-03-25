@@ -15,6 +15,8 @@ export interface Newsletter {
   is_archived: boolean;
   insights_count?: number;
   source_confidence?: number | null;
+  author?: string | null;
+  publication_date?: string | null;
 }
 
 export interface Insight {
@@ -38,7 +40,7 @@ export function useNewsletters() {
     queryFn: async () => {
       const { data: newsletters, error } = await supabase
         .from("newsletters")
-        .select("id, user_id, source_name, upload_date, processed, file_path, created_at, is_archived")
+        .select("id, user_id, source_name, upload_date, processed, file_path, created_at, is_archived, author, publication_date")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
 
@@ -147,7 +149,8 @@ export function useNewsletters() {
       const { error } = await supabase
         .from("newsletters")
         .update({ source_name: sourceName })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("user_id", user!.id);
 
       if (error) throw error;
     },
@@ -168,6 +171,7 @@ export function useNewsletters() {
           .from("newsletters")
           .select("raw_text")
           .eq("id", newsletter.id)
+          .eq("user_id", user!.id)
           .single();
         if (error) throw error;
         rawText = full?.raw_text ?? null;
@@ -227,7 +231,8 @@ export function useNewsletters() {
       const { error } = await supabase
         .from("newsletters")
         .delete()
-        .eq("id", newsletter.id);
+        .eq("id", newsletter.id)
+        .eq("user_id", user!.id);
 
       if (error) throw error;
     },

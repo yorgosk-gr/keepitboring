@@ -9,6 +9,8 @@ import {
   Check,
   X,
   FileText,
+  User,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -150,15 +152,35 @@ export function NewsletterList({
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{newsletter.source_name}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 hover:opacity-100"
-                        onClick={() => startEditing(newsletter)}
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </Button>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{newsletter.source_name}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100 hover:opacity-100"
+                            onClick={() => startEditing(newsletter)}
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        {(newsletter.author || newsletter.publication_date) && (
+                          <div className="flex items-center gap-3 mt-0.5">
+                            {newsletter.author && (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <User className="w-3 h-3" />
+                                {newsletter.author}
+                              </span>
+                            )}
+                            {newsletter.publication_date && (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Calendar className="w-3 h-3" />
+                                {new Date(newsletter.publication_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </TableCell>

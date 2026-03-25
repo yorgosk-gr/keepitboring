@@ -65,6 +65,8 @@ Analyze the newsletter text and return ONLY valid JSON (no markdown, no explanat
 {
   "source_profile": {
     "name": "inferred newsletter name if detectable",
+    "author": "author or writer name if detectable, or null",
+    "publication_date": "date the newsletter was written in YYYY-MM-DD format if detectable, or null",
     "style": "macro|equity|quant|generalist",
     "confidence_score": 0.8,
     "confidence_rationale": "specific data cited, named sources, track record signals vs vague opinion"
@@ -395,10 +397,17 @@ EXTRACTION RULES:
       }
     }
 
-    // Mark newsletter as processed
+    // Mark newsletter as processed, save author and publication_date
+    const authorValue = insights.source_profile?.author ?? null;
+    const pubDateValue = insights.source_profile?.publication_date ?? null;
+
     const { error: updateError } = await supabase
       .from("newsletters")
-      .update({ processed: true })
+      .update({
+        processed: true,
+        ...(authorValue ? { author: authorValue } : {}),
+        ...(pubDateValue ? { publication_date: pubDateValue } : {}),
+      })
       .eq("id", newsletterId);
 
     if (updateError) {
