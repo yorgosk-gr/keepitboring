@@ -30,10 +30,37 @@ export default function Auth() {
     }
   }, [user, navigate]);
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    if (!email || !z.string().email().safeParse(email).success) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
+    setIsLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) {
+      setError(error.message);
+    } else {
+      setSuccess("Check your email for a password reset link.");
+    }
+    setIsLoading(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+
+    if (isForgotPassword) {
+      return handleForgotPassword(e);
+    }
 
     // Validate input
     const validation = authSchema.safeParse({ email, password });
