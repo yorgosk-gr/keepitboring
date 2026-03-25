@@ -32,6 +32,8 @@ export default function Newsletters() {
   const { summary, generateSummary, isGenerating } = useInsightsSummary();
 
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{done: number; total: number} | null>(null);
   const [viewingNewsletter, setViewingNewsletter] = useState<Newsletter | null>(null);
   const [showPasteModal, setShowPasteModal] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -49,6 +51,31 @@ export default function Newsletters() {
 
   const handlePasteText = async (text: string, sourceName: string) => {
     await uploadNewsletter({ rawText: text, sourceName });
+  };
+
+  const handleBulkReprocess = async () => {
+    const unprocessed = newsletters.filter(n => n.processed && (n.insights_count ?? 0) === 0);
+    if (unprocessed.length === 0) {
+      toast.info("No newsletters with 0 insights found");
+      return;
+    }
+    setIsBulkProcessing(true);
+    setBulkProgress({ done: 0, total: unprocessed.length });
+    let done = 0;
+    for (const newsletter of unprocessed) {
+      try {
+        await processNewsletter(newsletter);
+      } catch (e) {
+        console.error("Failed to process", newsletter.source_name, e);
+      }
+      done++;
+      setBulkProgress({ done, total: unprocessed.length });
+      // Small delay to avoid rate limiting
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    setIsBulkProcessing(false);
+    setBulkProgress(null);
+    toast.success(`Reprocessed ${done} newsletters`);
   };
 
   const handleProcess = async (newsletter: Newsletter) => {
@@ -152,6 +179,30 @@ export default function Newsletters() {
       </div>
 
       {/* Newsletter List */}
+      {/* Bulk reprocess button */}
+      {newsletters.some(n => n.processed && (n.insights_count ?? 0) === 0) && (
+        <div className="flex items-center justify-between p-3 rounded-lg border border-amber-500/20 bg-amber-500/5">
+          <div>
+            <p className="text-sm font-medium text-amber-500">
+              {newsletters.filter(n => n.processed && (n.insights_count ?? 0) === 0).length} newsletters processed with 0 insights
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {bulkProgress ? `Processing ${bulkProgress.done}/${bulkProgress.total}...` : "Click to re-extract insights from all of them"}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
+            onClick={handleBulkReprocess}
+            disabled={isBulkProcessing}
+          >
+            {isBulkProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {isBulkProcessing ? `${bulkProgress?.done}/${bulkProgress?.total}` : "Re-process all"}
+          </Button>
+        </div>
+      )}
+
       <Tabs defaultValue="newsletters" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="newsletters">All Newsletters</TabsTrigger>
