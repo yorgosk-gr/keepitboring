@@ -14,6 +14,7 @@ export interface Newsletter {
   created_at: string;
   is_archived: boolean;
   insights_count?: number;
+  source_confidence?: number | null;
 }
 
 export interface Insight {
@@ -38,6 +39,7 @@ export function useNewsletters() {
       const { data: newsletters, error } = await supabase
         .from("newsletters")
         .select("id, user_id, source_name, upload_date, processed, file_path, created_at, is_archived")
+        .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -49,17 +51,42 @@ export function useNewsletters() {
       const { data: insightCounts } = await supabase
         .from("insights")
         .select("newsletter_id")
-        .in("newsletter_id", newsletterIds);
+        .in("newsletter_id", newsletterIds)
+        .limit(5000);
 
       const countsMap: Record<string, number> = {};
       for (const row of insightCounts ?? []) {
         countsMap[row.newsletter_id] = (countsMap[row.newsletter_id] ?? 0) + 1;
       }
 
-      return newsletters.map((n) => ({
-        ...n,
-        insights_count: countsMap[n.id] ?? 0,
-      })) as Newsletter[];
+      // Also fetch avg source confidence per newsletter
+      const { data: confidenceData } = await supabase
+        .from("insights")
+        .select("newsletter_id, metadata")
+        .in("newsletter_id", newsletterIds)
+        .not("metadata", "is", null)
+        .limit(5000);
+
+      const confidenceMap: Record<string, number[]> = {};
+      for (const row of confidenceData ?? []) {
+        const meta = row.metadata as any;
+        if (meta?.source_confidence) {
+          if (!confidenceMap[row.newsletter_id]) confidenceMap[row.newsletter_id] = [];
+          confidenceMap[row.newsletter_id].push(meta.source_confidence);
+        }
+      }
+
+      return newsletters.map((n) => {
+        const scores = confidenceMap[n.id];
+        const avgConfidence = scores && scores.length > 0
+          ? scores.reduce((a, b) => a + b, 0) / scores.length
+          : null;
+        return {
+          ...n,
+          insights_count: countsMap[n.id] ?? 0,
+          source_confidence: avgConfidence,
+        };
+      }) as Newsletter[];
     },
     enabled: !!user,
   });
@@ -134,9 +161,21 @@ export function useNewsletters() {
 
   const processNewsletterMutation = useMutation({
     mutationFn: async (newsletter: Newsletter) => {
-      if (!newsletter.raw_text) {
+      // Fetch full newsletter including raw_text (not loaded in list query)
+      let rawText = newsletter.raw_text;
+      if (!rawText) {
+        const { data: full, error } = await supabase
+          .from("newsletters")
+          .select("raw_text")
+          .eq("id", newsletter.id)
+          .single();
+        if (error) throw error;
+        rawText = full?.raw_text ?? null;
+      }
+      if (!rawText) {
         throw new Error("No text content to process");
       }
+      newsletter = { ...newsletter, raw_text: rawText };
 
       // Get session token for authenticated request
       const { data: { session } } = await supabase.auth.getSession();
@@ -154,7 +193,7 @@ export function useNewsletters() {
           },
           body: JSON.stringify({
             newsletterId: newsletter.id,
-            rawText: newsletter.raw_text,
+            rawText: rawText!,
           }),
         }
       );
