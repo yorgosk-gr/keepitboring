@@ -242,7 +242,7 @@ Return ONLY valid JSON (no markdown, no code blocks, no explanation):
         : `Extract all portfolio positions from these ${images.length} broker screenshots. Combine and deduplicate. Identify the broker if possible. Return only valid JSON with source_page for each position.`,
     });
 
-    const response = await fetch("https://ai.api.anthropic.com/v1/messages", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "x-api-key": ANTHROPIC_API_KEY,

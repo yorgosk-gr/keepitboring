@@ -64,7 +64,7 @@ Return ONLY valid JSON in this exact format, no markdown fences:
   }
 }`;
 
-    const response = await fetch("https://ai.api.anthropic.com/v1/messages", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,

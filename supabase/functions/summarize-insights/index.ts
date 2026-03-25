@@ -352,7 +352,7 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
 
     console.log(`Summarizing ${insightsList.length} insights from ${newsletters?.length} newsletters...`);
 
-    const response = await fetch("https://ai.api.anthropic.com/v1/messages", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "x-api-key": ANTHROPIC_API_KEY,

@@ -113,7 +113,7 @@ JSON OUTPUT:
 
     const userMessage = "Generate the ideal " + budgetFormatted + " portfolio using Ireland-domiciled UCITS ETFs. Return only the JSON object.";
 
-    const response = await fetch("https://ai.api.anthropic.com/v1/messages", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "x-api-key": ANTHROPIC_API_KEY,

@@ -152,7 +152,7 @@ EXTRACTION RULES:
 - Return ONLY the JSON object, nothing else
 - Empty array [] for any category with no items`;
 
-    const response = await fetch("https://ai.api.anthropic.com/v1/messages", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "x-api-key": ANTHROPIC_API_KEY,
