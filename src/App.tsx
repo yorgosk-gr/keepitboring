@@ -15,6 +15,7 @@ import Watchlist from "./pages/Watchlist";
 import NorthStar from "./pages/NorthStar";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
