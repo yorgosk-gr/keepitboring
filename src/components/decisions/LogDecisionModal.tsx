@@ -106,7 +106,8 @@ export function LogDecisionModal({
   // Show checklist when modal opens for trade actions
   useEffect(() => {
     if (open && !checklistPassed) {
-      const action = (defaultAction as FormValues["action_type"]) || "hold";
+      // Use the actual form value, not just the prop (form may have been pre-filled)
+      const action = form.getValues("action_type") || (defaultAction as FormValues["action_type"]) || "hold";
       if (action !== "hold" && action !== "rebalance") {
         setShowChecklist(true);
       } else {

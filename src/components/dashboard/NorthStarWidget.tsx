@@ -39,7 +39,7 @@ export function NorthStarWidget() {
     // Reduce moves
     const reduceMoves = enriched
       .filter(p => p.status === "reduce" && p.gap < -0.5)
-      .sort((a, b) => Math.abs(a.gap) - Math.abs(b.gap))
+      .sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap))
       .slice(0, 1)
       .map(p => ({ ticker: p.ticker, action: "reduce" as const, gap: p.gap, gapUSD: p.gapUSD }));
 
@@ -106,7 +106,7 @@ export function NorthStarWidget() {
                   </Badge>
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  +{move.gap.toFixed(1)}% · ${Math.round(Math.abs(move.gapUSD) / 1000)}k
+                  +{move.gap.toFixed(1)}% · {Math.abs(move.gapUSD) >= 1000 ? `$${Math.round(Math.abs(move.gapUSD) / 1000)}k` : `$${Math.round(Math.abs(move.gapUSD))}`}
                 </span>
               </div>
             ))}
