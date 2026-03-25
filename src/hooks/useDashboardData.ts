@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { derivePositionType } from "@/lib/positionUtils";
 
 export interface Position {
   id: string;
@@ -47,24 +48,6 @@ export interface PortfolioSnapshot {
   stocks_percent: number | null;
   etfs_percent: number | null;
   data_json: Record<string, unknown> | null;
-}
-
-function derivePositionType(
-  assetClass: string | null,
-  subCategory: string | null,
-  hasEtfMetadata: boolean
-): string {
-  if (hasEtfMetadata) return "etf";
-  const ac = (assetClass || "").toUpperCase();
-  const sc = (subCategory || "").toUpperCase();
-  if (ac === "STK") {
-    if (sc.includes("ETF") || sc.includes("ETC")) return "etf";
-    return "stock";
-  }
-  if (ac === "FND" || ac === "ETF") return "etf";
-  if (ac === "BOND" || ac === "BILL" || ac === "FI") return "bond";
-  if (ac === "CMDTY") return "commodity";
-  return "stock";
 }
 
 export function useDashboardData() {

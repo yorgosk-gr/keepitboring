@@ -6,19 +6,51 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
-import Index from "./pages/Index";
-import Portfolio from "./pages/Portfolio";
-import Newsletters from "./pages/Newsletters";
-import Philosophy from "./pages/Philosophy";
-import Analysis from "./pages/Analysis";
-import Watchlist from "./pages/Watchlist";
-import NorthStar from "./pages/NorthStar";
-import Settings from "./pages/Settings";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { lazy, Suspense } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import Auth from "./pages/Auth";
-import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Lazy load all pages for code splitting
+const Index = lazy(() => import("./pages/Index"));
+const Portfolio = lazy(() => import("./pages/Portfolio"));
+const Newsletters = lazy(() => import("./pages/Newsletters"));
+const Philosophy = lazy(() => import("./pages/Philosophy"));
+const Analysis = lazy(() => import("./pages/Analysis"));
+const Watchlist = lazy(() => import("./pages/Watchlist"));
+const NorthStar = lazy(() => import("./pages/NorthStar"));
+const Settings = lazy(() => import("./pages/Settings"));
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30_000,
+    },
+  },
+});
+
+const PageLoader = () => (
+  <div className="space-y-4 p-6">
+    <Skeleton className="h-8 w-48" />
+    <Skeleton className="h-4 w-full" />
+    <Skeleton className="h-4 w-3/4" />
+    <Skeleton className="h-64 w-full" />
+  </div>
+);
+
+const ProtectedPage = ({ children }: { children: React.ReactNode }) => (
+  <ProtectedRoute>
+    <AppLayout>
+      <ErrorBoundary>
+        <Suspense fallback={<PageLoader />}>
+          {children}
+        </Suspense>
+      </ErrorBoundary>
+    </AppLayout>
+  </ProtectedRoute>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -29,87 +61,14 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Index />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/portfolio"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Portfolio />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/newsletters"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Newsletters />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/watchlist"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Watchlist />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/philosophy"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Philosophy />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/analysis"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Analysis />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/north-star"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <NorthStar />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Settings />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/" element={<ProtectedPage><Index /></ProtectedPage>} />
+            <Route path="/portfolio" element={<ProtectedPage><Portfolio /></ProtectedPage>} />
+            <Route path="/newsletters" element={<ProtectedPage><Newsletters /></ProtectedPage>} />
+            <Route path="/watchlist" element={<ProtectedPage><Watchlist /></ProtectedPage>} />
+            <Route path="/philosophy" element={<ProtectedPage><Philosophy /></ProtectedPage>} />
+            <Route path="/analysis" element={<ProtectedPage><Analysis /></ProtectedPage>} />
+            <Route path="/north-star" element={<ProtectedPage><NorthStar /></ProtectedPage>} />
+            <Route path="/settings" element={<ProtectedPage><Settings /></ProtectedPage>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

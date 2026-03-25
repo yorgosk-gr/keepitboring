@@ -19,7 +19,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   portfolioMode: "balanced",
 };
 
-const SETTINGS_KEY = "yk-invest-settings";
+const SETTINGS_KEY = "keepitboring-settings";
 
 export function useSettings() {
   const { user } = useAuth();
@@ -102,7 +102,7 @@ export function useSettings() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `yk-investagent-export-${new Date().toISOString().split("T")[0]}.json`;
+      a.download = `keepitboring-export-${new Date().toISOString().split("T")[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
 

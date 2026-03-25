@@ -4,11 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import * as pdfjsLib from "pdfjs-dist";
-import mammoth from "mammoth";
-
-// Configure PDF.js worker (jsDelivr mirrors all npm versions, Cloudflare doesn't have v4.x)
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 const ACCEPTED_TYPES = [
   "application/pdf",
@@ -43,6 +38,8 @@ export function NewsletterUploadZone({ onUpload, compact }: NewsletterUploadZone
   const [isDragging, setIsDragging] = useState(false);
 
   const extractTextFromPdf = async (file: File): Promise<string> => {
+    const pdfjsLib = await import("pdfjs-dist");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     
@@ -60,6 +57,7 @@ export function NewsletterUploadZone({ onUpload, compact }: NewsletterUploadZone
   };
 
   const extractTextFromDocx = async (file: File): Promise<string> => {
+    const mammoth = (await import("mammoth")).default;
     const arrayBuffer = await file.arrayBuffer();
     const result = await mammoth.extractRawText({ arrayBuffer });
     return result.value.trim();

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { derivePositionType, deriveCategory } from "@/lib/positionUtils";
 
 // Unified position type combining IB data + annotations
 export interface Position {
@@ -44,46 +45,6 @@ export interface PositionFormData {
   invalidation_triggers?: string;
   currency?: string;
   exchange?: string;
-}
-
-function derivePositionType(
-  assetClass: string | null,
-  subCategory: string | null,
-  hasEtfMetadata: boolean
-): string {
-  if (hasEtfMetadata) return "etf";
-  const ac = (assetClass || "").toUpperCase();
-  const sc = (subCategory || "").toUpperCase();
-  if (ac === "STK") {
-    // STK can be stock or ETF — check sub_category
-    if (sc.includes("ETF") || sc.includes("ETC")) return "etf";
-    return "stock";
-  }
-  if (ac === "FND" || ac === "ETF") return "etf";
-  if (ac === "BOND" || ac === "BILL" || ac === "FI") return "bond";
-  if (ac === "CMDTY") return "commodity";
-  return "stock";
-}
-
-function deriveCategory(
-  assetClass: string | null,
-  etfCategory: string | null,
-  description?: string | null
-): string {
-  // If we have ETF metadata category, use it
-  if (etfCategory) {
-    const lower = etfCategory.toLowerCase();
-    if (lower.includes("bond") || lower.includes("fixed")) return "bond";
-    if (lower.includes("commodity") || lower.includes("gold")) return "commodity";
-    return "equity";
-  }
-  const ac = (assetClass || "").toUpperCase();
-  if (ac === "BOND" || ac === "BILL" || ac === "FI") return "bond";
-  if (ac === "CMDTY") return "commodity";
-  // Fallback: check description for bond keywords
-  const desc = (description || "").toUpperCase();
-  if (desc.includes("BND") || desc.includes("BOND") || desc.includes("TREASURY") || desc.includes("FIXED INCOME")) return "bond";
-  return "equity";
 }
 
 export function usePositions() {
