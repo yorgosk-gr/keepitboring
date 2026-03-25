@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TrendingUp, Mail, Lock, AlertCircle, CheckCircle } from "lucide-react";
 import { z } from "zod";
+import { supabase } from "@/integrations/supabase/client";
 
 const authSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -20,6 +21,7 @@ export default function Auth() {
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const { user, signIn, signUp } = useAuth();
   const navigate = useNavigate();
 
@@ -29,10 +31,37 @@ export default function Auth() {
     }
   }, [user, navigate]);
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    if (!email || !z.string().email().safeParse(email).success) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
+    setIsLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) {
+      setError(error.message);
+    } else {
+      setSuccess("Check your email for a password reset link.");
+    }
+    setIsLoading(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+
+    if (isForgotPassword) {
+      return handleForgotPassword(e);
+    }
 
     // Validate input
     const validation = authSchema.safeParse({ email, password });
@@ -89,7 +118,7 @@ export default function Auth() {
         {/* Auth Card */}
         <div className="bg-card border border-border rounded-xl p-6">
           <h2 className="text-xl font-semibold text-foreground mb-6 text-center">
-            {isLogin ? "Welcome back" : "Create your account"}
+            {isForgotPassword ? "Reset your password" : isLogin ? "Welcome back" : "Create your account"}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -109,21 +138,23 @@ export default function Auth() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-foreground">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 bg-secondary border-border text-foreground placeholder:text-muted-foreground"
-                  disabled={isLoading}
-                />
+            {!isForgotPassword && (
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-foreground">Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10 bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+                    disabled={isLoading}
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             {error && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
@@ -144,23 +175,33 @@ export default function Auth() {
               className="w-full bg-primary hover:bg-primary/90"
               disabled={isLoading}
             >
-              {isLoading ? "Please wait..." : isLogin ? "Sign In" : "Create Account"}
+              {isLoading ? "Please wait..." : isForgotPassword ? "Send Reset Link" : isLogin ? "Sign In" : "Create Account"}
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-2">
+            {isLogin && !isForgotPassword && (
+              <button
+                type="button"
+                onClick={() => { setIsForgotPassword(true); setError(null); setSuccess(null); }}
+                className="text-sm text-primary hover:text-primary/80 transition-colors block mx-auto"
+              >
+                Forgot your password?
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
                 setIsLogin(!isLogin);
+                setIsForgotPassword(false);
                 setError(null);
                 setSuccess(null);
               }}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              {isLogin ? "Don't have an account? " : "Already have an account? "}
+              {isForgotPassword ? "Back to " : isLogin ? "Don't have an account? " : "Already have an account? "}
               <span className="text-primary font-medium">
-                {isLogin ? "Sign up" : "Sign in"}
+                {isForgotPassword ? "Sign in" : isLogin ? "Sign up" : "Sign in"}
               </span>
             </button>
           </div>
