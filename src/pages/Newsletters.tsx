@@ -152,20 +152,26 @@ export default function Newsletters() {
       </div>
 
       {/* Newsletter List */}
-      <div>
-        <h2 className="text-lg font-semibold text-foreground mb-4">
-          Uploaded Newsletters
-        </h2>
-        <NewsletterList
-          newsletters={newsletters}
-          isLoading={isLoading}
-          onProcess={handleProcess}
-          onView={setViewingNewsletter}
-          onDelete={handleDelete}
-          onUpdateSourceName={(id, name) => updateSourceName({ id, sourceName: name })}
-          processingId={processingId}
-        />
-      </div>
+      <Tabs defaultValue="newsletters" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="newsletters">All Newsletters</TabsTrigger>
+          <TabsTrigger value="sources">Source Rankings</TabsTrigger>
+        </TabsList>
+        <TabsContent value="newsletters">
+          <NewsletterList
+            newsletters={newsletters}
+            isLoading={isLoading}
+            onProcess={handleProcess}
+            onView={setViewingNewsletter}
+            onDelete={handleDelete}
+            onUpdateSourceName={(id, name) => updateSourceName({ id, sourceName: name })}
+            processingId={processingId}
+          />
+        </TabsContent>
+        <TabsContent value="sources">
+          <SourceReputationPanel />
+        </TabsContent>
+      </Tabs>
 
       {/* Insights Modal */}
       <InsightsModal

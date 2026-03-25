@@ -133,6 +133,7 @@ export function useInsightsSummary() {
       const { data: existingBriefs } = await supabase
         .from("intelligence_briefs")
         .select("id, created_at")
+        .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
       if (existingBriefs && existingBriefs.length >= 10) {
         const toDelete = existingBriefs.slice(9).map((b: any) => b.id);
