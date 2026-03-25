@@ -161,8 +161,8 @@ EXTRACTION RULES:
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
+        system: systemPrompt,
         messages: [
-          { role: "system", content: systemPrompt },
           {
             role: "user",
             content: `Analyze this investment newsletter and extract insights:\n\n${truncatedText}`,
