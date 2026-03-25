@@ -55,6 +55,8 @@ const formSchema = z.object({
   reversal_information: z.string().optional(),
   newsletter_insight_ids: z.array(z.string()).optional(),
   tags: z.string().optional(),
+  entry_price: z.string().optional(),
+  entry_date: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -93,6 +95,8 @@ export function LogDecisionModal({
       reversal_information: "",
       newsletter_insight_ids: [],
       tags: "",
+      entry_price: "",
+      entry_date: new Date().toISOString().split("T")[0],
     },
   });
 
@@ -164,6 +168,11 @@ export function LogDecisionModal({
         probability_estimate: values.probability_estimate || null,
         information_set: `${values.information_set}\n\n**Alternative Scenarios:**\n${values.alternative_scenarios || "N/A"}\n\n**Reversal Triggers:**\n${values.reversal_information || "N/A"}`,
         invalidation_triggers: values.invalidation_triggers,
+        ticker: values.position_id !== "portfolio-wide"
+          ? positions.find(p => p.id === values.position_id)?.ticker ?? null
+          : null,
+        entry_price: values.entry_price ? parseFloat(values.entry_price) : null,
+        entry_date: values.entry_date || null,
       });
 
       if (error) throw error;
@@ -427,6 +436,41 @@ export function LogDecisionModal({
                     Optional: Tags & Links
                   </AccordionTrigger>
                   <AccordionContent className="space-y-4 pt-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="entry_price"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Entry Price (for outcome tracking)</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder="e.g. 142.50"
+                                type="number"
+                                step="0.01"
+                              />
+                            </FormControl>
+                            <FormDescription className="text-xs">
+                              Used to track 30/90/180 day returns
+                            </FormDescription>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="entry_date"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Decision Date</FormLabel>
+                            <FormControl>
+                              <Input {...field} type="date" />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
                     <FormField
                       control={form.control}
                       name="tags"
