@@ -22,6 +22,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIBSync } from "@/hooks/useIBSync";
+import { useVolatilityAlerts, type VolatilityAlert } from "@/hooks/useVolatilityAlerts";
+import { VolatilityAlertModal } from "@/components/portfolio/VolatilityAlertModal";
 import { toast } from "sonner";
 import { formatDistanceToNow, format, isWeekend, subDays, isSameDay, isAfter, startOfDay } from "date-fns";
 
@@ -48,6 +50,7 @@ export default function Portfolio() {
 
   const { cashBalance, totalValue, updateCashBalance, isUpdatingCash } = useDashboardData();
   const { sync, isSyncing, isConnected, lastSynced } = useIBSync();
+  const { checkVolatility } = useVolatilityAlerts();
 
   // Fetch latest trade date for data freshness notice
   const { data: latestTradeDate } = useQuery({
@@ -87,6 +90,8 @@ export default function Portfolio() {
   const { fetchFundamentals, isFetching: isFetchingFundamentals } = useFundamentals();
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [fetchedPrices, setFetchedPrices] = useState<PriceUpdate[]>([]);
+  const [volatilityAlerts, setVolatilityAlerts] = useState<VolatilityAlert[]>([]);
+  const [showVolatilityModal, setShowVolatilityModal] = useState(false);
   const [notFoundTickers, setNotFoundTickers] = useState<string[]>([]);
   const [lastPriceRefresh, setLastPriceRefresh] = useState<Date | null>(null);
   
@@ -317,6 +322,13 @@ export default function Portfolio() {
 
   // but we can still create snapshots for tracking
   const handleApplyPriceUpdates = async (updates: { id: string; current_price: number }[]) => {
+    // Capture previous prices for volatility detection
+    const previousPrices: Record<string, number> = {};
+    for (const pos of positions) {
+      if (pos.ticker && pos.current_price) {
+        previousPrices[pos.ticker] = pos.current_price;
+      }
+    }
     if (!user) return;
 
     try {
@@ -343,7 +355,16 @@ export default function Portfolio() {
       setLastPriceRefresh(new Date());
       queryClient.invalidateQueries({ queryKey: ["ib-positions"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      
+
+      // Check for volatility alerts
+      if (fetchedPrices.length > 0) {
+        const alerts = await checkVolatility(fetchedPrices, previousPrices);
+        if (alerts.length > 0) {
+          setVolatilityAlerts(alerts);
+          setShowVolatilityModal(true);
+        }
+      }
+
       toast.success(`Price snapshot recorded for ${updates.length} positions`);
     } catch (error) {
       console.error("Failed to apply price updates:", error);
@@ -353,6 +374,19 @@ export default function Portfolio() {
 
   return (
     <div className="space-y-6">
+      <VolatilityAlertModal
+        open={showVolatilityModal}
+        alerts={volatilityAlerts}
+        onClose={() => setShowVolatilityModal(false)}
+        onLogDecision={(ticker) => {
+          setShowVolatilityModal(false);
+          const pos = positions.find(p => p.ticker === ticker);
+          if (pos) {
+            setSelectedPosition(pos);
+            setShowLogDecision(true);
+          }
+        }}
+      />
       {/* Data Freshness Notice */}
       {dataFreshnessNotice && (
         <div className={`flex items-center justify-between p-4 rounded-lg border ${
