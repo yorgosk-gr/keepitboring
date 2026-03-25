@@ -21,7 +21,7 @@ export interface PositionReview {
 export function useConvictionReview() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { positions } = usePositions();
+  const { positions, isLoading: positionsLoading } = usePositions();
 
   // Fetch undismissed reviews
   const { data: reviews = [], isLoading } = useQuery({
@@ -41,7 +41,7 @@ export function useConvictionReview() {
   // Generate reviews based on current positions
   const generateReviews = useMutation({
     mutationFn: async () => {
-      if (!user || positions.length === 0) return [];
+      if (!user || positions.length === 0 || positionsLoading) return [];
       const newReviews: any[] = [];
       const now = new Date();
       const ninetyDaysAgo = subDays(now, 90);

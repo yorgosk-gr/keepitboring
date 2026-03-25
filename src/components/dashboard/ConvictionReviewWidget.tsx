@@ -11,7 +11,10 @@ export function ConvictionReviewWidget() {
     useConvictionReview();
 
   useEffect(() => {
-    generateReviews();
+    // Only generate once on mount - positions are loaded by then
+    const timer = setTimeout(() => generateReviews(), 1000);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (isLoading || totalPending === 0) return null;

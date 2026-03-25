@@ -382,8 +382,7 @@ export default function Portfolio() {
           setShowVolatilityModal(false);
           const pos = positions.find(p => p.ticker === ticker);
           if (pos) {
-            setSelectedPosition(pos);
-            setShowLogDecision(true);
+            setLoggingDecisionFor(pos);
           }
         }}
       />

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, BookOpen } from "lucide-react";
@@ -42,6 +42,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { usePositions, type Position } from "@/hooks/usePositions";
+import { PreTradeChecklist } from "@/components/decisions/PreTradeChecklist";
 import type { RecommendedAction } from "@/hooks/usePortfolioAnalysis";
 const formSchema = z.object({
   action_type: z.enum(["buy", "sell", "trim", "add", "hold", "rebalance"]),
@@ -80,6 +81,8 @@ export function LogDecisionModal({
   const { positions } = usePositions();
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showChecklist, setShowChecklist] = useState(false);
+  const [checklistPassed, setChecklistPassed] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -99,6 +102,22 @@ export function LogDecisionModal({
       entry_date: new Date().toISOString().split("T")[0],
     },
   });
+
+  // Show checklist when modal opens for trade actions
+  useEffect(() => {
+    if (open && !checklistPassed) {
+      const action = (defaultAction as FormValues["action_type"]) || "hold";
+      if (action !== "hold" && action !== "rebalance") {
+        setShowChecklist(true);
+      } else {
+        setChecklistPassed(true);
+      }
+    }
+    if (!open) {
+      setChecklistPassed(false);
+      setShowChecklist(false);
+    }
+  }, [open]);
 
   // Helper to extract action type from recommendation action text
   const extractActionType = (actionText: string): FormValues["action_type"] => {
@@ -198,8 +217,32 @@ export function LogDecisionModal({
     { value: "rebalance", label: "Rebalance", color: "text-purple-500" },
   ];
 
+  const watchedPositionId = useWatch({ control: form.control, name: "position_id" });
+  const watchedActionType = useWatch({ control: form.control, name: "action_type" });
+  const selectedPosition = positions.find(p => p.id === watchedPositionId);
+  const selectedTicker = selectedPosition?.ticker ?? null;
+
+  if (showChecklist && !checklistPassed) {
+    return (
+      <PreTradeChecklist
+        open={open}
+        ticker={selectedTicker}
+        actionType={watchedActionType || (defaultAction ?? "hold")}
+        positionId={selectedPosition?.id ?? null}
+        onProceed={() => {
+          setShowChecklist(false);
+          setChecklistPassed(true);
+        }}
+        onCancel={() => {
+          setShowChecklist(false);
+          onClose();
+        }}
+      />
+    );
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open && checklistPassed} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] bg-card border-border p-0">
         <DialogHeader className="p-6 pb-0">
           <DialogTitle className="text-foreground flex items-center gap-2">

@@ -237,6 +237,7 @@ export function usePreTradeChecklist() {
         const { data: nsPos } = await supabase
           .from("north_star_positions" as any)
           .select("status, target_weight_ideal")
+          .eq("user_id", user.id)
           .eq("ticker", ticker)
           .maybeSingle();
 

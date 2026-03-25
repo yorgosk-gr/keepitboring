@@ -73,6 +73,7 @@ export function PreTradeChecklist({
     if (open && actionType && actionType !== "hold" && actionType !== "rebalance") {
       runChecklist(ticker, actionType, positionId);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ticker, actionType, positionId]);
 
   const handleClose = () => {

@@ -54,8 +54,8 @@ export function NorthStarWidget() {
 
   if (isLoading || !portfolio) return null;
 
-  const scoreColor = score >= 80 ? "text-emerald-500" : score >= 60 ? "text-amber-500" : "text-destructive";
-  const progressColor = score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-amber-500" : "bg-destructive";
+  const scoreColor = score >= 80 ? "text-emerald-500" : score >= 60 ? "text-amber-500" : "text-red-500";
+  const progressColor = score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-amber-500" : "bg-red-500";
 
   return (
     <div className="stat-card space-y-4">

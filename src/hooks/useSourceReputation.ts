@@ -35,6 +35,7 @@ export function useSourceReputation() {
       const { data, error } = await supabase
         .from("newsletter_sources" as any)
         .select("*")
+        .eq("user_id", user!.id)
         .order("avg_confidence_score", { ascending: false });
       if (error) throw error;
 
