@@ -118,7 +118,7 @@ export default function Auth() {
         {/* Auth Card */}
         <div className="bg-card border border-border rounded-xl p-6">
           <h2 className="text-xl font-semibold text-foreground mb-6 text-center">
-            {isLogin ? "Welcome back" : "Create your account"}
+            {isForgotPassword ? "Reset your password" : isLogin ? "Welcome back" : "Create your account"}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
