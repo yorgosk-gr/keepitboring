@@ -121,7 +121,7 @@ JSON OUTPUT:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20251001",
+        model: "claude-sonnet-4-5-20250929",
         system: systemPrompt,
           messages: [{ role: "user", content: userMessage }],
         max_tokens: 4000,

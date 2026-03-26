@@ -162,7 +162,7 @@ EXTRACTION RULES:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20251001",
+        model: "claude-sonnet-4-5-20250929",
         system: systemPrompt,
         messages: [
           {

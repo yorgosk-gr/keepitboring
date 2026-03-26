@@ -72,7 +72,7 @@ Return ONLY valid JSON in this exact format, no markdown fences:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20251001",
+        model: "claude-sonnet-4-5-20250929",
         system: "You are a financial data lookup tool. Return only valid JSON.",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 4096,

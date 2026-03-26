@@ -360,7 +360,7 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20251001",
+        model: "claude-sonnet-4-5-20250929",
         system: systemPrompt,
           messages: [{ role: "user", content: userPrompt }],
         max_tokens: 8192,
