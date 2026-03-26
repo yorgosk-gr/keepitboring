@@ -62,20 +62,33 @@ export default function Newsletters() {
     setIsBulkProcessing(true);
     setBulkProgress({ done: 0, total: unprocessed.length });
     let done = 0;
+    let failures = 0;
+    let delay = 1500;
     for (const newsletter of unprocessed) {
       try {
         await processNewsletter(newsletter);
-      } catch (e) {
+        delay = 1500; // Reset delay on success
+      } catch (e: any) {
+        failures++;
         console.error("Failed to process", newsletter.source_name, e);
+        // Back off on rate limits
+        if (e?.message?.includes("Rate limit")) {
+          delay = Math.min(delay * 2, 15000);
+          toast.warning(`Rate limited — slowing down (${Math.round(delay / 1000)}s delay)`);
+        }
       }
       done++;
       setBulkProgress({ done, total: unprocessed.length });
-      // Small delay to avoid rate limiting
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, delay));
     }
     setIsBulkProcessing(false);
     setBulkProgress(null);
-    toast.success(`Reprocessed ${done} newsletters`);
+    const successCount = done - failures;
+    if (failures > 0) {
+      toast.warning(`Reprocessed ${successCount}/${done} newsletters (${failures} failed)`);
+    } else {
+      toast.success(`Reprocessed ${done} newsletters`);
+    }
   };
 
   const handleProcess = async (newsletter: Newsletter) => {

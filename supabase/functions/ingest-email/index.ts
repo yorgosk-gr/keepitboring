@@ -9,18 +9,79 @@ const corsHeaders = {
 };
 
 function stripHtml(html: string): string {
-  return html
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
+  let text = html;
+
+  // Remove entire blocks that are never content
+  text = text.replace(/<head[\s>][\s\S]*?<\/head>/gi, "");
+  text = text.replace(/<style[\s>][\s\S]*?<\/style>/gi, "");
+  text = text.replace(/<script[\s>][\s\S]*?<\/script>/gi, "");
+  text = text.replace(/<noscript[\s>][\s\S]*?<\/noscript>/gi, "");
+  text = text.replace(/<!--[\s\S]*?-->/g, "");
+
+  // Remove tracking pixels and tiny images (1x1, hidden, display:none)
+  text = text.replace(/<img[^>]*(width\s*=\s*["']?1["']?|height\s*=\s*["']?1["']?|display\s*:\s*none)[^>]*\/?>/gi, "");
+
+  // Remove common newsletter footer/nav patterns before tag stripping
+  text = text.replace(/<footer[\s>][\s\S]*?<\/footer>/gi, "");
+
+  // Convert block elements to newlines for structure preservation
+  text = text.replace(/<\/?(p|div|br|hr|h[1-6]|li|tr|blockquote|section|article)[\s>][^>]*>/gi, "\n");
+  text = text.replace(/<br\s*\/?>/gi, "\n");
+
+  // Extract link text (keep text, drop URL)
+  text = text.replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, "$1");
+
+  // Strip all remaining tags
+  text = text.replace(/<[^>]+>/g, " ");
+
+  // Decode HTML entities
+  const entities: Record<string, string> = {
+    "&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">",
+    "&quot;": '"', "&#39;": "'", "&apos;": "'", "&ndash;": "–",
+    "&mdash;": "—", "&bull;": "•", "&hellip;": "…", "&rsquo;": "'",
+    "&lsquo;": "'", "&rdquo;": "\u201D", "&ldquo;": "\u201C",
+    "&trade;": "™", "&copy;": "©", "&reg;": "®",
+  };
+  for (const [entity, char] of Object.entries(entities)) {
+    text = text.replaceAll(entity, char);
+  }
+  // Numeric entities
+  text = text.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)));
+  text = text.replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
+
+  // Remove URLs (tracking links, image URLs, etc.)
+  text = text.replace(/https?:\/\/[^\s)}\]"'<>]+/g, "");
+
+  // Remove common newsletter junk lines
+  const junkPatterns = [
+    /unsubscribe/i, /view\s*(this\s*)?(email\s*)?in\s*(your\s*)?browser/i,
+    /manage\s*preferences/i, /email\s*preferences/i,
+    /add\s*us\s*to\s*your\s*address\s*book/i,
+    /©\s*\d{4}/i, /all\s*rights\s*reserved/i,
+    /powered\s*by\s*(mailchimp|substack|beehiiv|convertkit|buttondown)/i,
+    /click\s*here\s*to/i, /forward\s*this\s*(email|newsletter)/i,
+    /sent\s*(to|by)\s*\S+@\S+/i,
+  ];
+
+  const lines = text.split("\n");
+  const cleanedLines = lines.filter((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return false;
+    // Skip very short lines (likely nav items, buttons)
+    if (trimmed.length < 4) return false;
+    // Skip junk lines
+    return !junkPatterns.some((p) => p.test(trimmed));
+  });
+
+  // Collapse whitespace per line, then join
+  text = cleanedLines
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .join("\n");
+
+  // Collapse multiple blank lines
+  text = text.replace(/\n{3,}/g, "\n\n");
+
+  return text.trim();
 }
 
 Deno.serve(async (req) => {
@@ -105,32 +166,30 @@ Deno.serve(async (req) => {
 
     console.log(`Newsletter ingested: "${subject}" (${newsletter.id})`);
 
-    // Auto-process: call process-newsletter edge function with service role key
-    try {
-      const processUrl = `${supabaseUrl}/functions/v1/process-newsletter`;
-      const processResponse = await fetch(processUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${serviceRoleKey}`,
-        },
-        body: JSON.stringify({
-          newsletterId: newsletter.id,
-          rawText,
-        }),
-      });
-
-      const processResult = await processResponse.json();
-
+    // Auto-process: fire-and-forget to avoid edge function timeout
+    // The newsletter is already saved; if processing fails, user can retry manually
+    const processUrl = `${supabaseUrl}/functions/v1/process-newsletter`;
+    fetch(processUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({
+        newsletterId: newsletter.id,
+        rawText,
+      }),
+    }).then(async (processResponse) => {
       if (processResponse.ok) {
+        const processResult = await processResponse.json();
         console.log(`Auto-processed newsletter: ${processResult.insights_count} insights extracted`);
       } else {
-        console.error("Auto-process failed (newsletter saved, user can retry manually):", processResult);
+        const errBody = await processResponse.text();
+        console.error("Auto-process failed (newsletter saved, user can retry manually):", errBody);
       }
-    } catch (processErr) {
-      // Non-fatal: newsletter is saved, user can process manually
+    }).catch((processErr) => {
       console.error("Auto-process error (non-fatal):", processErr);
-    }
+    });
 
     return new Response(
       JSON.stringify({ success: true, source_name: subject, id: newsletter.id }),

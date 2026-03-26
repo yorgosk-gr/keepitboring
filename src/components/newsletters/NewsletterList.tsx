@@ -11,6 +11,7 @@ import {
   FileText,
   User,
   Calendar,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -210,7 +211,7 @@ export function NewsletterList({
                 <TableCell className="text-center">
                   <div className="flex justify-center">
                     <SourceQualityBadge
-                      confidenceScore={(newsletter as any).source_confidence}
+                      confidenceScore={newsletter.source_confidence}
                       insightsCount={newsletter.insights_count}
                     />
                   </div>
@@ -231,6 +232,22 @@ export function NewsletterList({
                           <Play className="w-4 h-4" />
                         )}
                         Process
+                      </Button>
+                    )}
+                    {newsletter.processed && (newsletter.insights_count || 0) === 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1 text-amber-500"
+                        onClick={() => onProcess(newsletter)}
+                        disabled={processingId === newsletter.id}
+                      >
+                        {processingId === newsletter.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-4 h-4" />
+                        )}
+                        Retry
                       </Button>
                     )}
                     {newsletter.processed && (newsletter.insights_count || 0) > 0 && (

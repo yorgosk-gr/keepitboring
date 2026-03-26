@@ -154,24 +154,49 @@ EXTRACTION RULES:
 - Return ONLY the JSON object, nothing else
 - Empty array [] for any category with no items`;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250929",
-        system: systemPrompt,
-        messages: [
-          {
-            role: "user",
-            content: `Analyze this investment newsletter and extract insights:\n\n${truncatedText}`,
+    // Retry wrapper for Anthropic API calls
+    async function callAnthropicWithRetry(body: object, maxRetries = 2): Promise<Response> {
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
           },
-        ],
-        max_tokens: 8192,
-      }),
+          body: JSON.stringify(body),
+        });
+
+        if (response.ok) return response;
+
+        // Don't retry on auth/billing errors
+        if (response.status === 401 || response.status === 402 || response.status === 403) {
+          return response;
+        }
+
+        // Retry on rate limit (429) and server errors (5xx)
+        if (attempt < maxRetries && (response.status === 429 || response.status >= 500)) {
+          const delay = response.status === 429 ? 5000 * (attempt + 1) : 2000 * (attempt + 1);
+          console.log(`Anthropic returned ${response.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+
+        return response;
+      }
+      throw new Error("Unreachable");
+    }
+
+    const response = await callAnthropicWithRetry({
+      model: "claude-sonnet-4-5-20250929",
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: `Analyze this investment newsletter and extract insights:\n\n${truncatedText}`,
+        },
+      ],
+      max_tokens: 8192,
     });
 
     if (!response.ok) {
@@ -397,11 +422,12 @@ EXTRACTION RULES:
       }
     }
 
-    // Mark newsletter as processed, save author and publication_date
+    // Run newsletter update and reputation update in parallel (both non-blocking)
     const authorValue = insights.source_profile?.author ?? null;
     const pubDateValue = insights.source_profile?.publication_date ?? null;
 
-    const { error: updateError } = await supabase
+    // Fix: removed .is("processed", false) guard — allow re-processing to update metadata
+    const updateNewsletterPromise = supabase
       .from("newsletters")
       .update({
         processed: true,
@@ -409,21 +435,21 @@ EXTRACTION RULES:
         ...(pubDateValue ? { publication_date: pubDateValue } : {}),
       })
       .eq("id", newsletterId)
-      .is("processed", false);  // Only update if not already processed (idempotency guard)
+      .then(({ error }) => {
+        if (error) console.error("Failed to update newsletter:", error);
+      });
 
-    if (updateError) {
-      console.error("Failed to update newsletter:", updateError);
-    }
+    // Source reputation update (non-fatal)
+    const updateReputationPromise = (async () => {
+      try {
+        const { data: nl } = await supabase
+          .from("newsletters")
+          .select("source_name, user_id")
+          .eq("id", newsletterId)
+          .single();
 
-    // Update source reputation scores
-    try {
-      const { data: nl } = await supabase
-        .from("newsletters")
-        .select("source_name, user_id")
-        .eq("id", newsletterId)
-        .single();
+        if (!nl) return;
 
-      if (nl) {
         const highConviction = insightsToInsert.filter(i =>
           i.metadata?.source_confidence >= 0.8 || i.metadata?.conviction_level === "high"
         ).length;
@@ -463,10 +489,13 @@ EXTRACTION RULES:
             style: insights.source_profile?.style ?? null,
           });
         }
+      } catch (reputationError) {
+        console.warn("Failed to update source reputation (non-fatal):", reputationError);
       }
-    } catch (reputationError) {
-      console.warn("Failed to update source reputation (non-fatal):", reputationError);
-    }
+    })();
+
+    // Wait for both in parallel
+    await Promise.all([updateNewsletterPromise, updateReputationPromise]);
 
     console.log(`Successfully processed newsletter ${newsletterId}, inserted ${insightsToInsert.length} insights`);
 

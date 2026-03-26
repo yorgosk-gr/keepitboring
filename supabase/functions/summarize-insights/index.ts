@@ -352,19 +352,38 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
 
     console.log(`Summarizing ${insightsList.length} insights from ${newsletters?.length} newsletters...`);
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250929",
-        system: systemPrompt,
-          messages: [{ role: "user", content: userPrompt }],
-        max_tokens: 8192,
-      }),
+    // Retry wrapper for Anthropic API calls
+    async function callAnthropicWithRetry(body: object, maxRetries = 2): Promise<Response> {
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const resp = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (resp.ok) return resp;
+        if (resp.status === 401 || resp.status === 402 || resp.status === 403) return resp;
+
+        if (attempt < maxRetries && (resp.status === 429 || resp.status >= 500)) {
+          const delay = resp.status === 429 ? 5000 * (attempt + 1) : 2000 * (attempt + 1);
+          console.log(`Anthropic returned ${resp.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        return resp;
+      }
+      throw new Error("Unreachable");
+    }
+
+    const response = await callAnthropicWithRetry({
+      model: "claude-sonnet-4-5-20250929",
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+      max_tokens: 8192,
     });
 
     if (!response.ok) {
@@ -406,33 +425,12 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
       );
     }
 
-    // Clean up old newsletters (30 days)
-    const thirtyDaysAgoCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: oldNewsletters } = await supabase
-      .from("newsletters")
-      .select("id")
-      .eq("user_id", user.id)
-      .lt("created_at", thirtyDaysAgoCutoff);
-
-    const oldIds = (oldNewsletters ?? []).map(n => n.id);
-    if (oldIds.length > 0) {
-      await supabase.from("insights").delete().in("newsletter_id", oldIds);
-      const { error: delErr } = await supabase
-        .from("newsletters")
-        .delete()
-        .eq("user_id", user.id)
-        .lt("created_at", thirtyDaysAgoCutoff);
-      if (delErr) console.error("Cleanup error:", delErr);
-      else console.log(`Cleaned up ${oldIds.length} newsletters older than 30 days`);
-    }
-
     return new Response(JSON.stringify({
       ...result,
       key_points: result.temporal_shifts ?? [],
       newsletters_analyzed: newsletters?.length ?? 0,
       insights_analyzed: insightsList.length,
       generated_at: new Date().toISOString(),
-      cleaned_up: oldIds.length,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

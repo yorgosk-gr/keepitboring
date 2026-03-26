@@ -48,29 +48,20 @@ export function useNewsletters() {
 
       if (newsletters.length === 0) return newsletters as Newsletter[];
 
-      // Single query: get insight counts for all newsletters at once
+      // Single query: get newsletter_id + metadata for counts AND confidence in one pass
       const newsletterIds = newsletters.map((n) => n.id);
-      const { data: insightCounts } = await supabase
-        .from("insights")
-        .select("newsletter_id")
-        .in("newsletter_id", newsletterIds)
-        .limit(5000);
-
-      const countsMap: Record<string, number> = {};
-      for (const row of insightCounts ?? []) {
-        countsMap[row.newsletter_id] = (countsMap[row.newsletter_id] ?? 0) + 1;
-      }
-
-      // Also fetch avg source confidence per newsletter
-      const { data: confidenceData } = await supabase
+      const { data: insightRows } = await supabase
         .from("insights")
         .select("newsletter_id, metadata")
-        .in("newsletter_id", newsletterIds)
-        .not("metadata", "is", null)
-        .limit(5000);
+        .in("newsletter_id", newsletterIds);
 
+      const countsMap: Record<string, number> = {};
       const confidenceMap: Record<string, number[]> = {};
-      for (const row of confidenceData ?? []) {
+
+      for (const row of insightRows ?? []) {
+        // Count
+        countsMap[row.newsletter_id] = (countsMap[row.newsletter_id] ?? 0) + 1;
+        // Confidence
         const meta = row.metadata as any;
         if (meta?.source_confidence) {
           if (!confidenceMap[row.newsletter_id]) confidenceMap[row.newsletter_id] = [];

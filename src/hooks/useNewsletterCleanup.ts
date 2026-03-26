@@ -25,6 +25,7 @@ export function useNewsletterCleanup() {
 
   // Get preview of what cleanup actions would affect
   const getCleanupPreview = async (): Promise<CleanupPreview> => {
+    if (!user) throw new Error("Not authenticated");
     const now = new Date();
     const ninetyDaysAgo = subDays(now, 90);
     const sixMonthsAgo = subMonths(now, 6);
@@ -33,14 +34,25 @@ export function useNewsletterCleanup() {
     const { data: oldNewsletters } = await supabase
       .from("newsletters")
       .select("id, source_name, upload_date")
+      .eq("user_id", user.id)
       .eq("is_archived", false)
       .lt("created_at", ninetyDaysAgo.toISOString());
 
+    // Get all user newsletter IDs to scope insight queries
+    const { data: userNewsletters } = await supabase
+      .from("newsletters")
+      .select("id")
+      .eq("user_id", user.id);
+    const userNewsletterIds = (userNewsletters ?? []).map(n => n.id);
+
     // 2. Find duplicate insights (same ticker + sentiment in same week)
-    const { data: insights } = await supabase
-      .from("insights")
-      .select("id, tickers_mentioned, sentiment, created_at")
-      .order("created_at", { ascending: false });
+    const { data: insights } = userNewsletterIds.length > 0
+      ? await supabase
+          .from("insights")
+          .select("id, tickers_mentioned, sentiment, created_at, newsletter_id")
+          .in("newsletter_id", userNewsletterIds)
+          .order("created_at", { ascending: false })
+      : { data: [] };
 
     const duplicateGroups: CleanupPreview["duplicateInsights"]["groups"] = [];
     const groupMap = new Map<string, string[]>();
@@ -77,12 +89,15 @@ export function useNewsletterCleanup() {
       0
     );
 
-    // 3. Old unstarred insights (older than 6 months, not starred)
-    const { data: oldInsights } = await supabase
-      .from("insights")
-      .select("id")
-      .eq("is_starred", false)
-      .lt("created_at", sixMonthsAgo.toISOString());
+    // 3. Old unstarred insights (older than 6 months, not starred) — scoped to user
+    const { data: oldInsights } = userNewsletterIds.length > 0
+      ? await supabase
+          .from("insights")
+          .select("id")
+          .in("newsletter_id", userNewsletterIds)
+          .eq("is_starred", false)
+          .lt("created_at", sixMonthsAgo.toISOString())
+      : { data: [] };
 
     return {
       archiveOld: {
