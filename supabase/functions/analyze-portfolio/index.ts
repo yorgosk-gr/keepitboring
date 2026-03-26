@@ -411,8 +411,6 @@ serve(async (req) => {
       north_star,
     } = await req.json();
 
-    console.log("Body parsed successfully, positions count:", positions?.length);
-
     // ── Deterministic Rule Evaluation ─────────────────────────────────
     const ruleEvaluation = computeRuleEvaluation(
       positions, rules, etf_classifications, cash_balance ?? 0, total_portfolio_value ?? 0, risk_profile
@@ -818,11 +816,9 @@ Analyze this portfolio and return the JSON response.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-5-20251001",
         system: systemPrompt,
-        messages: [
-          { role: "user", content: userPrompt },
-        ],
+          messages: [{ role: "user", content: userPrompt }],
         max_tokens: 16000,
       }),
     });

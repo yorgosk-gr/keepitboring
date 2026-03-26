@@ -293,7 +293,7 @@ RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown. No code blocks. Use
 
         if (perplexityRes.ok) {
           const perplexityData = await perplexityRes.json();
-          marketContext = perplexityData.content?.[0]?.text ?? "";
+          marketContext = perplexityData.choices?.[0]?.message?.content ?? "";
           const citations = perplexityData.citations ?? [];
           if (citations.length > 0) {
             marketContext += `\n\nSources: ${citations.join(", ")}`;
@@ -360,9 +360,9 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-5-20251001",
         system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
+          messages: [{ role: "user", content: userPrompt }],
         max_tokens: 8192,
       }),
     });

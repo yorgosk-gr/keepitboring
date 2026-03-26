@@ -121,9 +121,9 @@ JSON OUTPUT:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-5-20251001",
         system: systemPrompt,
-        messages: [{ role: "user", content: userMessage }],
+          messages: [{ role: "user", content: userMessage }],
         max_tokens: 4000,
       }),
     });
@@ -148,7 +148,7 @@ JSON OUTPUT:
 
     const aiData = await response.json();
     const content = aiData.content?.[0]?.text?.trim() || "";
-    const finishReason = aiData.stop_reason;
+    const finishReason = aiData.choices?.[0]?.finish_reason;
 
     if (!content) {
       return new Response(JSON.stringify({ error: "AI returned empty response." }), {

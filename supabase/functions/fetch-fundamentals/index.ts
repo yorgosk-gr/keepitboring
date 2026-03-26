@@ -67,15 +67,15 @@ Return ONLY valid JSON in this exact format, no markdown fences:
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        messages: [
-          { role: "system", content: "You are a financial data lookup tool. Return only valid JSON." },
-          { role: "user", content: prompt },
-        ],
+        model: "claude-sonnet-4-5-20251001",
+        system: "You are a financial data lookup tool. Return only valid JSON.",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 4096,
         temperature: 0.1,
       }),
     });

@@ -250,9 +250,9 @@ Return ONLY valid JSON (no markdown, no code blocks, no explanation):
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-5-20251001",
         system: systemPrompt,
-        messages: [{ role: "user", content: userContent }],
+          messages: [{ role: "user", content: userContent }],
         max_tokens: 8192,
       }),
     });
