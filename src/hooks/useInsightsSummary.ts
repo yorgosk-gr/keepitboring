@@ -124,8 +124,28 @@ export function useInsightsSummary() {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("summarize-insights");
-      if (error) throw error;
+      // Get fresh session token (supabase.functions.invoke uses cached token which can go stale)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("You must be logged in to generate summaries");
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/summarize-insights`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({}),
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Summary generation failed");
+      }
       if (data.error) throw new Error(data.error);
       const brief = data as InsightsSummary;
 
