@@ -408,7 +408,8 @@ EXTRACTION RULES:
         ...(authorValue ? { author: authorValue } : {}),
         ...(pubDateValue ? { publication_date: pubDateValue } : {}),
       })
-      .eq("id", newsletterId);
+      .eq("id", newsletterId)
+      .is("processed", false);  // Only update if not already processed (idempotency guard)
 
     if (updateError) {
       console.error("Failed to update newsletter:", updateError);
@@ -459,6 +460,7 @@ EXTRACTION RULES:
             high_conviction_insights: highConviction,
             data_backed_insights: dataBacked,
             avg_confidence_score: parseFloat(avgConfidence.toFixed(3)),
+            style: insights.source_profile?.style ?? null,
           });
         }
       }

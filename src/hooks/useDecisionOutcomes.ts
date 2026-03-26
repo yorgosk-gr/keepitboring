@@ -76,7 +76,8 @@ export function useDecisionOutcomes() {
           outcome_checked_at: new Date().toISOString(),
           was_correct: returnPct > 0,
         })
-        .eq("id", decisionId);
+        .eq("id", decisionId)
+        .eq("user_id", user!.id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["decision_outcomes_pending"] });

@@ -30,6 +30,7 @@ export function useConvictionReview() {
       const { data, error } = await supabase
         .from("position_reviews" as any)
         .select("*")
+        .eq("user_id", user!.id)
         .is("dismissed_at", null)
         .order("triggered_at", { ascending: false });
       if (error) throw error;
@@ -86,6 +87,7 @@ export function useConvictionReview() {
       const { data: existing } = await supabase
         .from("position_reviews" as any)
         .select("ticker, review_type")
+        .eq("user_id", user.id)
         .in("ticker", tickers)
         .is("dismissed_at", null);
 
@@ -116,7 +118,8 @@ export function useConvictionReview() {
       const { error } = await supabase
         .from("position_reviews" as any)
         .update({ dismissed_at: new Date().toISOString(), notes: notes ?? null })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("user_id", user!.id);
       if (error) throw error;
     },
     onSuccess: () => {
