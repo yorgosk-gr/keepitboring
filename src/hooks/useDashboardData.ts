@@ -119,6 +119,7 @@ export function useDashboardData() {
       const { data, error } = await supabase
         .from("alerts")
         .select("*")
+        .eq("user_id", user!.id)
         .eq("resolved", false)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -138,6 +139,7 @@ export function useDashboardData() {
       const { data, error } = await supabase
         .from("decision_log")
         .select("*")
+        .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(5);
       if (error) throw error;
@@ -152,6 +154,7 @@ export function useDashboardData() {
       const { data, error } = await supabase
         .from("portfolio_snapshots")
         .select("*")
+        .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(2);
       if (error) throw error;

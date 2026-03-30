@@ -58,7 +58,8 @@ function computeRuleEvaluation(
     if (c.ticker && c.category) {
       // Normalise to singular lowercase: "Equities" -> "equity", "Bonds" -> "bond", "Commodities" -> "commodity"
       const raw = c.category.toLowerCase().trim();
-      const normalised = raw.replace(/ies$/, "y").replace(/s$/, "");
+      const normalised = raw === "fixed income" ? "bond"
+        : raw.replace(/ies$/, "y").replace(/s$/, "");
       classMap[c.ticker] = normalised;
     }
   }
@@ -73,7 +74,8 @@ function computeRuleEvaluation(
     const mv = p.market_value ?? 0;
     const posType = (p.position_type || "").toLowerCase();
     const rawCat = (classMap[p.ticker] || p.category || "").toLowerCase().trim();
-    const cat = rawCat.replace(/ies$/, "y").replace(/s$/, "");
+    const cat = rawCat === "fixed income" ? "bond"
+      : rawCat.replace(/ies$/, "y").replace(/s$/, "");
 
     if (posType === "stock") {
       equityValue += mv;
@@ -100,7 +102,7 @@ function computeRuleEvaluation(
   const cashPercent = (cashBalance / totalVal) * 100;
   const goldPercent = (goldValue / totalVal) * 100;
   const stocksPercent = (stocksValue / totalVal) * 100;
-  const etfsPercent = equityPercent - stocksPercent;
+  const etfsPercent = Math.max(0, equityPercent - stocksPercent);
 
   // Anti-fragile = gold + short-term bonds (approximate as 30% of bonds) + cash
   const shortTermBondPercent = bondPercent * 0.3;
@@ -238,8 +240,11 @@ function computeRuleEvaluation(
 }
 
 // ── Server-side cash constraint enforcement ───────────────────────
-function enforceCashConstraint(analysisResult: any, cashBalance: number): any {
-  if (cashBalance > 500) return analysisResult; // meaningful cash, skip
+function enforceCashConstraint(analysisResult: any, cashBalance: number, totalPortfolioValue: number): any {
+  // Use percentage-based threshold: skip if cash is >0.5% of portfolio
+  const cashPercent = totalPortfolioValue > 0 ? (cashBalance / totalPortfolioValue) * 100 : 0;
+  if (cashPercent > 0.5) return analysisResult; // meaningful cash relative to portfolio, skip
+
   const trades = analysisResult.trade_recommendations ?? [];
   const totalSells = trades
     .filter((t: any) => t.shares_to_trade < 0)
@@ -248,13 +253,41 @@ function enforceCashConstraint(analysisResult: any, cashBalance: number): any {
     .filter((t: any) => t.action === "BUY" && t.shares_to_trade > 0)
     .reduce((s: number, t: any) => s + (t.estimated_value ?? 0), 0);
   if (totalBuys <= totalSells) return analysisResult; // already balanced
-  const scaleFactor = totalSells > 0 ? totalSells / totalBuys : 0;
+
+  // If no sells exist, we can't fund any buys — convert them all to HOLD
+  if (totalSells === 0) {
+    for (const trade of trades) {
+      if (trade.action === "BUY" && trade.shares_to_trade > 0) {
+        trade.action = "HOLD";
+        trade.shares_to_trade = 0;
+        trade.recommended_shares = trade.current_shares ?? 0;
+        trade.estimated_value = 0;
+        trade.target_weight = trade.current_weight ?? 0;
+        trade.reasoning = (trade.reasoning || "") + " [Blocked: no cash or sell proceeds to fund this buy]";
+      }
+    }
+    analysisResult.rebalancing_summary = {
+      ...analysisResult.rebalancing_summary,
+      total_buys: "$0",
+      net_cash_impact: "$0",
+    };
+    return analysisResult;
+  }
+
+  // Scale down buys proportionally to match available sell proceeds
+  const scaleFactor = totalSells / totalBuys;
   for (const trade of trades) {
     if (trade.action === "BUY" && trade.shares_to_trade > 0) {
       trade.shares_to_trade = Math.floor(trade.shares_to_trade * scaleFactor);
       trade.recommended_shares = (trade.current_shares ?? 0) + trade.shares_to_trade;
       trade.estimated_value = Math.round((trade.estimated_value ?? 0) * scaleFactor);
       trade.target_weight = parseFloat(((trade.target_weight ?? 0) * scaleFactor).toFixed(2));
+      // If scaling reduced shares to 0, convert to HOLD
+      if (trade.shares_to_trade === 0) {
+        trade.action = "HOLD";
+        trade.recommended_shares = trade.current_shares ?? 0;
+        trade.target_weight = trade.current_weight ?? 0;
+      }
     }
   }
   const newBuys = trades
@@ -286,14 +319,25 @@ function validateTradeConsistency(result: any, positions: any[]): any {
     const recShares = trade.recommended_shares ?? currentShares;
     const shareDelta = recShares - currentShares;
 
-    // Determine what the action SHOULD be based on numeric fields
+    // Determine what the action SHOULD be based on numeric fields.
+    // Share delta is the primary signal (concrete); weight is secondary (can shift
+    // due to other positions changing). Only override the AI's stated action when
+    // share direction clearly contradicts it.
     let correctAction: string;
-    if (Math.abs(tw - cw) < 0.3 && shareDelta === 0) {
+    if (shareDelta === 0 && Math.abs(tw - cw) < 0.3) {
       correctAction = "HOLD";
-    } else if (tw < cw || shareDelta < 0) {
+    } else if (shareDelta < 0) {
+      // Shares are decreasing — must be a SELL regardless of weight direction
       correctAction = "SELL";
-    } else if (tw > cw || shareDelta > 0) {
+    } else if (shareDelta > 0) {
+      // Shares are increasing — must be a BUY regardless of weight direction
       correctAction = "BUY";
+    } else if (shareDelta === 0 && tw < cw) {
+      // No share change but weight drops (other positions grew) — this is a HOLD, not SELL
+      correctAction = "HOLD";
+    } else if (shareDelta === 0 && tw > cw) {
+      // No share change but weight increases — HOLD
+      correctAction = "HOLD";
     } else {
       correctAction = "HOLD";
     }
@@ -674,6 +718,10 @@ JSON OUTPUT SCHEMA — MATCH THIS EXACT SHAPE:
     "funding_note": string|null (e.g. "Funded by reducing IB01 by 10%" or "Requires $2,000 additional cash" — only when BUY/INCREASE actions exist, otherwise null)
   },
   "thesis_checks": [],
+  "north_star_progress": {
+    "alignment_percent": number (0-100, how close portfolio is to north star targets),
+    "top_3_moves": [{ "ticker": string, "action": "BUY"|"SELL"|"HOLD"|"INCREASE"|"REDUCE", "rationale": string }]
+  } | null (ONLY include if NORTH STAR data is provided, otherwise omit or set null),
   "portfolio_health_score": number,
   "summary": string
 }
@@ -733,18 +781,27 @@ RECENT DECISION LOG:
 ${JSON.stringify(decisions, null, 2)}
 
 ${intelligence_brief ? `INTELLIGENCE BRIEF (${intelligence_brief.newsletters_analyzed ?? 0} newsletters, ${intelligence_brief.insights_analyzed ?? 0} insights):
-Executive Summary: ${intelligence_brief.executive_summary || "N/A"}
+Weekly Priority: ${intelligence_brief.weekly_priority || "N/A"}
 
-Temporal Shifts:
-${(intelligence_brief.temporal_shifts || []).map((ts: any) => `- ${ts.topic}: ${ts.prior_view} → ${ts.current_view} (${ts.significance})`).join("\n")}
+Temporal Shifts (view changes since last brief):
+${(intelligence_brief.temporal_shifts || []).map((ts: any) => `- ${ts.topic || ""}: ${ts.significance || ""} ${ts.weeks_tracked ? `(week ${ts.weeks_tracked})` : ""}`).join("\n") || "None"}
 
-Market Themes:
-${(intelligence_brief.market_themes || []).map((mt: any) => `- ${mt.theme} (${mt.sentiment}, ${mt.source_count} sources): ${mt.portfolio_impact}`).join("\n")}
+Sector Tilts:
+${(intelligence_brief.sector_tilts || []).map((st: any) => `- ${st.sector} (${st.direction}, ${st.conviction} conviction): ${st.reasoning} [${st.signal_type || ""}${st.vs_prior_brief ? `, vs prior: ${st.vs_prior_brief}` : ""}]`).join("\n") || "None"}
 
-Crowded Trades:
-${(intelligence_brief.crowded_trades || []).map((ct: string) => `- ${ct}`).join("\n")}
+Country Tilts:
+${(intelligence_brief.country_tilts || []).map((ct: any) => `- ${ct.region} (${ct.direction}, ${ct.conviction} conviction): ${ct.reasoning} [${ct.signal_type || ""}${ct.vs_prior_brief ? `, vs prior: ${ct.vs_prior_brief}` : ""}]`).join("\n") || "None"}
 
-USE THIS BRIEF to drive trade recommendations. Reference specific themes.` : "No Intelligence Brief available — rely on raw insights above."}
+Contrarian Opportunities:
+${(intelligence_brief.contrarian_opportunities || []).map((co: any) => `- ${co.title}: ${co.macro_tailwind} — ${co.why_not_crowded} (${co.ticker || "no ticker"}, ${co.conviction} conviction)`).join("\n") || "None"}
+
+Crowded Trades (consensus / lower edge):
+${(intelligence_brief.crowded_trades || []).map((ct: string) => `- ${ct}`).join("\n") || "None"}
+
+Stocks to Research:
+${(intelligence_brief.stocks_to_research || []).map((s: any) => `- ${s.ticker} (${s.name}): ${s.setup} — ${s.thesis} [${s.consensus_or_edge}, ${s.risk_level} risk]`).join("\n") || "None"}
+
+USE THIS BRIEF to drive trade recommendations. Reference specific themes, tilts, and signals.` : "No Intelligence Brief available — rely on raw insights above."}
 
 ${stock_fundamentals?.length > 0 ? `STOCK FUNDAMENTALS:
 ${stock_fundamentals.map((f: any) => `${f.ticker}: ROIC=${f.roic ?? "N/A"}%, Earnings Yield=${f.earnings_yield ?? "N/A"}%, P/E=${f.pe_ratio ?? "N/A"}, D/E=${f.debt_to_equity ?? "N/A"}, Revenue Growth=${f.revenue_growth_yoy ?? "N/A"}%, FCF Yield=${f.free_cash_flow_yield ?? "N/A"}%, Gross Margin=${f.gross_margin ?? "N/A"}%${f.notes ? ` (${f.notes})` : ""}`).join("\n")}` : "No stock fundamentals available."}
@@ -899,7 +956,7 @@ Analyze this portfolio and return the JSON response.`;
     analysisResult = validateTradeConsistency(analysisResult, positions ?? []);
 
     // ── Enforce cash constraint server-side ───────────────────────────
-    analysisResult = enforceCashConstraint(analysisResult, cash_balance ?? 0);
+    analysisResult = enforceCashConstraint(analysisResult, cash_balance ?? 0, total_portfolio_value ?? 0);
 
     return new Response(JSON.stringify(analysisResult), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

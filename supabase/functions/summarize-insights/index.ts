@@ -95,7 +95,11 @@ serve(async (req) => {
         temporal_shifts: [],
         action_items: [],
         market_themes: [],
+        sector_tilts: [],
+        country_tilts: [],
         crowded_trades: [],
+        contrarian_opportunities: [],
+        stocks_to_research: [],
         newsletters_analyzed: 0,
         insights_analyzed: 0,
       }), {
@@ -130,14 +134,14 @@ serve(async (req) => {
     // Fetch previous brief for signal persistence tracking
     const { data: previousBrief } = await supabase
       .from("intelligence_briefs")
-      .select("temporal_shifts, market_themes")
+      .select("temporal_shifts, sector_tilts, crowded_trades_legacy")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    const previousKeyPointTitles = ((previousBrief?.temporal_shifts as any[]) ?? []).map((kp: any) => kp.topic ?? kp.title);
-    const previousThemeNames = ((previousBrief?.market_themes as any[]) ?? []).map((t: any) => t.theme);
+    const previousKeyPointTitles = ((previousBrief?.temporal_shifts as any[]) ?? []).map((ts: any) => ts.topic || ts.title);
+    const previousThemeNames = ((previousBrief?.sector_tilts as any[]) ?? []).map((t: any) => t.sector || t.theme);
 
     // Build newsletter source map for the prompt
     const sourceMap: Record<string, string> = {};
@@ -427,6 +431,9 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
       // Try to extract the ONE-LINE SUMMARY section
       const oneLineMatch = letter.match(/═══\s*ONE-LINE SUMMARY\s*═══\s*\n([\s\S]*?)(?=═══|$)/);
       if (oneLineMatch) return oneLineMatch[1].trim().substring(0, 500);
+      // Fallback: first non-header, non-empty line
+      const lines = letter.split("\n").filter(l => l.trim() && !l.includes("═══"));
+      if (lines[0]) return lines[0].trim().substring(0, 500);
       return letter.substring(0, 500);
     }
 
@@ -454,6 +461,7 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
       temporal_shifts: result.temporal_shifts ?? [],
       action_items: [],
       market_themes: [],
+      crowded_trades_legacy: result.crowded_trades ?? [],
       newsletters_analyzed: newsletters?.length ?? 0,
       insights_analyzed: insightsList.length,
       generated_at: new Date().toISOString(),

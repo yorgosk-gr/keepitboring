@@ -24,30 +24,16 @@ export interface PortfolioStrategy {
 const DEFAULT_STRATEGY = {
   mandate: "Long-term wealth building, Balanced risk profile, 3-5 year horizon",
   philosophy: "Index core with high-conviction satellites",
-  target_description: "",
+  target_description: "Build a diversified portfolio with a broad market ETF core and selective individual stock positions",
   priorities: [
-    "Increase broad market equity to 60%+",
-    "Reduce individual stocks to max 5 high-conviction names",
-    "Add Brazil exposure via IBZL at 3%",
-    "Consolidate regional ETFs around SWRD core over time",
-    "Maintain 8-12% cash buffer as dry powder",
+    "Build a broad market equity core (60%+ of portfolio)",
+    "Limit individual stocks to highest-conviction names only",
+    "Maintain geographic diversification across developed and emerging markets",
+    "Keep a cash buffer as dry powder for opportunities",
   ],
-  positions_to_build: [
-    { ticker: "SWRD", rationale: "Core developed world equity exposure" },
-    { ticker: "VHVE", rationale: "Alternative broad DM equity ETF" },
-    { ticker: "IBZL", rationale: "Brazil exposure at 3% target" },
-    { ticker: "EIMI", rationale: "Emerging markets diversification" },
-  ],
-  positions_to_exit: [
-    { ticker: "NVO", rationale: "Reduce individual stock count" },
-    { ticker: "KLAR", rationale: "Low conviction legacy hold" },
-    { ticker: "PGY", rationale: "Low conviction legacy hold" },
-    { ticker: "MC", rationale: "Reduce individual stock count" },
-    { ticker: "MELI", rationale: "Take profits, reduce concentration" },
-    { ticker: "BKNG", rationale: "Reduce individual stock count" },
-    { ticker: "UNH", rationale: "Reduce individual stock count" },
-  ],
-  constraints: "Max 5 individual stocks, minimum $30k cash at all times, no single position above 15%",
+  positions_to_build: [],
+  positions_to_exit: [],
+  constraints: "No single position above 15% of portfolio",
 };
 
 export function usePortfolioStrategy() {

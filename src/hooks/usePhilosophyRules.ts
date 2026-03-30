@@ -100,6 +100,7 @@ export function usePhilosophyRules() {
       const { data, error } = await supabase
         .from("philosophy_rules")
         .select("*")
+        .eq("user_id", user!.id)
         .order("created_at", { ascending: true });
 
       if (error) throw error;

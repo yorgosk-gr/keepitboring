@@ -148,6 +148,7 @@ export function usePortfolioAnalysis() {
       const { data, error } = await supabase
         .from("analysis_history")
         .select("*")
+        .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(10);
 
@@ -208,6 +209,7 @@ export function usePortfolioAnalysis() {
       const { data: snapshotData } = await supabase
         .from("portfolio_snapshots")
         .select("cash_balance")
+        .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(1)
         .single();
@@ -218,11 +220,17 @@ export function usePortfolioAnalysis() {
       const livePositionsValue = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
       const totalPortfolioValue = livePositionsValue + cashBalance;
 
-      // Fetch latest intelligence brief for enhanced recommendations
+      // Read the latest existing intelligence brief from DB (don't generate a new one —
+      // that's expensive and slow; the user generates briefs separately via the Newsletters page)
       let intelligenceBrief = null;
       try {
-        const { data: briefData, error: briefError } = await supabase.functions.invoke("summarize-insights");
-        if (!briefError && briefData && !briefData.error) {
+        const { data: briefData, error: briefError } = await supabase
+          .from("intelligence_briefs")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!briefError && briefData) {
           intelligenceBrief = briefData;
         }
       } catch (e) {

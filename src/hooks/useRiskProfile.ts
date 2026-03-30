@@ -91,13 +91,19 @@ export function useRiskProfile() {
       if (!user) throw new Error("Not authenticated");
 
       // Deactivate previous profiles
+      const { data: previousProfiles } = await supabase
+        .from("risk_profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+
       await supabase
         .from("risk_profiles")
         .update({ is_active: false })
         .eq("user_id", user.id)
         .eq("is_active", true);
 
-      // Insert new profile
+      // Insert new profile — if this fails, re-activate the old ones
       const { data, error } = await supabase
         .from("risk_profiles")
         .insert({
@@ -111,7 +117,17 @@ export function useRiskProfile() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Rollback: re-activate the previous profiles
+        const previousIds = (previousProfiles ?? []).map((p) => p.id);
+        if (previousIds.length > 0) {
+          await supabase
+            .from("risk_profiles")
+            .update({ is_active: true })
+            .in("id", previousIds);
+        }
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {

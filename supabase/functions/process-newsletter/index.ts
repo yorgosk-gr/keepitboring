@@ -279,6 +279,7 @@ EXTRACTION RULES:
     let insights;
     try {
       let jsonString = content.trim();
+      // Strip markdown code blocks
       if (jsonString.includes("```json")) {
         jsonString = jsonString.split("```json")[1].split("```")[0];
       } else if (jsonString.includes("```")) {
@@ -286,14 +287,30 @@ EXTRACTION RULES:
       }
       jsonString = jsonString.trim();
 
+      // If it doesn't start with {, try to find the JSON object
+      if (!jsonString.startsWith("{")) {
+        const firstBrace = jsonString.indexOf("{");
+        const lastBrace = jsonString.lastIndexOf("}");
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+          jsonString = jsonString.substring(firstBrace, lastBrace + 1);
+        }
+      }
+
       try {
         insights = JSON.parse(jsonString);
       } catch {
-        const singleLine = jsonString.replace(/\r?\n/g, " ").replace(/\s+/g, " ");
-        insights = JSON.parse(singleLine);
+        // Normalize smart quotes and whitespace, then retry
+        const cleaned = jsonString
+          .replace(/[\u201C\u201D]/g, '"')
+          .replace(/[\u2018\u2019]/g, "'")
+          .replace(/\r?\n/g, " ")
+          .replace(/\s+/g, " ");
+        insights = JSON.parse(cleaned);
       }
     } catch (parseError) {
       console.error("Failed to parse AI response:", content.substring(0, 1000));
+      // Release processing lock before returning
+      await supabase.from("newsletters").update({ processing_started_at: null }).eq("id", newsletterId);
       return new Response(
         JSON.stringify({ error: "Could not parse AI response", raw: content.substring(0, 500) }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
