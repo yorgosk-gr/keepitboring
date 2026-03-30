@@ -12,6 +12,7 @@ import { useRiskProfile } from "./useRiskProfile";
 import { selectSmartInsights } from "./useSmartInsightSelection";
 import { usePortfolioStrategy } from "./usePortfolioStrategy";
 import { useNorthStar } from "./useNorthStar";
+import { useBookPrinciples } from "./useBookPrinciples";
 import { toast } from "sonner";
 
 export interface AllocationBreakdownItem {
@@ -157,6 +158,7 @@ export function usePortfolioAnalysis() {
   const { activeProfile, behavioralSignals } = useRiskProfile();
   const { strategy } = usePortfolioStrategy();
   const { positions: nsPositions } = useNorthStar();
+  const { principles: bookPrinciples } = useBookPrinciples();
   const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisResult | null>(null);
 
   // Fetch analysis history
@@ -328,6 +330,13 @@ export function usePortfolioAnalysis() {
             status: ns.status,
             priority: ns.priority,
           })) : null,
+          book_principles: bookPrinciples.filter(bp => bp.is_active).map(bp => ({
+            author: bp.author,
+            category: bp.category,
+            condition: bp.condition,
+            principle: bp.principle,
+            action_implication: bp.action_implication,
+          })),
         },
       });
 

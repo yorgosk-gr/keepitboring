@@ -110,6 +110,48 @@ export type Database = {
         }
         Relationships: []
       }
+      book_principles: {
+        Row: {
+          id: string
+          user_id: string
+          author: string
+          book: string
+          category: string
+          condition: string
+          principle: string
+          action_implication: string
+          tags: string[]
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          author: string
+          book: string
+          category: string
+          condition: string
+          principle: string
+          action_implication: string
+          tags?: string[]
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          author?: string
+          book?: string
+          category?: string
+          condition?: string
+          principle?: string
+          action_implication?: string
+          tags?: string[]
+          is_active?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
       behavioral_signals: {
         Row: {
           action: string | null

@@ -12,6 +12,7 @@ import { PhilosophyRuleCard } from "@/components/philosophy/PhilosophyRuleCard";
 import { AddRuleModal } from "@/components/philosophy/AddRuleModal";
 import { RuleCheckResultsModal } from "@/components/philosophy/RuleCheckResultsModal";
 import { StrategyBriefEditor } from "@/components/philosophy/StrategyBriefEditor";
+import { BookPrinciplesBrowser } from "@/components/philosophy/BookPrinciplesBrowser";
 import { toast } from "sonner";
 
 export default function Philosophy() {
@@ -164,6 +165,7 @@ export default function Philosophy() {
       <Tabs defaultValue="rules" className="w-full">
         <TabsList>
           <TabsTrigger value="rules">Rules</TabsTrigger>
+          <TabsTrigger value="wisdom">Book Wisdom</TabsTrigger>
           <TabsTrigger value="strategy">Portfolio Strategy</TabsTrigger>
         </TabsList>
 
@@ -271,6 +273,11 @@ export default function Philosophy() {
                 </div>
               );
             })}
+        </TabsContent>
+
+        {/* Book Wisdom Tab */}
+        <TabsContent value="wisdom" className="mt-4">
+          <BookPrinciplesBrowser />
         </TabsContent>
 
         {/* Strategy Tab */}

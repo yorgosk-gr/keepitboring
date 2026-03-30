@@ -453,6 +453,7 @@ serve(async (req) => {
       behavioral_alignment,
       portfolio_strategy,
       north_star,
+      book_principles,
     } = await req.json();
 
     // ── Deterministic Rule Evaluation ─────────────────────────────────
@@ -857,6 +858,33 @@ NORTH STAR RULES:
 - Prioritize exiting positions with status="exit".
 - For "reduce" positions, recommend trimming toward target weight.
 - Include a "north_star_progress" section in your response with: alignment_percent (0-100), top_3_moves (array of {ticker, action, rationale}).` : "No north star target portfolio set."}
+
+${(() => {
+  const bp = book_principles ?? [];
+  if (bp.length === 0) return "No book-sourced investment principles available.";
+  // Group by category for structured injection
+  const byCategory: Record<string, any[]> = {};
+  for (const p of bp) {
+    const cat = p.category || "general";
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(p);
+  }
+  const sections = Object.entries(byCategory).map(([cat, principles]) => {
+    const items = principles.map((p: any) =>
+      `  - [${p.author}] WHEN: ${p.condition} → ${p.principle} ACTION: ${p.action_implication}`
+    ).join("\n");
+    return `${cat.toUpperCase()}:\n${items}`;
+  }).join("\n\n");
+  return `INVESTMENT WISDOM (${bp.length} principles from investment classics — use these to enrich your analysis):
+
+${sections}
+
+WISDOM APPLICATION RULES:
+- When your analysis detects a condition matching a principle, CITE the principle by author in your reasoning.
+- Use principles to strengthen or challenge your recommendations — they represent battle-tested wisdom.
+- If a principle contradicts your recommendation, acknowledge the tension and explain your reasoning.
+- Do NOT list all principles — only reference those directly relevant to the current portfolio state.`;
+})()}
 
 Analyze this portfolio and return the JSON response.`;
 
