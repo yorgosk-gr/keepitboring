@@ -57,6 +57,34 @@ serve(async (req) => {
 
     console.log(`Processing newsletter ${newsletterId}, text length: ${rawText.length}`);
 
+    // Acquire processing lock — prevents duplicate processing from concurrent calls
+    const lockCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: lockResult } = await supabase
+      .from("newsletters")
+      .update({ processing_started_at: new Date().toISOString() })
+      .eq("id", newsletterId)
+      .or(`processing_started_at.is.null,processing_started_at.lt.${lockCutoff}`)
+      .select("id")
+      .maybeSingle();
+
+    if (!lockResult) {
+      console.log(`Newsletter ${newsletterId} is already being processed, skipping`);
+      return new Response(
+        JSON.stringify({ error: "Newsletter is already being processed", already_processing: true }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Release lock helper
+    const releaseLock = async () => {
+      await supabase
+        .from("newsletters")
+        .update({ processing_started_at: null })
+        .eq("id", newsletterId);
+    };
+
+    try {
+
     const truncatedText = rawText.length > 50000 ? rawText.substring(0, 50000) + "\n\n[Text truncated...]" : rawText;
 
     const systemPrompt = `You are an expert financial analyst extracting structured insights from investment newsletters.
@@ -204,18 +232,21 @@ EXTRACTION RULES:
       console.error("AI gateway error:", response.status, errorText);
 
       if (response.status === 429) {
+        await releaseLock();
         return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment.", retry_after_seconds: 30 }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "30" } }
         );
       }
       if (response.status === 402) {
+        await releaseLock();
         return new Response(
           JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
+      await releaseLock();
       return new Response(
         JSON.stringify({ error: "AI processing failed. Please try again." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -439,7 +470,7 @@ EXTRACTION RULES:
         if (error) console.error("Failed to update newsletter:", error);
       });
 
-    // Source reputation update (non-fatal)
+    // Source reputation update via atomic RPC (non-fatal)
     const updateReputationPromise = (async () => {
       try {
         const { data: nl } = await supabase
@@ -450,45 +481,11 @@ EXTRACTION RULES:
 
         if (!nl) return;
 
-        const highConviction = insightsToInsert.filter(i =>
-          i.metadata?.source_confidence >= 0.8 || i.metadata?.conviction_level === "high"
-        ).length;
-        const dataBacked = insightsToInsert.filter(i => i.metadata?.data_backed === true).length;
-        const avgConfidence = insightsToInsert.length > 0
-          ? insightsToInsert.reduce((sum, i) => sum + (i.metadata?.source_confidence ?? 0.5), 0) / insightsToInsert.length
-          : 0.5;
-
-        const { data: existing } = await supabase
-          .from("newsletter_sources")
-          .select("id, total_insights, high_conviction_insights, data_backed_insights, avg_confidence_score")
-          .eq("user_id", nl.user_id)
-          .eq("source_name", nl.source_name)
-          .maybeSingle();
-
-        if (existing) {
-          const newTotal = existing.total_insights + insightsToInsert.length;
-          const newHC = existing.high_conviction_insights + highConviction;
-          const newDB = existing.data_backed_insights + dataBacked;
-          const newAvg = (existing.avg_confidence_score * existing.total_insights + avgConfidence * insightsToInsert.length) / newTotal;
-
-          await supabase.from("newsletter_sources").update({
-            total_insights: newTotal,
-            high_conviction_insights: newHC,
-            data_backed_insights: newDB,
-            avg_confidence_score: parseFloat(newAvg.toFixed(3)),
-            last_seen_at: new Date().toISOString(),
-          }).eq("id", existing.id);
-        } else {
-          await supabase.from("newsletter_sources").insert({
-            user_id: nl.user_id,
-            source_name: nl.source_name,
-            total_insights: insightsToInsert.length,
-            high_conviction_insights: highConviction,
-            data_backed_insights: dataBacked,
-            avg_confidence_score: parseFloat(avgConfidence.toFixed(3)),
-            style: insights.source_profile?.style ?? null,
-          });
-        }
+        await supabase.rpc("recalculate_source_reputation", {
+          p_user_id: nl.user_id,
+          p_source_name: nl.source_name,
+          p_style: insights.source_profile?.style ?? null,
+        });
       } catch (reputationError) {
         console.warn("Failed to update source reputation (non-fatal):", reputationError);
       }
@@ -499,6 +496,7 @@ EXTRACTION RULES:
 
     console.log(`Successfully processed newsletter ${newsletterId}, inserted ${insightsToInsert.length} insights`);
 
+    await releaseLock();
     return new Response(
       JSON.stringify({
         success: true,
@@ -508,6 +506,12 @@ EXTRACTION RULES:
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
+    } catch (innerError) {
+      // Release processing lock on any error within the processing block
+      await releaseLock();
+      throw innerError;
+    }
   } catch (error) {
     console.error("Error processing newsletter:", error);
     return new Response(

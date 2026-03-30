@@ -195,6 +195,13 @@ export function useNewsletters() {
 
       const result = await response.json();
       if (!response.ok) {
+        if (response.status === 429) {
+          const retryAfter = result.retry_after_seconds ?? 30;
+          throw new Error(`Rate limit reached. Please wait ${retryAfter} seconds and try again.`);
+        }
+        if (response.status === 409 && result.already_processing) {
+          throw new Error("This newsletter is already being processed. Please wait for it to finish.");
+        }
         throw new Error(result.error || "Processing failed");
       }
       return result;

@@ -32,15 +32,10 @@ function parseAIJson(content: string) {
 
     try {
       return JSON.parse(cleaned);
-    } catch {
-      // Last resort: single quotes to double quotes
-      try {
-        return JSON.parse(cleaned.replace(/'/g, '"'));
-      } catch (e) {
-        console.error("Failed to parse AI response:", e);
-        console.error("Raw content:", content.substring(0, 1000));
-        return null;
-      }
+    } catch (e) {
+      console.error("Failed to parse AI response:", e);
+      console.error("Raw content:", content.substring(0, 1000));
+      return null;
     }
   }
 }
@@ -425,13 +420,57 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
       );
     }
 
-    return new Response(JSON.stringify({
+    const briefPayload = {
       ...result,
       key_points: result.temporal_shifts ?? [],
       newsletters_analyzed: newsletters?.length ?? 0,
       insights_analyzed: insightsList.length,
       generated_at: new Date().toISOString(),
-    }), {
+    };
+
+    // Persist brief server-side so it survives client disconnects
+    const { error: insertError } = await supabase.from("intelligence_briefs").insert({
+      user_id: user.id,
+      executive_summary: (result.letter ?? "").substring(0, 500),
+      letter: result.letter ?? null,
+      section_titles: result.section_titles ?? null,
+      stocks_to_research: result.stocks_to_research ?? null,
+      country_tilts: result.country_tilts ?? null,
+      sector_tilts: result.sector_tilts ?? null,
+      contrarian_opportunities: result.contrarian_opportunities ?? null,
+      crowded_trades: result.crowded_trades ?? [],
+      weekly_priority: result.weekly_priority ?? null,
+      key_points: result.temporal_shifts ?? [],
+      action_items: [],
+      market_themes: [],
+      // crowded_trades stored in contrarian_signals column (legacy schema mapping)
+      contrarian_signals: result.crowded_trades ?? [],
+      newsletters_analyzed: newsletters?.length ?? 0,
+      insights_analyzed: insightsList.length,
+      generated_at: new Date().toISOString(),
+    });
+
+    if (insertError) {
+      console.error("Failed to persist brief:", insertError);
+      return new Response(
+        JSON.stringify({ error: "Failed to save intelligence brief" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Cleanup: keep last 10 briefs (AFTER successful insert to avoid data loss)
+    const { data: existingBriefs } = await supabase
+      .from("intelligence_briefs")
+      .select("id, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (existingBriefs && existingBriefs.length > 10) {
+      const toDelete = existingBriefs.slice(10).map((b: any) => b.id);
+      await supabase.from("intelligence_briefs").delete().in("id", toDelete);
+    }
+
+    return new Response(JSON.stringify(briefPayload), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

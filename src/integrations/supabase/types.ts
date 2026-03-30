@@ -755,33 +755,42 @@ export type Database = {
       }
       newsletters: {
         Row: {
+          author: string | null
           created_at: string
           file_path: string | null
           id: string
           is_archived: boolean
           processed: boolean
+          processing_started_at: string | null
+          publication_date: string | null
           raw_text: string | null
           source_name: string
           upload_date: string
           user_id: string
         }
         Insert: {
+          author?: string | null
           created_at?: string
           file_path?: string | null
           id?: string
           is_archived?: boolean
           processed?: boolean
+          processing_started_at?: string | null
+          publication_date?: string | null
           raw_text?: string | null
           source_name: string
           upload_date?: string
           user_id: string
         }
         Update: {
+          author?: string | null
           created_at?: string
           file_path?: string | null
           id?: string
           is_archived?: boolean
           processed?: boolean
+          processing_started_at?: string | null
+          publication_date?: string | null
           raw_text?: string | null
           source_name?: string
           upload_date?: string

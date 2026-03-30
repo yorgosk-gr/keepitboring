@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -91,6 +90,7 @@ export function useInsightsSummary() {
       const { data, error } = await supabase
         .from("intelligence_briefs")
         .select("*")
+        .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -147,61 +147,9 @@ export function useInsightsSummary() {
         throw new Error(data.error || "Summary generation failed");
       }
       if (data.error) throw new Error(data.error);
-      const brief = data as InsightsSummary;
 
-      // Keep last 10 briefs - delete oldest beyond that
-      const { data: existingBriefs } = await supabase
-        .from("intelligence_briefs")
-        .select("id, created_at")
-        .eq("user_id", user!.id)
-        .order("created_at", { ascending: false });
-      if (existingBriefs && existingBriefs.length >= 10) {
-        const toDelete = existingBriefs.slice(9).map((b: any) => b.id);
-        await supabase.from("intelligence_briefs").delete().in("id", toDelete);
-      }
-
-      const { error: insertError } = await supabase.from("intelligence_briefs").insert({
-        user_id: user!.id,
-        executive_summary: brief.letter?.substring(0, 500) ?? brief.executive_summary ?? "",
-        letter: brief.letter,
-        section_titles: brief.section_titles as any,
-        stocks_to_research: brief.stocks_to_research as any,
-        country_tilts: brief.country_tilts as any,
-        sector_tilts: brief.sector_tilts as any,
-        contrarian_opportunities: brief.contrarian_opportunities as any,
-        crowded_trades: brief.crowded_trades,
-        weekly_priority: brief.weekly_priority,
-        key_points: brief.temporal_shifts as any ?? [] as any,
-        action_items: [] as any,
-        market_themes: [] as any,
-        contrarian_signals: brief.crowded_trades ?? [],
-        newsletters_analyzed: brief.newsletters_analyzed,
-        insights_analyzed: brief.insights_analyzed,
-        generated_at: brief.generated_at,
-      } as any);
-
-      if (insertError) {
-        console.error("Failed to persist brief:", insertError);
-        throw insertError;
-      }
-
-      // Cleanup old newsletters (60 days)
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - 60);
-      const cutoffISO = cutoffDate.toISOString();
-
-      const { data: oldNewsletters } = await supabase
-        .from("newsletters")
-        .select("id")
-        .lt("created_at", cutoffISO);
-
-      if (oldNewsletters && oldNewsletters.length > 0) {
-        const oldIds = oldNewsletters.map((n) => n.id);
-        await supabase.from("insights").delete().in("newsletter_id", oldIds);
-        await supabase.from("newsletters").delete().in("id", oldIds);
-      }
-
-      return brief;
+      // Brief is persisted server-side by the edge function
+      return data as InsightsSummary;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["intelligence_brief"] });

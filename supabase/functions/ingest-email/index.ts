@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const OWNER_USER_ID = "38ce8fa7-9327-4424-b247-c14755e32852";
+const OWNER_USER_ID = Deno.env.get("INGEST_DEFAULT_USER_ID");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -135,6 +135,14 @@ Deno.serve(async (req) => {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
+      );
+    }
+
+    if (!OWNER_USER_ID) {
+      console.error("INGEST_DEFAULT_USER_ID environment variable is not set");
+      return new Response(
+        JSON.stringify({ error: "Server misconfigured: INGEST_DEFAULT_USER_ID not set" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
