@@ -152,6 +152,7 @@ Analyze the newsletter text and return ONLY valid JSON (no markdown, no explanat
     {
       "ticker": "OXY",
       "name": "Occidental Petroleum",
+      "sentiment": "bullish|bearish|neutral",
       "thesis": "one sentence why",
       "claim_specificity": "high|medium|low",
       "catalyst": "specific catalyst or null"
@@ -224,7 +225,7 @@ EXTRACTION RULES:
           content: `Analyze this investment newsletter and extract insights:\n\n${truncatedText}`,
         },
       ],
-      max_tokens: 8192,
+      max_tokens: 16384,
     });
 
     if (!response.ok) {
@@ -259,6 +260,7 @@ EXTRACTION RULES:
 
     if (!content) {
       console.error("No content in AI response:", aiResponse);
+      await releaseLock();
       return new Response(
         JSON.stringify({ error: "AI returned empty response" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -267,8 +269,9 @@ EXTRACTION RULES:
 
     if (finishReason === "max_tokens") {
       console.error("AI response truncated (finish_reason: length)");
+      await releaseLock();
       return new Response(
-        JSON.stringify({ error: "Newsletter too long — try splitting it into smaller sections" }),
+        JSON.stringify({ error: "Newsletter generated too many insights for a single pass. Please try reprocessing." }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -414,7 +417,7 @@ EXTRACTION RULES:
         newsletter_id: newsletterId,
         insight_type: "stock_mention",
         content: `${si.name || si.ticker}: ${si.thesis}`,
-        sentiment: "bullish",
+        sentiment: si.sentiment || "bullish",
         tickers_mentioned: [si.ticker],
         confidence_words: [],
         metadata: {

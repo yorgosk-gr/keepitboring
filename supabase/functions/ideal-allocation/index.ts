@@ -45,12 +45,12 @@ serve(async (req) => {
     const briefSection = intelligence_brief
       ? `INTELLIGENCE BRIEF (use to inform tactical tilts):
 Executive Summary: ${intelligence_brief.executive_summary || "N/A"}
-Key Points:
-${(intelligence_brief.key_points || []).map((kp: any) => "- [" + kp.relevance + "] " + kp.title + ": " + kp.detail).join("\n")}
+Temporal Shifts:
+${(intelligence_brief.temporal_shifts || []).map((ts: any) => "- " + ts.topic + ": " + ts.prior_view + " → " + ts.current_view + " (" + ts.significance + ")").join("\n")}
 Market Themes:
 ${(intelligence_brief.market_themes || []).map((mt: any) => "- " + mt.theme + " (" + mt.sentiment + "): " + mt.portfolio_impact).join("\n")}
-Contrarian Signals:
-${(intelligence_brief.contrarian_signals || []).map((cs: string) => "- " + cs).join("\n")}
+Crowded Trades:
+${(intelligence_brief.crowded_trades || []).map((ct: string) => "- " + ct).join("\n")}
 Use these signals to tilt sector/region weights.`
       : "No intelligence brief available — use strategic allocation only.";
 

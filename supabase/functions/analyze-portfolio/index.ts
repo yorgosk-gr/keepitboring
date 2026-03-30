@@ -735,17 +735,14 @@ ${JSON.stringify(decisions, null, 2)}
 ${intelligence_brief ? `INTELLIGENCE BRIEF (${intelligence_brief.newsletters_analyzed ?? 0} newsletters, ${intelligence_brief.insights_analyzed ?? 0} insights):
 Executive Summary: ${intelligence_brief.executive_summary || "N/A"}
 
-Key Points:
-${(intelligence_brief.key_points || []).map((kp: any) => `- [${kp.relevance}] ${kp.title}: ${kp.detail}`).join("\n")}
-
-Action Items:
-${(intelligence_brief.action_items || []).map((ai: any) => `- [${ai.urgency}] ${ai.action} — ${ai.reasoning}`).join("\n")}
+Temporal Shifts:
+${(intelligence_brief.temporal_shifts || []).map((ts: any) => `- ${ts.topic}: ${ts.prior_view} → ${ts.current_view} (${ts.significance})`).join("\n")}
 
 Market Themes:
 ${(intelligence_brief.market_themes || []).map((mt: any) => `- ${mt.theme} (${mt.sentiment}, ${mt.source_count} sources): ${mt.portfolio_impact}`).join("\n")}
 
-Contrarian Signals:
-${(intelligence_brief.contrarian_signals || []).map((cs: string) => `- ${cs}`).join("\n")}
+Crowded Trades:
+${(intelligence_brief.crowded_trades || []).map((ct: string) => `- ${ct}`).join("\n")}
 
 USE THIS BRIEF to drive trade recommendations. Reference specific themes.` : "No Intelligence Brief available — rely on raw insights above."}
 
