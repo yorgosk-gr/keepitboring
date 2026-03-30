@@ -84,6 +84,27 @@ serve(async (req) => {
 
     const currentProfile = profileData?.profile ?? "balanced";
 
+    // Fetch all risk profile history to determine profile at each trade date
+    const { data: profileHistory } = await supabase
+      .from("risk_profiles")
+      .select("profile, applied_at")
+      .eq("user_id", user.id)
+      .order("applied_at", { ascending: true });
+
+    // Helper: find the profile that was active on a given date
+    function getProfileAtDate(date: Date): string {
+      if (!profileHistory || profileHistory.length === 0) return currentProfile;
+      let activeProfile = profileHistory[0].profile; // earliest profile as default
+      for (const p of profileHistory) {
+        if (new Date(p.applied_at) <= date) {
+          activeProfile = p.profile;
+        } else {
+          break;
+        }
+      }
+      return activeProfile;
+    }
+
     const { data: events } = await supabase
       .from("market_events")
       .select("*")
@@ -107,8 +128,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
-
-    await supabase.from("behavioral_signals").delete().eq("user_id", user.id);
 
     const signals: any[] = [];
 
@@ -141,7 +160,9 @@ serve(async (req) => {
         const dominantTrade = sells.length >= buys.length ? sells[0] : buys[0];
         if (!dominantTrade) continue;
 
-        const profileAtTime = currentProfile;
+        // Use the profile that was active at the time of the trade, not the current one
+        const tradeDate = dominantTrade.trade_date ? new Date(dominantTrade.trade_date) : eventDate;
+        const profileAtTime = getProfileAtDate(tradeDate);
         const aligned = isAligned(profileAtTime, event, dominantTrade);
 
         signals.push({
@@ -163,11 +184,26 @@ serve(async (req) => {
       }
     }
 
+    // Safe replace: insert new signals first, then delete old ones
     if (signals.length > 0) {
-      const { error: insertError } = await supabase
+      const { data: inserted, error: insertError } = await supabase
         .from("behavioral_signals")
-        .insert(signals);
+        .insert(signals)
+        .select("id");
       if (insertError) throw insertError;
+
+      // Only delete old signals after successful insert
+      const newIds = (inserted ?? []).map((s: any) => s.id);
+      if (newIds.length > 0) {
+        await supabase
+          .from("behavioral_signals")
+          .delete()
+          .eq("user_id", user.id)
+          .not("id", "in", `(${newIds.join(",")})`);
+      }
+    } else {
+      // No new signals to insert — safe to clean up old ones
+      await supabase.from("behavioral_signals").delete().eq("user_id", user.id);
     }
 
     const totalSignals = signals.length;

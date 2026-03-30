@@ -152,6 +152,7 @@ Analyze the newsletter text and return ONLY valid JSON (no markdown, no explanat
     {
       "ticker": "OXY",
       "name": "Occidental Petroleum",
+      "sentiment": "bullish|bearish|neutral",
       "thesis": "one sentence why",
       "claim_specificity": "high|medium|low",
       "catalyst": "specific catalyst or null"
@@ -224,7 +225,7 @@ EXTRACTION RULES:
           content: `Analyze this investment newsletter and extract insights:\n\n${truncatedText}`,
         },
       ],
-      max_tokens: 8192,
+      max_tokens: 16384,
     });
 
     if (!response.ok) {
@@ -259,6 +260,7 @@ EXTRACTION RULES:
 
     if (!content) {
       console.error("No content in AI response:", aiResponse);
+      await releaseLock();
       return new Response(
         JSON.stringify({ error: "AI returned empty response" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -267,8 +269,9 @@ EXTRACTION RULES:
 
     if (finishReason === "max_tokens") {
       console.error("AI response truncated (finish_reason: length)");
+      await releaseLock();
       return new Response(
-        JSON.stringify({ error: "Newsletter too long — try splitting it into smaller sections" }),
+        JSON.stringify({ error: "Newsletter generated too many insights for a single pass. Please try reprocessing." }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -276,6 +279,7 @@ EXTRACTION RULES:
     let insights;
     try {
       let jsonString = content.trim();
+      // Strip markdown code blocks
       if (jsonString.includes("```json")) {
         jsonString = jsonString.split("```json")[1].split("```")[0];
       } else if (jsonString.includes("```")) {
@@ -283,14 +287,30 @@ EXTRACTION RULES:
       }
       jsonString = jsonString.trim();
 
+      // If it doesn't start with {, try to find the JSON object
+      if (!jsonString.startsWith("{")) {
+        const firstBrace = jsonString.indexOf("{");
+        const lastBrace = jsonString.lastIndexOf("}");
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+          jsonString = jsonString.substring(firstBrace, lastBrace + 1);
+        }
+      }
+
       try {
         insights = JSON.parse(jsonString);
       } catch {
-        const singleLine = jsonString.replace(/\r?\n/g, " ").replace(/\s+/g, " ");
-        insights = JSON.parse(singleLine);
+        // Normalize smart quotes and whitespace, then retry
+        const cleaned = jsonString
+          .replace(/[\u201C\u201D]/g, '"')
+          .replace(/[\u2018\u2019]/g, "'")
+          .replace(/\r?\n/g, " ")
+          .replace(/\s+/g, " ");
+        insights = JSON.parse(cleaned);
       }
     } catch (parseError) {
       console.error("Failed to parse AI response:", content.substring(0, 1000));
+      // Release processing lock before returning
+      await supabase.from("newsletters").update({ processing_started_at: null }).eq("id", newsletterId);
       return new Response(
         JSON.stringify({ error: "Could not parse AI response", raw: content.substring(0, 500) }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -414,7 +434,7 @@ EXTRACTION RULES:
         newsletter_id: newsletterId,
         insight_type: "stock_mention",
         content: `${si.name || si.ticker}: ${si.thesis}`,
-        sentiment: "bullish",
+        sentiment: si.sentiment || "bullish",
         tickers_mentioned: [si.ticker],
         confidence_words: [],
         metadata: {

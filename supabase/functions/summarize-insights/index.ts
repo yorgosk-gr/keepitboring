@@ -92,12 +92,16 @@ serve(async (req) => {
         executive_summary: "No newsletters uploaded in the last 10 days. Upload some newsletters to get AI-generated insights.",
         weekly_priority: null,
         key_points: [],
+        temporal_shifts: [],
         action_items: [],
         market_themes: [],
-        contrarian_signals: [],
+        sector_tilts: [],
+        country_tilts: [],
+        crowded_trades: [],
+        contrarian_opportunities: [],
+        stocks_to_research: [],
         newsletters_analyzed: 0,
         insights_analyzed: 0,
-        persistent_signals: [],
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -108,7 +112,7 @@ serve(async (req) => {
       .select("*, newsletters(source_name)")
       .in("newsletter_id", newsletterIds)
       .order("created_at", { ascending: false })
-      .limit(100);
+      .limit(500);
 
     const insightsList = insights ?? [];
 
@@ -130,14 +134,14 @@ serve(async (req) => {
     // Fetch previous brief for signal persistence tracking
     const { data: previousBrief } = await supabase
       .from("intelligence_briefs")
-      .select("key_points, market_themes, contrarian_signals")
+      .select("temporal_shifts, sector_tilts, crowded_trades_legacy")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    const previousKeyPointTitles = ((previousBrief?.key_points as any[]) ?? []).map((kp: any) => kp.title);
-    const previousThemeNames = ((previousBrief?.market_themes as any[]) ?? []).map((t: any) => t.theme);
+    const previousKeyPointTitles = ((previousBrief?.temporal_shifts as any[]) ?? []).map((ts: any) => ts.topic || ts.title);
+    const previousThemeNames = ((previousBrief?.sector_tilts as any[]) ?? []).map((t: any) => t.sector || t.theme);
 
     // Build newsletter source map for the prompt
     const sourceMap: Record<string, string> = {};
@@ -420,6 +424,17 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
       );
     }
 
+    // Extract a meaningful executive summary from the letter
+    function extractExecutiveSummary(letter: string, weeklyPriority: string | null): string {
+      if (weeklyPriority) return weeklyPriority;
+      // Try to extract the ONE-LINE SUMMARY section
+      const oneLineMatch = letter.match(/ONE-LINE SUMMARY[═ ]*\n+(.+)/i);
+      if (oneLineMatch) return oneLineMatch[1].trim().substring(0, 500);
+      // Fallback: first non-header, non-empty line
+      const lines = letter.split("\n").filter(l => l.trim() && !l.includes("═══"));
+      return (lines[0] ?? "").trim().substring(0, 500);
+    }
+
     const briefPayload = {
       ...result,
       key_points: result.temporal_shifts ?? [],
@@ -431,7 +446,7 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
     // Persist brief server-side so it survives client disconnects
     const { error: insertError } = await supabase.from("intelligence_briefs").insert({
       user_id: user.id,
-      executive_summary: (result.letter ?? "").substring(0, 500),
+      executive_summary: extractExecutiveSummary(result.letter ?? "", result.weekly_priority ?? null),
       letter: result.letter ?? null,
       section_titles: result.section_titles ?? null,
       stocks_to_research: result.stocks_to_research ?? null,
@@ -440,11 +455,10 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
       contrarian_opportunities: result.contrarian_opportunities ?? null,
       crowded_trades: result.crowded_trades ?? [],
       weekly_priority: result.weekly_priority ?? null,
-      key_points: result.temporal_shifts ?? [],
+      temporal_shifts: result.temporal_shifts ?? [],
       action_items: [],
       market_themes: [],
-      // crowded_trades stored in contrarian_signals column (legacy schema mapping)
-      contrarian_signals: result.crowded_trades ?? [],
+      crowded_trades_legacy: result.crowded_trades ?? [],
       newsletters_analyzed: newsletters?.length ?? 0,
       insights_analyzed: insightsList.length,
       generated_at: new Date().toISOString(),

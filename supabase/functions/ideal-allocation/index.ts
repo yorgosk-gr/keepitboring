@@ -44,13 +44,15 @@ serve(async (req) => {
 
     const briefSection = intelligence_brief
       ? `INTELLIGENCE BRIEF (use to inform tactical tilts):
-Executive Summary: ${intelligence_brief.executive_summary || "N/A"}
-Key Points:
-${(intelligence_brief.key_points || []).map((kp: any) => "- [" + kp.relevance + "] " + kp.title + ": " + kp.detail).join("\n")}
-Market Themes:
-${(intelligence_brief.market_themes || []).map((mt: any) => "- " + mt.theme + " (" + mt.sentiment + "): " + mt.portfolio_impact).join("\n")}
-Contrarian Signals:
-${(intelligence_brief.contrarian_signals || []).map((cs: string) => "- " + cs).join("\n")}
+Weekly Priority: ${intelligence_brief.weekly_priority || "N/A"}
+Temporal Shifts (view changes since last brief):
+${(intelligence_brief.temporal_shifts || intelligence_brief.key_points || []).map((ts: any) => "- " + (ts.topic || ts.title || "") + ": " + (ts.significance || ts.detail || "")).join("\n") || "None"}
+Sector Tilts:
+${(intelligence_brief.sector_tilts || []).map((st: any) => "- " + st.sector + " (" + st.direction + ", " + st.conviction + " conviction): " + st.reasoning).join("\n") || "None"}
+Country Tilts:
+${(intelligence_brief.country_tilts || []).map((ct: any) => "- " + ct.region + " (" + ct.direction + ", " + ct.conviction + " conviction): " + ct.reasoning).join("\n") || "None"}
+Crowded Trades (beware):
+${(intelligence_brief.crowded_trades || []).map((ct: string) => "- " + ct).join("\n") || "None"}
 Use these signals to tilt sector/region weights.`
       : "No intelligence brief available — use strategic allocation only.";
 
@@ -148,7 +150,7 @@ JSON OUTPUT:
 
     const aiData = await response.json();
     const content = aiData.content?.[0]?.text?.trim() || "";
-    const finishReason = aiData.choices?.[0]?.finish_reason;
+    const finishReason = aiData.stop_reason;
 
     if (!content) {
       return new Response(JSON.stringify({ error: "AI returned empty response." }), {

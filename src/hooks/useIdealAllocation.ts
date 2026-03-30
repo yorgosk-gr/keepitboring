@@ -33,11 +33,16 @@ export function useIdealAllocation() {
     mutationFn: async () => {
       const activeRules = rules.filter((r) => r.is_active);
 
-      // Fetch latest intelligence brief
+      // Read latest existing intelligence brief from DB (don't generate a new one)
       let intelligenceBrief = null;
       try {
-        const { data: briefData } = await supabase.functions.invoke("summarize-insights");
-        if (briefData && !briefData.error) {
+        const { data: briefData } = await supabase
+          .from("intelligence_briefs")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (briefData) {
           intelligenceBrief = briefData;
         }
       } catch (e) {
