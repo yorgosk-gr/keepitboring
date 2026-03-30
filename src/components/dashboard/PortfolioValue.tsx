@@ -1,4 +1,4 @@
-import { Layers, Wallet } from "lucide-react";
+import { Layers, Wallet, TrendingUp, TrendingDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface PortfolioValueProps {
@@ -10,11 +10,13 @@ interface PortfolioValueProps {
   isLoading?: boolean;
 }
 
-export function PortfolioValue({ 
-  totalValue, 
+export function PortfolioValue({
+  totalValue,
+  dailyChange,
+  dailyChangePercent,
   positionsCount,
   cashBalance,
-  isLoading 
+  isLoading
 }: PortfolioValueProps) {
   if (isLoading) {
     return (
@@ -25,13 +27,29 @@ export function PortfolioValue({
     );
   }
 
+  const hasChange = dailyChange != null && dailyChange !== 0;
+  const isPositive = (dailyChange ?? 0) >= 0;
+
   return (
     <div className="stat-card flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
         <p className="text-sm text-muted-foreground mb-1">Total Portfolio Value</p>
-        <p className="text-4xl font-bold text-foreground tracking-tight">
-          ${totalValue.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-        </p>
+        <div className="flex items-baseline gap-3">
+          <p className="text-4xl font-bold text-foreground tracking-tight">
+            ${totalValue.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+          </p>
+          {hasChange && (
+            <div className={`flex items-center gap-1 ${isPositive ? "text-primary" : "text-destructive"}`}>
+              {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+              <span className="text-sm font-semibold">
+                {isPositive ? "+" : ""}${Math.abs(dailyChange!).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+              </span>
+              <span className="text-xs">
+                ({isPositive ? "+" : ""}{(dailyChangePercent ?? 0).toFixed(2)}%)
+              </span>
+            </div>
+          )}
+        </div>
       </div>
       <div className="flex gap-6">
         <div className="flex items-center gap-3">

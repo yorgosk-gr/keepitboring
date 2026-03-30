@@ -2,7 +2,9 @@ import { Link } from "react-router-dom";
 import { AlertCircle, DollarSign } from "lucide-react";
 import { PortfolioValue } from "@/components/dashboard/PortfolioValue";
 import { DonutChart } from "@/components/dashboard/DonutChart";
-
+import { TopHoldings } from "@/components/dashboard/TopHoldings";
+import { RecentActivity } from "@/components/dashboard/RecentActivity";
+import { DashboardStatusRow } from "@/components/dashboard/DashboardStatusRow";
 
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { ConvictionReviewWidget } from "@/components/dashboard/ConvictionReviewWidget";
@@ -25,7 +27,9 @@ export default function Dashboard() {
     etfsPercent,
     cashPercent,
     daysSincePriceRefresh,
-    
+    daysSinceUpdate,
+    topPositions,
+    decisionLogs,
     isLoading,
   } = useDashboardData();
 
@@ -49,12 +53,12 @@ export default function Dashboard() {
 
     for (const position of positions) {
       const value = position.market_value ?? 0;
-      
+
       if (position.position_type === "etf") {
         // Use classified category from metadata if available
         const meta = etfMetadata[position.ticker];
         const category = meta?.category || position.category || "equity";
-        
+
         // Country and theme ETFs are equity funds (India, Japan, Healthcare, etc.)
         if (category === "equity") {
           breakdown.equity += value;
@@ -71,7 +75,7 @@ export default function Dashboard() {
     }
 
     const totalWithCash = Object.values(breakdown).reduce((sum, v) => sum + v, 0) + cashBalance;
-    
+
     return [
       { name: "Equity", value: totalWithCash > 0 ? (breakdown.equity / totalWithCash) * 100 : 0, color: "hsl(160, 84%, 39%)", target: 65 },
       { name: "Bonds", value: totalWithCash > 0 ? (breakdown.bond / totalWithCash) * 100 : 0, color: "hsl(199, 89%, 48%)", target: 20 },
@@ -93,11 +97,11 @@ export default function Dashboard() {
 
     for (const position of positions) {
       const value = position.market_value ?? 0;
-      
+
       if (position.position_type === "etf") {
         const meta = etfMetadata[position.ticker];
         const geography = meta?.geography || "global";
-        
+
         // Normalize geography values
         if (geography === "global") {
           breakdown.global += value;
@@ -109,7 +113,7 @@ export default function Dashboard() {
           breakdown.japan += value;
         } else if (geography === "india") {
           breakdown.india += value;
-        } else if (geography === "emerging_markets" || geography === "emerging" || 
+        } else if (geography === "emerging_markets" || geography === "emerging" ||
                    geography === "brazil" || geography === "china") {
           breakdown.emerging_markets += value;
         } else {
@@ -123,7 +127,7 @@ export default function Dashboard() {
     }
 
     const total = Object.values(breakdown).reduce((sum, v) => sum + v, 0);
-    
+
     return [
       { name: "Global", value: total > 0 ? (breakdown.global / total) * 100 : 0, color: "hsl(160, 84%, 39%)", target: 30 },
       { name: "US", value: total > 0 ? (breakdown.us / total) * 100 : 0, color: "hsl(217, 91%, 60%)", target: 35 },
@@ -163,7 +167,7 @@ export default function Dashboard() {
       <ConvictionReviewWidget />
 
       {/* Portfolio Value + Stats */}
-      <PortfolioValue 
+      <PortfolioValue
         totalValue={totalValue}
         dailyChange={dailyChange}
         dailyChangePercent={dailyChangePercent}
@@ -172,29 +176,38 @@ export default function Dashboard() {
         isLoading={isLoading}
       />
 
+      {/* Status Row: Health Score, Violations, Intelligence, Last Synced, Book Wisdom */}
+      <DashboardStatusRow daysSinceUpdate={daysSinceUpdate} />
+
       {/* Performance Chart */}
       <PerformanceChart />
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <DonutChart 
-          title="Investment Type" 
-          data={investmentTypeData} 
+        <DonutChart
+          title="Investment Type"
+          data={investmentTypeData}
           isLoading={isLoading}
           showTargetIndicator
         />
-        <DonutChart 
-          title="Asset Class" 
-          data={assetBreakdownData} 
+        <DonutChart
+          title="Asset Class"
+          data={assetBreakdownData}
           isLoading={isLoading}
           showTargetIndicator
         />
-        <DonutChart 
-          title="Geography" 
-          data={geographyBreakdownData} 
+        <DonutChart
+          title="Geography"
+          data={geographyBreakdownData}
           isLoading={isLoading}
           showTargetIndicator
         />
+      </div>
+
+      {/* Top Holdings + Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <TopHoldings positions={topPositions} isLoading={isLoading} />
+        <RecentActivity decisionLogs={decisionLogs} positions={positions} isLoading={isLoading} />
       </div>
 
       {/* North Star Widget */}

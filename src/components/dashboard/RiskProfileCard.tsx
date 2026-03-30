@@ -43,7 +43,8 @@ export function RiskProfileCard({ positions, etfMetadata, totalValue, cashBalanc
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showUpdate, setShowUpdate] = useState(false);
 
-  const totalWithCash = totalValue + cashBalance;
+  // totalValue already includes cashBalance (positions + cash), so use it directly
+  const totalWithCash = totalValue;
 
   const buckets = useMemo(() => {
     let broad = 0, theme = 0, stocks = 0;
