@@ -93,6 +93,12 @@ export function NewsletterUploadZone({ onUpload, compact }: NewsletterUploadZone
     setUploadingFiles((prev) => [...prev, uploadingFile]);
 
     try {
+      // Reject files over 50MB to avoid browser OOM during extraction
+      const MAX_FILE_SIZE = 50 * 1024 * 1024;
+      if (file.size > MAX_FILE_SIZE) {
+        throw new Error("File is too large (max 50MB). Try a shorter excerpt or paste the text directly.");
+      }
+
       // Extract text from file
       setUploadingFiles((prev) =>
         prev.map((f) =>

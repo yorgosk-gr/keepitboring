@@ -46,7 +46,7 @@ serve(async (req) => {
       ? `INTELLIGENCE BRIEF (use to inform tactical tilts):
 Weekly Priority: ${intelligence_brief.weekly_priority || "N/A"}
 Temporal Shifts (view changes since last brief):
-${(intelligence_brief.temporal_shifts || intelligence_brief.key_points || []).map((ts: any) => "- " + (ts.topic || ts.title || "") + ": " + (ts.significance || ts.detail || "")).join("\n") || "None"}
+${(intelligence_brief.temporal_shifts || []).map((ts: any) => "- " + (ts.topic || "") + ": " + (ts.significance || ts.prior_view + " → " + ts.current_view || "")).join("\n") || "None"}
 Sector Tilts:
 ${(intelligence_brief.sector_tilts || []).map((st: any) => "- " + st.sector + " (" + st.direction + ", " + st.conviction + " conviction): " + st.reasoning).join("\n") || "None"}
 Country Tilts:

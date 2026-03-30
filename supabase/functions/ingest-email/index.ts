@@ -67,10 +67,13 @@ function stripHtml(html: string): string {
   const cleanedLines = lines.filter((line) => {
     const trimmed = line.trim();
     if (!trimmed) return false;
-    // Skip very short lines (likely nav items, buttons)
-    if (trimmed.length < 4) return false;
-    // Skip junk lines
-    return !junkPatterns.some((p) => p.test(trimmed));
+    // Skip very short lines (likely nav items, buttons) but keep ticker-length lines
+    if (trimmed.length < 2) return false;
+    // Only apply junk patterns to short lines — long lines with "click here" or "©" likely have valuable context
+    if (trimmed.length < 100) {
+      return !junkPatterns.some((p) => p.test(trimmed));
+    }
+    return true;
   });
 
   // Collapse whitespace per line, then join
@@ -120,13 +123,40 @@ Deno.serve(async (req) => {
     const body = await req.json();
 
     // Extract fields from Cloudmailin payload
-    const subject =
+    const rawSubject =
       body.subject || body.headers?.subject || "Unknown Newsletter";
     const plain = body.plain || "";
     const html = body.html || "";
 
-    // Use plain text if available, otherwise strip HTML
-    const rawText = plain.trim() ? plain.trim() : stripHtml(html);
+    // Normalize source name: strip forwarding prefixes and trailing dates
+    // so "Fwd: Fwd: Re: Morning Briefing — Mar 28" → "Morning Briefing"
+    function normalizeSourceName(s: string): string {
+      let name = s;
+      // Repeatedly strip Fwd:/Re:/Fw: prefixes
+      let prev = "";
+      while (prev !== name) {
+        prev = name;
+        name = name.replace(/^\s*(Fwd|Fw|Re)\s*:\s*/i, "");
+      }
+      // Strip trailing date patterns: "— Mar 28", "- 03/28/2026", "– March 28, 2026"
+      name = name.replace(/\s*[—–-]\s*\w+\.?\s+\d{1,2}(,?\s*\d{4})?\s*$/, "");
+      name = name.replace(/\s*[—–-]\s*\d{1,2}\/\d{1,2}(\/\d{2,4})?\s*$/, "");
+      return name.trim() || s.trim();
+    }
+    const subject = normalizeSourceName(rawSubject);
+
+    // Prefer HTML — plain text versions of rich newsletters are often garbage
+    // (no structure, stripped tables, mangled formatting)
+    let rawText = "";
+    const strippedHtml = html ? stripHtml(html) : "";
+    const plainTrimmed = plain.trim();
+    if (strippedHtml.length > plainTrimmed.length && strippedHtml.length > 50) {
+      rawText = strippedHtml;
+    } else if (plainTrimmed) {
+      rawText = plainTrimmed;
+    } else {
+      rawText = strippedHtml;
+    }
 
     if (!rawText) {
       return new Response(

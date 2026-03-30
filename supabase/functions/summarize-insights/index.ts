@@ -82,6 +82,7 @@ serve(async (req) => {
       .from("newsletters")
       .select("id, source_name, upload_date")
       .eq("user_id", user.id)
+      .eq("is_archived", false)
       .gte("created_at", tenDaysAgo)
       .order("created_at", { ascending: false });
 
@@ -91,7 +92,6 @@ serve(async (req) => {
       return new Response(JSON.stringify({
         executive_summary: "No newsletters uploaded in the last 10 days. Upload some newsletters to get AI-generated insights.",
         weekly_priority: null,
-        key_points: [],
         temporal_shifts: [],
         action_items: [],
         market_themes: [],
@@ -424,29 +424,32 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
       );
     }
 
-    // Extract a meaningful executive summary from the letter
-    function extractExecutiveSummary(letter: string, weeklyPriority: string | null): string {
+    // Extract a meaningful executive summary instead of blind truncation
+    function extractExecutiveSummary(letter: string | null, weeklyPriority: string | null): string {
       if (weeklyPriority) return weeklyPriority;
+      if (!letter) return "";
       // Try to extract the ONE-LINE SUMMARY section
-      const oneLineMatch = letter.match(/ONE-LINE SUMMARY[═ ]*\n+(.+)/i);
+      const oneLineMatch = letter.match(/═══\s*ONE-LINE SUMMARY\s*═══\s*\n([\s\S]*?)(?=═══|$)/);
       if (oneLineMatch) return oneLineMatch[1].trim().substring(0, 500);
       // Fallback: first non-header, non-empty line
       const lines = letter.split("\n").filter(l => l.trim() && !l.includes("═══"));
-      return (lines[0] ?? "").trim().substring(0, 500);
+      if (lines[0]) return lines[0].trim().substring(0, 500);
+      return letter.substring(0, 500);
     }
 
     const briefPayload = {
       ...result,
-      key_points: result.temporal_shifts ?? [],
+      temporal_shifts: result.temporal_shifts ?? [],
       newsletters_analyzed: newsletters?.length ?? 0,
       insights_analyzed: insightsList.length,
       generated_at: new Date().toISOString(),
+      market_context_available: !!marketContext,
     };
 
     // Persist brief server-side so it survives client disconnects
     const { error: insertError } = await supabase.from("intelligence_briefs").insert({
       user_id: user.id,
-      executive_summary: extractExecutiveSummary(result.letter ?? "", result.weekly_priority ?? null),
+      executive_summary: extractExecutiveSummary(result.letter, result.weekly_priority),
       letter: result.letter ?? null,
       section_titles: result.section_titles ?? null,
       stocks_to_research: result.stocks_to_research ?? null,

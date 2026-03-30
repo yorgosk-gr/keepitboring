@@ -58,10 +58,11 @@ export function useSourceReputation() {
     mutationFn: async () => {
       if (!user) return;
 
-      // Fetch all processed newsletters with their insights
+      // Fetch all processed newsletters for this user
       const { data: newsletters } = await supabase
         .from("newsletters")
         .select("id, source_name, created_at")
+        .eq("user_id", user.id)
         .eq("processed", true);
 
       if (!newsletters || newsletters.length === 0) return;

@@ -784,7 +784,7 @@ ${intelligence_brief ? `INTELLIGENCE BRIEF (${intelligence_brief.newsletters_ana
 Weekly Priority: ${intelligence_brief.weekly_priority || "N/A"}
 
 Temporal Shifts (view changes since last brief):
-${(intelligence_brief.temporal_shifts || intelligence_brief.key_points || []).map((ts: any) => `- ${ts.topic || ts.title || ""}: ${ts.significance || ts.detail || ""} ${ts.weeks_tracked ? `(week ${ts.weeks_tracked})` : ""}`).join("\n") || "None"}
+${(intelligence_brief.temporal_shifts || []).map((ts: any) => `- ${ts.topic || ""}: ${ts.significance || ""} ${ts.weeks_tracked ? `(week ${ts.weeks_tracked})` : ""}`).join("\n") || "None"}
 
 Sector Tilts:
 ${(intelligence_brief.sector_tilts || []).map((st: any) => `- ${st.sector} (${st.direction}, ${st.conviction} conviction): ${st.reasoning} [${st.signal_type || ""}${st.vs_prior_brief ? `, vs prior: ${st.vs_prior_brief}` : ""}]`).join("\n") || "None"}
