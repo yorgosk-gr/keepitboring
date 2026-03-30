@@ -111,7 +111,7 @@ export function useInsightsSummary() {
         sector_tilts: (data.sector_tilts as unknown as SectorTilt[]) ?? [],
         contrarian_opportunities: (data.contrarian_opportunities as unknown as ContrarianOpportunity[]) ?? [],
         crowded_trades: data.crowded_trades ?? [],
-        temporal_shifts: (data.key_points as unknown as TemporalShift[]) ?? [],
+        temporal_shifts: (data.temporal_shifts as unknown as TemporalShift[]) ?? [],
         weekly_priority: data.weekly_priority ?? null,
         executive_summary: data.executive_summary ?? "",
         newsletters_analyzed: data.newsletters_analyzed ?? 0,
@@ -151,11 +151,15 @@ export function useInsightsSummary() {
       // Brief is persisted server-side by the edge function
       return data as InsightsSummary;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["intelligence_brief"] });
       queryClient.invalidateQueries({ queryKey: ["newsletters"] });
       queryClient.invalidateQueries({ queryKey: ["insights"] });
-      toast.success("Intelligence brief generated");
+      if ((data as any)?.market_context_available === false) {
+        toast.warning("Brief generated without real-time market data — claims are not cross-checked against live prices");
+      } else {
+        toast.success("Intelligence brief generated");
+      }
     },
     onError: (error) => {
       console.error("Summary generation failed:", error);

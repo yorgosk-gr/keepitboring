@@ -655,7 +655,7 @@ export type Database = {
         Row: {
           action_items: Json | null
           contrarian_opportunities: Json | null
-          contrarian_signals: string[] | null
+          crowded_trades_legacy: string[] | null
           country_tilts: Json | null
           created_at: string
           crowded_trades: string[] | null
@@ -663,7 +663,7 @@ export type Database = {
           generated_at: string
           id: string
           insights_analyzed: number | null
-          key_points: Json | null
+          temporal_shifts: Json | null
           letter: string | null
           market_themes: Json | null
           newsletters_analyzed: number | null
@@ -676,7 +676,7 @@ export type Database = {
         Insert: {
           action_items?: Json | null
           contrarian_opportunities?: Json | null
-          contrarian_signals?: string[] | null
+          crowded_trades_legacy?: string[] | null
           country_tilts?: Json | null
           created_at?: string
           crowded_trades?: string[] | null
@@ -684,7 +684,7 @@ export type Database = {
           generated_at?: string
           id?: string
           insights_analyzed?: number | null
-          key_points?: Json | null
+          temporal_shifts?: Json | null
           letter?: string | null
           market_themes?: Json | null
           newsletters_analyzed?: number | null
@@ -697,7 +697,7 @@ export type Database = {
         Update: {
           action_items?: Json | null
           contrarian_opportunities?: Json | null
-          contrarian_signals?: string[] | null
+          crowded_trades_legacy?: string[] | null
           country_tilts?: Json | null
           created_at?: string
           crowded_trades?: string[] | null
@@ -705,7 +705,7 @@ export type Database = {
           generated_at?: string
           id?: string
           insights_analyzed?: number | null
-          key_points?: Json | null
+          temporal_shifts?: Json | null
           letter?: string | null
           market_themes?: Json | null
           newsletters_analyzed?: number | null
