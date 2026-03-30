@@ -126,9 +126,17 @@ export function useNewsletters() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["newsletters"] });
-      toast.success("Newsletter saved successfully");
+      toast.success("Newsletter saved — processing...");
+
+      // Auto-process the newsletter immediately after upload
+      try {
+        await processNewsletterMutation.mutateAsync(data as Newsletter);
+      } catch (e) {
+        // Processing failure is already toasted by processNewsletterMutation.onError
+        console.warn("Auto-process failed:", e);
+      }
     },
     onError: (error) => {
       toast.error("Failed to save newsletter: " + error.message);

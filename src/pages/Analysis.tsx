@@ -1,12 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { DecisionLogView } from "@/components/decisions/DecisionLogView";
 import { BarChart3, BookOpen, Play, Loader2, AlertCircle, Sparkles } from "lucide-react";
-import { usePortfolioAnalysis, type AnalysisResult } from "@/hooks/usePortfolioAnalysis";
+import { supabase } from "@/integrations/supabase/client";
+import { usePortfolioAnalysis, type AnalysisResult, type TradeRecommendation, type RecommendedAction } from "@/hooks/usePortfolioAnalysis";
 import { usePositions, type Position } from "@/hooks/usePositions";
 import { useIdealAllocation, type IdealETF } from "@/hooks/useIdealAllocation";
-import { format } from "date-fns";
+import { useInsightsSummary } from "@/hooks/useInsightsSummary";
+import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
+import { format, formatDistanceToNow } from "date-fns";
 
 export default function Analysis() {
   const {
@@ -20,10 +23,23 @@ export default function Analysis() {
   } = usePortfolioAnalysis();
   const { positions } = usePositions();
   const { result: idealAllocation, generate: generateIdealAllocation, isGenerating: isGeneratingIdeal } = useIdealAllocation();
+  const { summary: latestBrief } = useInsightsSummary();
+  const [logDecisionRec, setLogDecisionRec] = useState<RecommendedAction | null>(null);
+
+  // Brief freshness
+  const briefAge = latestBrief?.generated_at
+    ? formatDistanceToNow(new Date(latestBrief.generated_at), { addSuffix: true })
+    : null;
+  const briefDaysOld = latestBrief?.generated_at
+    ? Math.floor((Date.now() - new Date(latestBrief.generated_at).getTime()) / (1000 * 60 * 60 * 24))
+    : null;
 
   // Auto-load latest analysis on mount
+  const hasLoadedRef = useRef(false);
   useEffect(() => {
-    if (!currentAnalysis && history.length > 0 && !isLoadingHistory) {
+    const loadLatest = async () => {
+    if (!hasLoadedRef.current && history.length > 0 && !isLoadingHistory) {
+      hasLoadedRef.current = true;
       const latest = history[0];
       const raw = latest as any;
       const rawAllocation = latest.allocation_check as any;
@@ -66,7 +82,7 @@ export default function Analysis() {
         market_signals: latest.market_signals ?? {
           bubble_warnings: [], consensus_level: "mixed", overall_sentiment: "N/A",
         },
-        recommended_actions: latest.recommended_actions ?? [],
+        recommended_actions: (latest.recommended_actions ?? []),
         trade_recommendations: rawResponse?.trade_recommendations ?? [],
         rebalancing_summary: rawResponse?.rebalancing_summary ?? {
           total_sells: "$0", total_buys: "$0", net_cash_impact: "$0", primary_goal: "N/A",
@@ -76,7 +92,33 @@ export default function Analysis() {
         portfolio_health_score: latest.health_score ?? 0,
         summary: latest.summary ?? "",
       } as any);
+
+      // Restore persisted action states (completed/dismissed)
+      const { data: actionStates } = await supabase
+        .from("recommended_action_states" as any)
+        .select("action_index, completed, dismissed, dismiss_reason")
+        .eq("analysis_id", latest.id);
+
+      if (actionStates && actionStates.length > 0) {
+        setCurrentAnalysis((prev) => {
+          if (!prev) return prev;
+          const actions = [...prev.recommended_actions];
+          for (const state of actionStates as any[]) {
+            if (actions[state.action_index]) {
+              actions[state.action_index] = {
+                ...actions[state.action_index],
+                completed: state.completed ?? false,
+                dismissed: state.dismissed ?? false,
+                dismiss_reason: state.dismiss_reason ?? undefined,
+              };
+            }
+          }
+          return { ...prev, recommended_actions: actions };
+        });
+      }
     }
+    };
+    loadLatest();
   }, [history, isLoadingHistory]);
 
   return (
@@ -103,11 +145,27 @@ export default function Analysis() {
         <TabsContent value="analytics" className="mt-6">
           {/* Run / Re-run button */}
           <div className="flex items-center justify-between mb-6">
-            <div>
+            <div className="space-y-1">
               {currentAnalysis?.created_at && (
                 <p className="text-sm text-muted-foreground">
                   Last analysis: {format(new Date(currentAnalysis.created_at), "PPpp")}
                 </p>
+              )}
+              {briefAge && (
+                <p className="text-xs">
+                  <span className="text-muted-foreground">Intelligence brief: </span>
+                  <span className={
+                    briefDaysOld !== null && briefDaysOld > 7 ? "text-destructive font-medium" :
+                    briefDaysOld !== null && briefDaysOld > 3 ? "text-amber-500 font-medium" :
+                    "text-emerald-500"
+                  }>
+                    {briefAge}
+                    {briefDaysOld !== null && briefDaysOld > 7 && " — stale, regen recommended"}
+                  </span>
+                </p>
+              )}
+              {!latestBrief && (
+                <p className="text-xs text-destructive">No intelligence brief — generate one from the Newsletters page</p>
               )}
             </div>
             <div className="flex items-center gap-3">
@@ -153,51 +211,104 @@ export default function Analysis() {
 
           {/* Analysis as readable text */}
           {currentAnalysis && (
-            <AnalysisTextView analysis={currentAnalysis} positions={positions} />
+            <AnalysisTextView
+              analysis={currentAnalysis}
+              positions={positions}
+              onLogDecision={(trade) => {
+                setLogDecisionRec({
+                  priority: 1,
+                  action: `${trade.action} ${trade.ticker}`,
+                  reasoning: trade.reasoning,
+                  confidence: trade.urgency === "high" ? "high" : trade.urgency === "medium" ? "medium" : "low",
+                  trades_involved: [trade.ticker],
+                });
+              }}
+            />
           )}
 
-          {/* Ideal Portfolio Allocation */}
-          <section className="mt-8">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">Ideal Portfolio Allocation</h2>
-                <p className="text-sm text-muted-foreground">
-                  AI-recommended allocation using Ireland-domiciled UCITS ETFs
-                </p>
-              </div>
-              <Button
-                onClick={() => generateIdealAllocation()}
-                disabled={isGeneratingIdeal}
-                variant="outline"
-                className="gap-2"
-              >
-                {isGeneratingIdeal ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    Generate
-                  </>
+          {/* Ideal Portfolio Allocation — comes from analysis or standalone generate */}
+          {(currentAnalysis?.ideal_allocation || idealAllocation) && (
+            <section className="mt-8">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Ideal Portfolio Allocation</h2>
+                  <p className="text-sm text-muted-foreground">
+                    AI-recommended allocation using Ireland-domiciled UCITS ETFs
+                  </p>
+                </div>
+                {!currentAnalysis?.ideal_allocation && (
+                  <Button
+                    onClick={() => generateIdealAllocation()}
+                    disabled={isGeneratingIdeal}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    {isGeneratingIdeal ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Regenerate
+                      </>
+                    )}
+                  </Button>
                 )}
-              </Button>
-            </div>
-
-            {idealAllocation && <IdealAllocationView data={idealAllocation} />}
-          </section>
+              </div>
+              <IdealAllocationView data={(currentAnalysis?.ideal_allocation || idealAllocation)!} />
+            </section>
+          )}
+          {/* If no ideal allocation yet (no analysis run, no standalone), show generate button */}
+          {!currentAnalysis?.ideal_allocation && !idealAllocation && (
+            <section className="mt-8">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Ideal Portfolio Allocation</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Run an analysis to generate this, or generate standalone
+                  </p>
+                </div>
+                <Button
+                  onClick={() => generateIdealAllocation()}
+                  disabled={isGeneratingIdeal}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  {isGeneratingIdeal ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Generate
+                    </>
+                  )}
+                </Button>
+              </div>
+            </section>
+          )}
         </TabsContent>
 
         <TabsContent value="decisions" className="mt-6">
           <DecisionLogView />
         </TabsContent>
       </Tabs>
+
+      {/* Log Decision Modal — triggered from trade recommendations */}
+      <LogDecisionModal
+        open={logDecisionRec !== null}
+        onClose={() => setLogDecisionRec(null)}
+        recommendation={logDecisionRec}
+      />
     </div>
   );
 }
 
-function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResult; positions?: Position[] }) {
+function AnalysisTextView({ analysis, positions = [], onLogDecision }: { analysis: AnalysisResult; positions?: Position[]; onLogDecision?: (trade: TradeRecommendation) => void }) {
   const alloc = analysis.allocation_check;
   const filteredAlerts = analysis.position_alerts.filter((a) => 
     a.alert_type !== "rationale" && 
@@ -326,6 +437,7 @@ function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResu
                   <th className="pb-2 font-medium text-right">Shares</th>
                   <th className="pb-2 font-medium text-right">Weight</th>
                   <th className="pb-2 font-medium">Reasoning</th>
+                  <th className="pb-2 font-medium w-16"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -348,6 +460,16 @@ function AnalysisTextView({ analysis, positions = [] }: { analysis: AnalysisResu
                       {tr.current_weight.toFixed(1)}% → {tr.target_weight.toFixed(1)}%
                     </td>
                     <td className="py-2 text-muted-foreground text-xs max-w-[300px]">{tr.reasoning}</td>
+                    <td className="py-2">
+                      {tr.action !== "HOLD" && onLogDecision && (
+                        <button
+                          onClick={() => onLogDecision(tr)}
+                          className="text-xs text-primary hover:text-primary/80 font-medium whitespace-nowrap"
+                        >
+                          Log
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

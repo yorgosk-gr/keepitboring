@@ -99,6 +99,23 @@ export interface AnalysisMeta {
   newestDate: string | null;
 }
 
+export interface IdealAllocationResult {
+  etfs: Array<{
+    ticker: string;
+    name: string;
+    asset_class: string;
+    sub_category: string;
+    domicile: string;
+    exchange: string;
+    amount_usd: number;
+    percent: number;
+    expense_ratio: number;
+    explanation: string;
+  }>;
+  strategy_summary: string;
+  tax_note: string;
+}
+
 export interface AnalysisResult {
   id?: string;
   created_at?: string;
@@ -109,6 +126,7 @@ export interface AnalysisResult {
   trade_recommendations: TradeRecommendation[];
   rebalancing_summary: RebalancingSummary;
   bond_recommendations?: BondRecommendations;
+  ideal_allocation?: IdealAllocationResult | null;
   portfolio_health_score: number;
   summary: string;
   thesis_checks?: any[]; // always [] from v2, kept for compat
@@ -361,7 +379,25 @@ export function usePortfolioAnalysis() {
     },
   });
 
-  const markActionCompleted = (index: number) => {
+  const persistActionState = async (
+    index: number,
+    updates: { completed?: boolean; dismissed?: boolean; dismiss_reason?: string }
+  ) => {
+    if (!currentAnalysis?.id || !user) return;
+    const action = currentAnalysis.recommended_actions[index];
+    if (!action) return;
+
+    await supabase.from("recommended_action_states" as any).upsert({
+      user_id: user.id,
+      analysis_id: currentAnalysis.id,
+      action_index: index,
+      action_text: action.action,
+      ...updates,
+      updated_at: new Date().toISOString(),
+    } as any, { onConflict: "analysis_id,action_index" });
+  };
+
+  const markActionCompleted = async (index: number) => {
     if (!currentAnalysis) return;
     const updated = { ...currentAnalysis };
     updated.recommended_actions = [...updated.recommended_actions];
@@ -370,9 +406,14 @@ export function usePortfolioAnalysis() {
       completed: true,
     };
     setCurrentAnalysis(updated);
+    try {
+      await persistActionState(index, { completed: true });
+    } catch (e) {
+      console.warn("Failed to persist action state:", e);
+    }
   };
 
-  const dismissAction = (index: number, reason: string) => {
+  const dismissAction = async (index: number, reason: string) => {
     if (!currentAnalysis) return;
     const updated = { ...currentAnalysis };
     updated.recommended_actions = [...updated.recommended_actions];
@@ -382,6 +423,11 @@ export function usePortfolioAnalysis() {
       dismiss_reason: reason,
     };
     setCurrentAnalysis(updated);
+    try {
+      await persistActionState(index, { dismissed: true, dismiss_reason: reason });
+    } catch (e) {
+      console.warn("Failed to persist action state:", e);
+    }
   };
 
   return {

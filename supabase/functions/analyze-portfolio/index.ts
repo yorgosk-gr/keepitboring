@@ -860,22 +860,111 @@ NORTH STAR RULES:
 
 Analyze this portfolio and return the JSON response.`;
 
-    console.log("Calling Lovable AI gateway for portfolio analysis...");
+    console.log("Calling AI for portfolio analysis + ideal allocation in parallel...");
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250929",
-        system: systemPrompt,
+    // ── Build ideal allocation prompt ─────────────────────────────────
+    const budget = total_portfolio_value && total_portfolio_value > 0 ? Math.round(total_portfolio_value) : 100000;
+    const budgetFormatted = "$" + budget.toLocaleString("en-US");
+    const idealBriefSection = intelligence_brief
+      ? `INTELLIGENCE BRIEF (use to inform tactical tilts):
+Weekly Priority: ${intelligence_brief.weekly_priority || "N/A"}
+Sector Tilts:
+${(intelligence_brief.sector_tilts || []).map((st: any) => "- " + st.sector + " (" + st.direction + ", " + st.conviction + " conviction): " + st.reasoning).join("\n") || "None"}
+Country Tilts:
+${(intelligence_brief.country_tilts || []).map((ct: any) => "- " + ct.region + " (" + ct.direction + ", " + ct.conviction + " conviction): " + ct.reasoning).join("\n") || "None"}
+Crowded Trades (beware):
+${(intelligence_brief.crowded_trades || []).map((ct: string) => "- " + ct).join("\n") || "None"}
+Use these signals to tilt sector/region weights.`
+      : "No intelligence brief available — use strategic allocation only.";
+
+    const idealSystemPrompt = `You are an expert portfolio construction advisor for non-US residents.
+
+RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose, no code blocks.
+
+CONTEXT:
+- UAE tax resident (0% income/capital gains tax)
+- Prefer Ireland-domiciled UCITS ETFs (15% US dividend treaty rate vs 30%)
+- Budget: ${budgetFormatted}
+- MODE: CLEAN SLATE — Build an ideal portfolio from scratch, ignoring any existing holdings.
+
+RULES ENGINE:
+You are given a RULES_JSON array. Each rule has: scope, category, metric, operator, threshold_min, threshold_max, rule_enforcement, message_on_breach.
+Use these as the SOLE source of allocation constraints. Respect every min/max threshold strictly.
+If no rule exists for a given metric, use conservative defaults and note them in strategy_summary.
+
+RULES_JSON:
+${JSON.stringify(rules, null, 2)}
+
+ASSET CLASS RESERVES:
+- Individual stocks: ~10% (investor manages separately)
+- Commodities (gold, broad): 5-8%
+- Cash reserve: 5-10%
+- Remaining ~72-80% split between equity and bond ETFs per rules
+
+${idealBriefSection}
+
+REQUIREMENTS:
+1. Recommend 6-10 ETFs
+2. All MUST be Ireland-domiciled UCITS (LSE, Euronext, or Xetra)
+3. Use real tickers (VWRA, IGLA, AGGU, IGLN, EIMI, etc.)
+4. Cover equity (global, regional), bonds, commodities
+5. Each ETF: 1-2 sentence explanation in plain English
+6. Allocations sum to ETF portion (after reserves)
+7. Every ETF must have TER ≤ 0.22% — no exceptions
+8. Total effective US equity ≤ 40%, tech ≤ 15%
+9. Avoid hidden overlap (e.g. VWRA is ~65% US — don't stack US ETFs on top)
+10. Bonds 10–40% with duration diversification (short + intermediate)
+11. One gold ETF preferred over splitting physical + miners
+
+JSON OUTPUT:
+{
+  "etfs": [{
+    "ticker": "VWRA",
+    "name": "Vanguard FTSE All-World UCITS ETF (Acc)",
+    "asset_class": "Equity",
+    "sub_category": "Global",
+    "domicile": "Ireland",
+    "exchange": "LSE",
+    "amount_usd": 25000,
+    "percent": 25.0,
+    "expense_ratio": 0.22,
+    "explanation": "Core global equity holding."
+  }],
+  "strategy_summary": "2-3 sentences on overall strategy in plain English.",
+  "tax_note": "1-2 sentences on tax efficiency for UAE resident."
+}`;
+
+    // ── Run both AI calls in parallel ──────────────────────────────────
+    const [response, idealResponse] = await Promise.all([
+      fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-5-20250929",
+          system: systemPrompt,
           messages: [{ role: "user", content: userPrompt }],
-        max_tokens: 16000,
+          max_tokens: 16000,
+        }),
       }),
-    });
+      fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-5-20250929",
+          system: idealSystemPrompt,
+          messages: [{ role: "user", content: `Generate the ideal ${budgetFormatted} portfolio using Ireland-domiciled UCITS ETFs. Return only the JSON object.` }],
+          max_tokens: 4000,
+        }),
+      }),
+    ]);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -957,6 +1046,31 @@ Analyze this portfolio and return the JSON response.`;
 
     // ── Enforce cash constraint server-side ───────────────────────────
     analysisResult = enforceCashConstraint(analysisResult, cash_balance ?? 0, total_portfolio_value ?? 0);
+
+    // ── Parse ideal allocation (best-effort, don't fail the whole response) ──
+    let idealAllocation = null;
+    try {
+      if (idealResponse.ok) {
+        const idealData = await idealResponse.json();
+        const idealContent = idealData.content?.[0]?.text?.trim() || "";
+        if (idealContent && idealData.stop_reason !== "max_tokens") {
+          let idealJson = idealContent;
+          idealJson = idealJson.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+          const firstBrace = idealJson.indexOf("{");
+          const lastBrace = idealJson.lastIndexOf("}");
+          if (firstBrace !== -1 && lastBrace > firstBrace) {
+            idealJson = idealJson.substring(firstBrace, lastBrace + 1);
+          }
+          idealJson = idealJson.replace(/,\s*([}\]])/g, '$1');
+          idealAllocation = JSON.parse(idealJson);
+        }
+      }
+    } catch (idealErr) {
+      console.warn("Ideal allocation parsing failed (non-fatal):", idealErr);
+    }
+
+    // Attach ideal allocation to the main response
+    analysisResult.ideal_allocation = idealAllocation;
 
     return new Response(JSON.stringify(analysisResult), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Plus, PlayCircle, Loader2, BookOpen, AlertTriangle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,12 +36,26 @@ export default function Philosophy() {
   const [checkingRuleId, setCheckingRuleId] = useState<string | null>(null);
   const [openAuthors, setOpenAuthors] = useState<string[]>([]);
 
-  // Seed default rules on first load if none exist
+  // Seed missing default rules on load (handles both first-time and new rules added to defaults)
+  const hasSeededRef = useRef(false);
   useEffect(() => {
-    if (!isLoading && rules.length === 0) {
+    if (!isLoading && !hasSeededRef.current) {
+      hasSeededRef.current = true;
       seedDefaultRules();
     }
-  }, [isLoading, rules.length]);
+  }, [isLoading]);
+
+  // Auto-evaluate all rules when rules load or positions change (silent, no modal)
+  useEffect(() => {
+    if (rules.length > 0 && !isLoading) {
+      const activeRules = rules.filter((r) => r.is_active);
+      const results = activeRules.map(evaluateRule);
+      setAllCheckResults(results);
+      const newMap = new Map<string, RuleCheckResult>();
+      results.forEach((r) => newMap.set(r.rule.id, r));
+      setCheckResults(newMap);
+    }
+  }, [rules, isLoading, evaluateRule]);
 
   const handleCheckRule = async (rule: PhilosophyRule) => {
     setCheckingRuleId(rule.id);

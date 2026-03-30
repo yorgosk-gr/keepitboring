@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { usePositions } from "./usePositions";
 import { useDashboardData } from "./useDashboardData";
 import { useAllETFMetadata } from "./useAllETFMetadata";
+import { useRiskProfile } from "./useRiskProfile";
 
 export type RuleEnforcement = "hard" | "soft" | "diagnostic";
 export type RuleScope = "portfolio" | "cluster" | "position";
@@ -64,7 +65,7 @@ const DEFAULT_RULES: Omit<PhilosophyRule, "id" | "user_id" | "created_at">[] = [
   { name: "Equity Allocation", rule_type: "allocation", threshold_min: 40, threshold_max: 60, description: "True equity exposure (stocks + equity ETFs) should be 40-60%", source_books: ["Siegel", "Malkiel"], is_active: true, rule_enforcement: "hard", scope: "portfolio", category: "allocation", metric: "equity_percent", operator: "between", tags: ["equity", "allocation"], message_on_breach: "Equity allocation outside target range", scoring_weight: 1 },
   { name: "Bond Allocation", rule_type: "allocation", threshold_min: 10, threshold_max: 40, description: "Bond ETFs should be 10-40% of portfolio", source_books: ["Graham", "Siegel"], is_active: true, rule_enforcement: "hard", scope: "portfolio", category: "allocation", metric: "bonds_percent", operator: "between", tags: ["bonds", "allocation"], message_on_breach: "Bond allocation outside target range", scoring_weight: 1 },
   { name: "Commodity + Gold Allocation", rule_type: "allocation", threshold_min: 5, threshold_max: 15, description: "Commodities + Gold should be 5-15%", source_books: ["Marks", "Taleb"], is_active: true, rule_enforcement: "hard", scope: "portfolio", category: "allocation", metric: "commodities_gold_percent", operator: "between", tags: ["commodities", "gold", "allocation"], message_on_breach: "Commodity + Gold allocation outside target range", scoring_weight: 1 },
-  { name: "Anti-Fragile Minimum", rule_type: "allocation", threshold_min: 5, threshold_max: null, description: "Gold + short-term bonds + cash for tail risk protection", source_books: ["Taleb", "Marks"], is_active: true, rule_enforcement: "hard", scope: "portfolio", category: "allocation", metric: "antifragile_percent", operator: ">=", tags: ["tail-risk", "protection"], message_on_breach: "Anti-fragile protection below minimum", scoring_weight: 1 },
+  { name: "Anti-Fragile Minimum", rule_type: "allocation", threshold_min: 10, threshold_max: null, description: "Gold + short-term bonds + cash ≥10% for tail risk protection (Taleb-inspired buffer, not full barbell)", source_books: ["Taleb", "Marks"], is_active: true, rule_enforcement: "hard", scope: "portfolio", category: "allocation", metric: "antifragile_percent", operator: ">=", tags: ["tail-risk", "protection"], message_on_breach: "Anti-fragile protection below minimum — increase gold, short bonds, or cash", scoring_weight: 1 },
   { name: "Cash Limit", rule_type: "allocation", threshold_min: null, threshold_max: 10, description: "Cash should not exceed 10%", source_books: ["Siegel", "Erkan"], is_active: true, rule_enforcement: "hard", scope: "portfolio", category: "allocation", metric: "cash_percent", operator: "<=", tags: ["cash", "allocation"], message_on_breach: "Cash exceeds limit — deploy or invest", scoring_weight: 1 },
   { name: "Sector Limit", rule_type: "allocation", threshold_min: null, threshold_max: 25, description: "No sector should exceed 25%", source_books: ["Graham", "Marks"], is_active: true, rule_enforcement: "soft", scope: "portfolio", category: "allocation", metric: "sector_percent", operator: "<=", tags: ["sector", "concentration"], message_on_breach: "Sector concentration too high", scoring_weight: 1 },
   // Position Size Rules
@@ -82,6 +83,13 @@ const DEFAULT_RULES: Omit<PhilosophyRule, "id" | "user_id" | "created_at">[] = [
   { name: "Confidence Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "All positions need confidence rating", source_books: ["Duke"], is_active: true, rule_enforcement: "soft", scope: "position", category: "behavior", metric: "has_confidence", operator: ">=", tags: ["discipline", "process"], message_on_breach: "Position missing confidence rating", scoring_weight: null },
   { name: "Thesis Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "Stock positions need written thesis", source_books: ["Duke", "Marks"], is_active: true, rule_enforcement: "soft", scope: "position", category: "behavior", metric: "has_thesis", operator: ">=", tags: ["discipline", "process"], message_on_breach: "Stock missing investment thesis", scoring_weight: null },
   { name: "Invalidation Required", rule_type: "decision", threshold_min: null, threshold_max: null, description: "Must define what would invalidate thesis", source_books: ["Duke"], is_active: true, rule_enforcement: "soft", scope: "position", category: "behavior", metric: "has_invalidation", operator: ">=", tags: ["discipline", "process"], message_on_breach: "Position missing invalidation criteria", scoring_weight: null },
+  // Review & Discipline Rules
+  { name: "Position Review Staleness", rule_type: "decision", threshold_min: null, threshold_max: 90, description: "Flag stock positions not reviewed in 90+ days", source_books: ["Graham", "Duke"], is_active: true, rule_enforcement: "soft", scope: "position", category: "behavior", metric: "days_since_review", operator: "<=", tags: ["discipline", "review"], message_on_breach: "Position overdue for review", scoring_weight: 1 },
+  { name: "Loss Review Trigger", rule_type: "decision", threshold_min: null, threshold_max: 20, description: "Flag positions down >20% from cost basis without recent review", source_books: ["Lefèvre", "Marks"], is_active: true, rule_enforcement: "soft", scope: "position", category: "behavior", metric: "unrealized_loss_without_review", operator: "<=", tags: ["discipline", "risk"], message_on_breach: "Significant loss — review thesis or cut position", scoring_weight: 1 },
+  // Geography Rules (new)
+  { name: "International Diversification", rule_type: "allocation", threshold_min: 20, threshold_max: 40, description: "Non-US equity exposure should be 20-40% of equities", source_books: ["Malkiel", "Marks"], is_active: true, rule_enforcement: "soft", scope: "portfolio", category: "allocation", metric: "international_equity_percent", operator: "between", tags: ["geography", "diversification"], message_on_breach: "International diversification outside target range", scoring_weight: 1 },
+  // Cost Rules
+  { name: "Expense Ratio Cap", rule_type: "quality", threshold_min: null, threshold_max: 0.5, description: "Flag ETFs with expense ratio above 0.50%", source_books: ["Malkiel"], is_active: true, rule_enforcement: "diagnostic", scope: "position", category: "quality", metric: "max_expense_ratio", operator: "<=", tags: ["cost", "efficiency"], message_on_breach: "ETF expense ratio too high — consider lower-cost alternative", scoring_weight: null },
   // Market Rules
   { name: "Bubble Language Alert", rule_type: "market", threshold_min: null, threshold_max: null, description: "Flag euphoria language in newsletters", source_books: ["Kindleberger", "Taleb"], is_active: true, rule_enforcement: "diagnostic", scope: "portfolio", category: "market", metric: "euphoria_language", operator: ">=", tags: ["sentiment", "bubble"], message_on_breach: "Euphoria language detected in newsletters", scoring_weight: null },
   { name: "Extreme Consensus Alert", rule_type: "market", threshold_min: null, threshold_max: null, description: "Flag when >80% newsletters agree", source_books: ["Marks", "Lefèvre"], is_active: true, rule_enforcement: "diagnostic", scope: "portfolio", category: "market", metric: "consensus_level", operator: "<=", tags: ["sentiment", "contrarian"], message_on_breach: "Extreme consensus detected — contrarian signal", scoring_weight: null },
@@ -93,6 +101,7 @@ export function usePhilosophyRules() {
   const { positions } = usePositions();
   const { totalValue, cashBalance, stocksPercent, etfsPercent, cashPercent } = useDashboardData();
   const { data: etfMetadata = {} } = useAllETFMetadata();
+  const { activeProfile: riskProfile } = useRiskProfile();
 
   const rulesQuery = useQuery({
     queryKey: ["philosophy_rules", user?.id],
@@ -123,18 +132,22 @@ export function usePhilosophyRules() {
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
 
-      // Check if rules already exist
+      // Fetch existing rule names for this user
       const { data: existing } = await supabase
         .from("philosophy_rules")
-        .select("id")
-        .limit(1);
+        .select("name")
+        .eq("user_id", user.id);
 
-      if (existing && existing.length > 0) {
-        return { seeded: false };
+      const existingNames = new Set((existing ?? []).map((r: any) => r.name));
+
+      // Find default rules not yet present (handles both first-time seed and new rules added later)
+      const missingRules = DEFAULT_RULES.filter((rule) => !existingNames.has(rule.name));
+
+      if (missingRules.length === 0) {
+        return { seeded: false, count: 0 };
       }
 
-      // Insert default rules
-      const rulesToInsert = DEFAULT_RULES.map((rule) => ({
+      const rulesToInsert = missingRules.map((rule) => ({
         ...rule,
         user_id: user.id,
       }));
@@ -142,12 +155,22 @@ export function usePhilosophyRules() {
       const { error } = await supabase.from("philosophy_rules").insert(rulesToInsert);
       if (error) throw error;
 
-      return { seeded: true };
+      // Also update Anti-Fragile Minimum threshold if user has the old 5% value
+      if (existingNames.has("Anti-Fragile Minimum")) {
+        await supabase
+          .from("philosophy_rules")
+          .update({ threshold_min: 10, description: "Gold + short-term bonds + cash ≥10% for tail risk protection (Taleb-inspired buffer, not full barbell)", message_on_breach: "Anti-fragile protection below minimum — increase gold, short bonds, or cash" })
+          .eq("user_id", user.id)
+          .eq("name", "Anti-Fragile Minimum")
+          .eq("threshold_min", 5);
+      }
+
+      return { seeded: true, count: missingRules.length };
     },
     onSuccess: (result) => {
       if (result.seeded) {
         queryClient.invalidateQueries({ queryKey: ["philosophy_rules"] });
-        toast.success("Default rules loaded from 13 investment books");
+        toast.success(`${result.count} new rule${result.count !== 1 ? "s" : ""} added from investment books`);
       }
     },
     onError: (error) => {
@@ -196,10 +219,12 @@ export function usePhilosophyRules() {
 
   const updateRuleMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<PhilosophyRule> }) => {
+      if (!user) throw new Error("Not authenticated");
       const { error } = await supabase
         .from("philosophy_rules")
         .update(updates)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("user_id", user.id);
 
       if (error) throw error;
     },
@@ -213,10 +238,12 @@ export function usePhilosophyRules() {
 
   const deleteRuleMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
       const { error } = await supabase
         .from("philosophy_rules")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .eq("user_id", user.id);
 
       if (error) throw error;
     },
@@ -241,9 +268,11 @@ export function usePhilosophyRules() {
       const weight = getPositionWeight(p);
       if (p.position_type === "etf") {
         const meta = etfMetadata[p.ticker];
-        const category = meta?.category || p.category || "equity";
+        // Unclassified ETFs default to equity (matching server-side behavior)
+        const category = meta?.category || "equity";
         if (category === assetClass) total += weight;
       } else if (assetClass === "equity") {
+        // Individual stocks are always equity
         total += weight;
       }
     }
@@ -280,15 +309,21 @@ export function usePhilosophyRules() {
         return calculateAssetClassAllocation("commodity") + calculateAssetClassAllocation("gold");
       }
       case "antifragile_percent": {
-        return calculateAssetClassAllocation("gold") + calculateAssetClassAllocation("bond") + cashPercent;
+        // Only short-term bonds are anti-fragile (estimate 30% of bond allocation, matching server)
+        const shortTermBondPercent = calculateAssetClassAllocation("bond") * 0.3;
+        return calculateAssetClassAllocation("gold") + shortTermBondPercent + cashPercent;
       }
       case "etfs_of_equities_percent": {
         const equityTotal = calculateAssetClassAllocation("equity");
-        return equityTotal > 0 ? ((etfsPercent / (stocksPercent + etfsPercent)) * 100) : 0;
+        if (equityTotal <= 0) return 0;
+        // Equity ETFs = total equity minus individual stocks
+        const equityEtfPercent = equityTotal - stocksPercent;
+        return (equityEtfPercent / equityTotal) * 100;
       }
       case "stocks_of_equities_percent": {
         const equityTotal2 = calculateAssetClassAllocation("equity");
-        return equityTotal2 > 0 ? ((stocksPercent / (stocksPercent + etfsPercent)) * 100) : 0;
+        if (equityTotal2 <= 0) return 0;
+        return (stocksPercent / equityTotal2) * 100;
       }
       case "sector_percent": {
         // Return the MAX sector concentration
@@ -318,6 +353,27 @@ export function usePhilosophyRules() {
         for (const c of emCountries) em += calculateGeographyAllocation(c);
         return em;
       }
+      case "international_equity_percent": {
+        // Non-US equity as % of total equity
+        const totalEquity = calculateAssetClassAllocation("equity");
+        if (totalEquity <= 0) return 0;
+        // US equity = US stocks + US-geography equity ETFs + global ETFs (which are mostly US-weighted)
+        let usEquity = 0;
+        for (const p of positions) {
+          const weight = getPositionWeight(p);
+          if (p.position_type === "etf") {
+            const meta = etfMetadata[p.ticker];
+            const category = meta?.category || "equity";
+            const geo = meta?.geography || "other";
+            if (category === "equity" && geo === "us") usEquity += weight;
+          } else {
+            // Individual stocks assumed US unless otherwise classified
+            usEquity += weight;
+          }
+        }
+        const internationalEquity = totalEquity - usEquity;
+        return (internationalEquity / totalEquity) * 100;
+      }
       // Market / qualitative — not computable client-side
       case "euphoria_language":
       case "consensus_level":
@@ -331,10 +387,6 @@ export function usePhilosophyRules() {
     switch (metric) {
       case "position_weight": {
         const stocks = positions.filter(p => p.position_type === "stock");
-        const violators = stocks.filter(p => {
-          const w = getPositionWeight(p);
-          return w > 0;
-        });
         const maxW = Math.max(...stocks.map(p => getPositionWeight(p)), 0);
         return { value: maxW, violators: stocks.filter(p => getPositionWeight(p) === maxW).map(p => p.ticker), count: stocks.length };
       }
@@ -360,7 +412,8 @@ export function usePhilosophyRules() {
         const themeEtfs = positions.filter(p => {
           if (p.position_type !== "etf") return false;
           const meta = etfMetadata[p.ticker];
-          return meta?.is_broad_market === false || (!meta && p.category !== "equity");
+          // Only classified ETFs that are explicitly non-broad; unclassified ETFs are excluded
+          return meta != null && meta.is_broad_market === false;
         });
         const maxW = Math.max(...themeEtfs.map(p => getPositionWeight(p)), 0);
         return { value: maxW, violators: themeEtfs.filter(p => getPositionWeight(p) === maxW).map(p => p.ticker), count: themeEtfs.length };
@@ -371,7 +424,7 @@ export function usePhilosophyRules() {
   };
 
   // Behavior metrics: returns { passing, violators }
-  const resolveBehaviorMetric = (metric: string): { passing: boolean; violators: string[] } => {
+  const resolveBehaviorMetric = (metric: string, rule?: PhilosophyRule): { passing: boolean; violators: string[] } => {
     switch (metric) {
       case "has_bet_type": {
         // bet_type removed — always passing
@@ -386,8 +439,34 @@ export function usePhilosophyRules() {
         return { passing: v.length === 0, violators: v.map(p => p.ticker) };
       }
       case "has_invalidation": {
-        // No DB field for this yet — pass by default
-        return { passing: true, violators: [] };
+        const v = positions.filter(p => p.position_type === "stock" && !p.invalidation_trigger);
+        return { passing: v.length === 0, violators: v.map(p => p.ticker) };
+      }
+      case "days_since_review": {
+        const maxDays = rule?.threshold_max ?? 90;
+        const now = new Date();
+        const stalePositions = positions.filter(p => {
+          if (p.position_type !== "stock") return false;
+          if (!p.last_review_date) return true; // never reviewed = stale
+          const daysSince = Math.floor((now.getTime() - new Date(p.last_review_date).getTime()) / (1000 * 60 * 60 * 24));
+          return daysSince > maxDays;
+        });
+        return { passing: stalePositions.length === 0, violators: stalePositions.map(p => p.ticker) };
+      }
+      case "unrealized_loss_without_review": {
+        const lossThreshold = rule?.threshold_max ?? 20;
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const atRisk = positions.filter(p => {
+          if (p.position_type !== "stock") return false;
+          if (!p.avg_cost || !p.current_price || p.avg_cost <= 0) return false;
+          const lossPct = ((p.avg_cost - p.current_price) / p.avg_cost) * 100;
+          if (lossPct <= lossThreshold) return false;
+          // Down >threshold% — check if reviewed recently
+          const reviewDate = p.last_review_date ? new Date(p.last_review_date) : null;
+          return !reviewDate || reviewDate < thirtyDaysAgo;
+        });
+        return { passing: atRisk.length === 0, violators: atRisk.map(p => p.ticker) };
       }
       default:
         return { passing: true, violators: [] };
@@ -444,7 +523,7 @@ export function usePhilosophyRules() {
 
     // 1. Behavior rules (boolean, no numeric threshold)
     if (rule.category === "behavior") {
-      const { passing, violators } = resolveBehaviorMetric(rule.metric);
+      const { passing, violators } = resolveBehaviorMetric(rule.metric, rule);
       if (!passing) {
         const status = rule.rule_enforcement === "hard" ? "failing" as const : "warning" as const;
         const msg = rule.message_on_breach || `${violators.join(", ")} missing ${metricLabel}`;
@@ -457,6 +536,27 @@ export function usePhilosophyRules() {
     if (rule.category === "market" || ["euphoria_language", "consensus_level", "earnings_yield", "roic"].includes(rule.metric)) {
       const label = rule.category === "quality" ? "Quality metrics require external data" : "Market signals evaluated during newsletter analysis";
       return { rule, status: "passing", currentValue: null, message: label };
+    }
+
+    // 2b. Expense ratio check (quality metric computable client-side)
+    // expense_ratio is stored as percentage (e.g. 0.22 = 0.22%), threshold_max is also in % (e.g. 0.5 = 0.50%)
+    if (rule.metric === "max_expense_ratio") {
+      const etfsWithER = positions
+        .filter(p => p.position_type === "etf" && etfMetadata[p.ticker]?.expense_ratio != null)
+        .map(p => ({ ticker: p.ticker, er: etfMetadata[p.ticker].expense_ratio! }));
+      const expensiveEtfs = etfsWithER.filter(({ er }) => rule.threshold_max != null && er > rule.threshold_max);
+      if (expensiveEtfs.length > 0) {
+        const maxER = Math.max(...expensiveEtfs.map(e => e.er));
+        const status = rule.rule_enforcement === "diagnostic" ? "passing" as const : rule.rule_enforcement === "soft" ? "warning" as const : "failing" as const;
+        return {
+          rule,
+          status,
+          currentValue: maxER,
+          message: `${expensiveEtfs.map(e => `${e.ticker} (${e.er.toFixed(2)}%)`).join(", ")} — ${rule.message_on_breach || "expense ratio above cap"}`,
+        };
+      }
+      const maxER = etfsWithER.length > 0 ? Math.max(...etfsWithER.map(e => e.er)) : 0;
+      return { rule, status: "passing", currentValue: maxER, message: `All ETFs within expense ratio cap (max: ${maxER.toFixed(2)}%)` };
     }
 
     // 3. Position-scope size rules
@@ -489,7 +589,22 @@ export function usePhilosophyRules() {
       return { rule, status: "passing", currentValue: null, message: `${metricLabel} — not computable client-side` };
     }
 
-    const { status, breached } = checkThreshold(value, rule);
+    // Override cash limit thresholds based on risk profile (matching server-side behavior)
+    let ruleForCheck = rule;
+    if (rule.metric === "cash_percent" && riskProfile?.profile) {
+      const riskCashRanges: Record<string, { min: number; max: number }> = {
+        cautious: { min: 10, max: 20 },
+        balanced: { min: 10, max: 20 },
+        growth: { min: 3, max: 10 },
+        aggressive: { min: 1, max: 5 },
+      };
+      const cashOverride = riskCashRanges[riskProfile.profile.toLowerCase()];
+      if (cashOverride) {
+        ruleForCheck = { ...rule, threshold_min: cashOverride.min, threshold_max: cashOverride.max };
+      }
+    }
+
+    const { status, breached } = checkThreshold(value, ruleForCheck);
     let message: string;
     if (breached) {
       message = rule.message_on_breach
@@ -530,7 +645,8 @@ export function usePhilosophyRules() {
         return positions.filter(p => {
           if (p.position_type !== "etf") return false;
           const meta = etfMetadata[p.ticker];
-          return meta?.is_broad_market === false || (!meta && p.category !== "equity");
+          // Only classified ETFs that are explicitly non-broad; unclassified ETFs are excluded
+          return meta != null && meta.is_broad_market === false;
         });
       default:
         return [];
@@ -545,10 +661,11 @@ export function usePhilosophyRules() {
     const violations = results.filter((r) => r.status === "failing" || r.status === "warning");
 
     for (const violation of violations) {
-      // Check if similar alert already exists (unresolved)
+      // Check if similar alert already exists (unresolved) for this user
       const { data: existing } = await supabase
         .from("alerts")
         .select("id")
+        .eq("user_id", user!.id)
         .eq("rule_id", violation.rule.id)
         .eq("resolved", false)
         .limit(1);
