@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -35,12 +34,6 @@ interface ThesisPanelProps {
   isSaving?: boolean;
 }
 
-const BET_TYPES = [
-  { value: "active", label: "Active" },
-  { value: "passive_carry", label: "Passive Carry" },
-  { value: "legacy_hold", label: "Legacy Hold" },
-] as const;
-
 function formatPnL(position: Position) {
   const pnl = position.unrealized_pnl ?? 0;
   const sign = pnl >= 0 ? "+" : "";
@@ -49,8 +42,6 @@ function formatPnL(position: Position) {
 
 export function ThesisPanel({ open, onClose, position, onSave, isSaving }: ThesisPanelProps) {
   const [thesisNotes, setThesisNotes] = useState("");
-  const [convictionLevel, setConvictionLevel] = useState(5);
-  const [betType, setBetType] = useState("active");
   const [invalidationTrigger, setInvalidationTrigger] = useState("");
   const [lastReviewDate, setLastReviewDate] = useState<Date | undefined>(undefined);
 
@@ -58,8 +49,6 @@ export function ThesisPanel({ open, onClose, position, onSave, isSaving }: Thesi
   useEffect(() => {
     if (position) {
       setThesisNotes(position.thesis_notes || "");
-      setConvictionLevel(position.confidence_level ?? 5);
-      setBetType((position as any).bet_type || "active");
       setInvalidationTrigger((position as any).invalidation_trigger || "");
       setLastReviewDate(
         position.last_review_date ? new Date(position.last_review_date) : undefined
@@ -71,8 +60,8 @@ export function ThesisPanel({ open, onClose, position, onSave, isSaving }: Thesi
     if (!position) return;
     await onSave({
       thesis_notes: thesisNotes,
-      confidence_level: convictionLevel,
-      bet_type: betType,
+      confidence_level: 5,
+      bet_type: "active",
       invalidation_trigger: invalidationTrigger,
       last_review_date: lastReviewDate ? format(lastReviewDate, "yyyy-MM-dd") : "",
     });
@@ -111,46 +100,6 @@ export function ThesisPanel({ open, onClose, position, onSave, isSaving }: Thesi
               onChange={(e) => setThesisNotes(e.target.value)}
               className="min-h-[100px]"
             />
-          </div>
-
-          {/* Conviction Level */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Conviction Level</Label>
-              <span className="text-sm font-mono font-semibold text-foreground">
-                {convictionLevel}/10
-              </span>
-            </div>
-            <Slider
-              value={[convictionLevel]}
-              onValueChange={([v]) => setConvictionLevel(v)}
-              min={1}
-              max={10}
-              step={1}
-            />
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Low</span>
-              <span>High</span>
-            </div>
-          </div>
-
-          {/* Bet Type */}
-          <div className="space-y-2">
-            <Label>Bet Type</Label>
-            <div className="flex gap-2">
-              {BET_TYPES.map((bt) => (
-                <Button
-                  key={bt.value}
-                  type="button"
-                  variant={betType === bt.value ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1 text-xs"
-                  onClick={() => setBetType(bt.value)}
-                >
-                  {bt.label}
-                </Button>
-              ))}
-            </div>
           </div>
 
           {/* Invalidation Trigger */}
