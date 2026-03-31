@@ -5,6 +5,8 @@ import { useAuth } from "@/contexts/AuthContext";
 export interface IBCurrentWeights {
   /** ticker → percent of total portfolio (positions + cash) */
   weights: Record<string, number>;
+  /** ticker → description/name from IB */
+  descriptions: Record<string, string>;
   /** cash weight as % of total portfolio */
   cashWeight: number;
   /** total portfolio value (positions + cash) */
@@ -20,7 +22,7 @@ export function useIBCurrentWeights(): IBCurrentWeights {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ib_positions")
-        .select("symbol, percent_of_nav, position_value");
+        .select("symbol, percent_of_nav, position_value, description");
       if (error) throw error;
       return data;
     },
@@ -49,9 +51,11 @@ export function useIBCurrentWeights(): IBCurrentWeights {
 
   // Calculate weights as % of total portfolio (positions + cash), not just NAV
   const weights: Record<string, number> = {};
+  const descriptions: Record<string, string> = {};
   for (const p of positions) {
     if (p.symbol) {
       weights[p.symbol] = totalValue > 0 ? ((p.position_value ?? 0) / totalValue) * 100 : 0;
+      if (p.description) descriptions[p.symbol] = p.description;
     }
   }
 
@@ -59,6 +63,7 @@ export function useIBCurrentWeights(): IBCurrentWeights {
 
   return {
     weights,
+    descriptions,
     cashWeight,
     totalValue,
     isLoading: ibPosQuery.isLoading || ibAccountQuery.isLoading,
