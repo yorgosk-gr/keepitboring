@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { AlertCircle, DollarSign } from "lucide-react";
+import { AlertCircle, DollarSign, RefreshCw } from "lucide-react";
 import { PortfolioValue } from "@/components/dashboard/PortfolioValue";
 import { DonutChart } from "@/components/dashboard/DonutChart";
 import { TopHoldings } from "@/components/dashboard/TopHoldings";
@@ -15,7 +15,12 @@ import { RiskProfileCard } from "@/components/dashboard/RiskProfileCard";
 import { NorthStarWidget } from "@/components/dashboard/NorthStarWidget";
 import { usePhilosophyRules } from "@/hooks/usePhilosophyRules";
 import { Button } from "@/components/ui/button";
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
+import { usePriceRefresh } from "@/hooks/usePriceRefresh";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export default function Dashboard() {
   const {
@@ -34,8 +39,49 @@ export default function Dashboard() {
     isLoading,
   } = useDashboardData();
 
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: etfMetadata = {} } = useAllETFMetadata();
   const { rules } = usePhilosophyRules();
+  const { fetchPrices, isFetching: isRefreshingPrices, progress: priceProgress } = usePriceRefresh();
+
+  const handleRefreshPrices = useCallback(async () => {
+    if (!user || positions.length === 0) return;
+
+    const tickerInfos = positions.map(p => ({
+      ticker: p.ticker,
+      currency: p.currency,
+      exchange: p.exchange,
+      instrumentType: p.position_type === "stock" ? "Stock" : p.position_type === "etf" ? "ETF" : undefined,
+    }));
+
+    const { prices, notFound } = await fetchPrices(tickerInfos);
+
+    if (prices.length > 0) {
+      // Save snapshot like Portfolio page does
+      const totalMV = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
+      const stocksValue = positions.filter(p => p.position_type === "stock").reduce((sum, p) => sum + (p.market_value ?? 0), 0);
+      const etfsValue = positions.filter(p => p.position_type === "etf").reduce((sum, p) => sum + (p.market_value ?? 0), 0);
+
+      await supabase.from("portfolio_snapshots").insert({
+        user_id: user.id,
+        total_value: totalMV,
+        stocks_percent: totalMV > 0 ? (stocksValue / totalMV) * 100 : 0,
+        etfs_percent: totalMV > 0 ? (etfsValue / totalMV) * 100 : 0,
+        cash_balance: cashBalance,
+        data_json: { price_refresh: new Date().toISOString(), updated_count: prices.length },
+      });
+
+      toast.success(`Updated prices for ${prices.length} positions`);
+      queryClient.invalidateQueries({ queryKey: ["ib-positions"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-data"] });
+    }
+
+    if (notFound.length > 0) {
+      toast.warning(`Could not find prices for: ${notFound.join(", ")}`);
+    }
+  }, [user, positions, cashBalance, fetchPrices, queryClient]);
 
   // Derive targets from philosophy rules (midpoint of min/max range)
   const ruleTargets = useMemo(() => {
@@ -185,14 +231,19 @@ export default function Dashboard() {
               </p>
               <p className="text-xs text-muted-foreground">
                 Last refresh: {daysSincePriceRefresh} days ago
+                {isRefreshingPrices && ` — updating ${priceProgress.current}/${priceProgress.total}`}
               </p>
             </div>
           </div>
-          <Button asChild variant="outline" size="sm" className="gap-2 border-amber-500/30 text-amber-500 hover:bg-amber-500/10">
-            <Link to="/portfolio">
-              <DollarSign className="w-4 h-4" />
-              Refresh Prices
-            </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
+            onClick={handleRefreshPrices}
+            disabled={isRefreshingPrices}
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshingPrices ? "animate-spin" : ""}`} />
+            {isRefreshingPrices ? "Refreshing..." : "Refresh Prices"}
           </Button>
         </div>
       )}
