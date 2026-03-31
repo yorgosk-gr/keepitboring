@@ -18,7 +18,6 @@ const Portfolio = lazy(() => import("./pages/Portfolio"));
 const Newsletters = lazy(() => import("./pages/Newsletters"));
 const Philosophy = lazy(() => import("./pages/Philosophy"));
 const Analysis = lazy(() => import("./pages/Analysis"));
-const Watchlist = lazy(() => import("./pages/Watchlist"));
 const NorthStar = lazy(() => import("./pages/NorthStar"));
 const Settings = lazy(() => import("./pages/Settings"));
 
@@ -64,7 +63,6 @@ const App = () => (
             <Route path="/" element={<ProtectedPage><Index /></ProtectedPage>} />
             <Route path="/portfolio" element={<ProtectedPage><Portfolio /></ProtectedPage>} />
             <Route path="/newsletters" element={<ProtectedPage><Newsletters /></ProtectedPage>} />
-            <Route path="/watchlist" element={<ProtectedPage><Watchlist /></ProtectedPage>} />
             <Route path="/philosophy" element={<ProtectedPage><Philosophy /></ProtectedPage>} />
             <Route path="/analysis" element={<ProtectedPage><Analysis /></ProtectedPage>} />
             <Route path="/north-star" element={<ProtectedPage><NorthStar /></ProtectedPage>} />
