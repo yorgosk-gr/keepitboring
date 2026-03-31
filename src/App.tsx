@@ -19,6 +19,7 @@ const Newsletters = lazy(() => import("./pages/Newsletters"));
 const Philosophy = lazy(() => import("./pages/Philosophy"));
 const Analysis = lazy(() => import("./pages/Analysis"));
 const NorthStar = lazy(() => import("./pages/NorthStar"));
+const Journal = lazy(() => import("./pages/Journal"));
 const Settings = lazy(() => import("./pages/Settings"));
 
 const queryClient = new QueryClient({
@@ -66,6 +67,7 @@ const App = () => (
             <Route path="/philosophy" element={<ProtectedPage><Philosophy /></ProtectedPage>} />
             <Route path="/analysis" element={<ProtectedPage><Analysis /></ProtectedPage>} />
             <Route path="/north-star" element={<ProtectedPage><NorthStar /></ProtectedPage>} />
+            <Route path="/journal" element={<ProtectedPage><Journal /></ProtectedPage>} />
             <Route path="/settings" element={<ProtectedPage><Settings /></ProtectedPage>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

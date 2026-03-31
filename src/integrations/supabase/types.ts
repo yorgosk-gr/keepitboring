@@ -212,42 +212,87 @@ export type Database = {
       decision_log: {
         Row: {
           action_type: string | null
+          assumptions: any[] | null
           confidence_level: number | null
           created_at: string
+          different_notes: string | null
+          entry_date: string | null
+          entry_price: number | null
+          expected_timeframe: string | null
           id: string
           information_set: string | null
           invalidation_triggers: string | null
+          lesson_ids: string[] | null
+          locked_at: string | null
+          outcome_30d: number | null
+          outcome_90d: number | null
+          outcome_180d: number | null
+          outcome_checked_at: string | null
           outcome_notes: string | null
+          outcome_status: string | null
           position_id: string | null
+          price_at_review: number | null
           probability_estimate: string | null
           reasoning: string | null
+          review_prompted_at: string | null
+          reviewed_at: string | null
+          surprise_notes: string | null
+          ticker: string | null
           user_id: string
+          was_correct: boolean | null
         }
         Insert: {
           action_type?: string | null
+          assumptions?: any[] | null
           confidence_level?: number | null
           created_at?: string
+          different_notes?: string | null
+          entry_date?: string | null
+          entry_price?: number | null
+          expected_timeframe?: string | null
           id?: string
           information_set?: string | null
           invalidation_triggers?: string | null
+          lesson_ids?: string[] | null
           outcome_notes?: string | null
+          outcome_status?: string | null
           position_id?: string | null
           probability_estimate?: string | null
           reasoning?: string | null
+          surprise_notes?: string | null
+          ticker?: string | null
           user_id: string
         }
         Update: {
           action_type?: string | null
+          assumptions?: any[] | null
           confidence_level?: number | null
           created_at?: string
+          different_notes?: string | null
+          entry_date?: string | null
+          entry_price?: number | null
+          expected_timeframe?: string | null
           id?: string
           information_set?: string | null
           invalidation_triggers?: string | null
+          lesson_ids?: string[] | null
+          locked_at?: string | null
+          outcome_30d?: number | null
+          outcome_90d?: number | null
+          outcome_180d?: number | null
+          outcome_checked_at?: string | null
           outcome_notes?: string | null
+          outcome_status?: string | null
           position_id?: string | null
+          price_at_review?: number | null
           probability_estimate?: string | null
           reasoning?: string | null
+          review_prompted_at?: string | null
+          reviewed_at?: string | null
+          surprise_notes?: string | null
+          ticker?: string | null
           user_id?: string
+          was_correct?: boolean | null
         }
         Relationships: [
           {
@@ -258,6 +303,32 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      decision_lessons: {
+        Row: {
+          id: string
+          user_id: string
+          label: string
+          category: string
+          description: string | null
+          times_used: number
+          first_used_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          label: string
+          category?: string
+          description?: string | null
+        }
+        Update: {
+          label?: string
+          category?: string
+          description?: string | null
+          times_used?: number
+        }
+        Relationships: []
       }
       etf_metadata: {
         Row: {
