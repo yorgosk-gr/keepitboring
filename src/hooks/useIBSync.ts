@@ -97,6 +97,7 @@ export function useIBSync() {
     isSyncing,
     isConnected: !!ibAccount,
     isLoadingAccount,
+    ibAccount,
     lastSynced: ibAccount?.last_synced_at ?? null,
     lastSyncResult,
     correlationResult,

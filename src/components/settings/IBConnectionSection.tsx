@@ -1,6 +1,7 @@
-import { RefreshCw, Link2, CheckCircle, AlertCircle, Clock, Plug } from "lucide-react";
-import { useState } from "react";
+import { RefreshCw, Link2, CheckCircle, AlertCircle, Clock, Plug, Save, BarChart3 } from "lucide-react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useIBSync } from "@/hooks/useIBSync";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,11 +17,38 @@ export function IBConnectionSection() {
     isSyncing,
     isConnected,
     isLoadingAccount,
+    ibAccount,
     lastSynced,
     lastSyncResult,
     error,
   } = useIBSync();
   const [isConnecting, setIsConnecting] = useState(false);
+  const [perfQueryId, setPerfQueryId] = useState("");
+  const [isSavingPerfId, setIsSavingPerfId] = useState(false);
+
+  useEffect(() => {
+    if (ibAccount?.performance_query_id) {
+      setPerfQueryId(ibAccount.performance_query_id);
+    }
+  }, [ibAccount?.performance_query_id]);
+
+  const handleSavePerfQueryId = async () => {
+    if (!user || !perfQueryId.trim()) return;
+    setIsSavingPerfId(true);
+    try {
+      const { error: updateError } = await supabase
+        .from("ib_accounts")
+        .update({ performance_query_id: perfQueryId.trim() })
+        .eq("user_id", user.id);
+      if (updateError) throw updateError;
+      toast.success("Performance query ID saved");
+      await queryClient.invalidateQueries({ queryKey: ["ib-account"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save");
+    } finally {
+      setIsSavingPerfId(false);
+    }
+  };
 
   const handleConnect = async () => {
     if (!user) return;
@@ -31,6 +59,7 @@ export function IBConnectionSection() {
         ib_account_id: "U4594648",
         flex_token: "205881144990191816757120",
         flex_query_id: "1416087",
+        performance_query_id: "1417057",
       });
       if (insertError) throw insertError;
       toast.success("IB account connected!");
@@ -108,6 +137,37 @@ export function IBConnectionSection() {
               </div>
             </div>
           )}
+
+          {/* Performance Query ID */}
+          <div className="space-y-2 pt-2 border-t border-border">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-muted-foreground" />
+              <label className="text-xs font-medium text-muted-foreground">
+                Performance FlexQuery ID
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={perfQueryId}
+                onChange={(e) => setPerfQueryId(e.target.value)}
+                placeholder="e.g. 1416088"
+                className="text-sm h-9"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 shrink-0"
+                onClick={handleSavePerfQueryId}
+                disabled={isSavingPerfId || !perfQueryId.trim() || perfQueryId.trim() === ibAccount?.performance_query_id}
+              >
+                <Save className="w-3.5 h-3.5" />
+                Save
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              FlexQuery with EquitySummaryByReportDateInBase & ChangeInNAV sections for NAV/TWR history
+            </p>
+          </div>
 
           {error && (
             <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
