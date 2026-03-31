@@ -52,37 +52,50 @@ export default function Portfolio() {
   const { sync, isSyncing, isConnected, lastSynced } = useIBSync();
   const { checkVolatility } = useVolatilityAlerts();
 
-  // Fetch latest trade date for data freshness notice
-  const { data: latestTradeDate } = useQuery({
-    queryKey: ["latest-trade-date", user?.id],
+  // Fetch latest data date (most recent of: last sync, last price refresh, last trade)
+  const { data: latestDataDate } = useQuery({
+    queryKey: ["latest-data-date", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ib_trades")
-        .select("trade_date")
+      const dates: Date[] = [];
+
+      // Check last portfolio snapshot (price refresh)
+      const { data: snapshot } = await supabase
+        .from("portfolio_snapshots")
+        .select("created_at")
         .eq("user_id", user!.id)
-        .order("trade_date", { ascending: false })
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (error) throw error;
-      return data?.trade_date ? new Date(data.trade_date + "T00:00:00") : null;
+      if (snapshot?.created_at) dates.push(new Date(snapshot.created_at));
+
+      // Check last IB sync
+      const { data: account } = await supabase
+        .from("ib_accounts")
+        .select("last_synced_at")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (account?.last_synced_at) dates.push(new Date(account.last_synced_at));
+
+      if (dates.length === 0) return null;
+      return new Date(Math.max(...dates.map(d => d.getTime())));
     },
     enabled: !!user,
   });
 
   const dataFreshnessNotice = useMemo(() => {
-    if (!latestTradeDate) return null;
+    if (!latestDataDate) return null;
     const today = startOfDay(new Date());
-    const tradeDay = startOfDay(latestTradeDate);
+    const dataDay = startOfDay(latestDataDate);
 
-    if (isSameDay(tradeDay, today)) return null;
+    if (isSameDay(dataDay, today)) return null;
 
-    const bizDays = businessDaysBetween(tradeDay, today);
+    const bizDays = businessDaysBetween(dataDay, today);
 
     return {
       level: bizDays > 1 ? "warning" as const : "info" as const,
-      message: `Portfolio data is current as of ${format(tradeDay, "MMM d")}`,
+      message: `Portfolio data is current as of ${format(dataDay, "MMM d")}`,
     };
-  }, [latestTradeDate]);
+  }, [latestDataDate]);
 
   const { verifySinglePosition, verifyPositions, isVerifying, progress: verifyProgress } = useTickerVerification();
   
@@ -422,15 +435,18 @@ export default function Portfolio() {
       {!isLoading && positions.length > 0 && missingThesisCount > 3 && (
         <div className="flex items-center justify-between p-4 rounded-lg border bg-amber-500/10 border-amber-500/20">
           <p className="text-sm text-amber-500">
-            ⚠️ {missingThesisCount} of {positions.length} positions have no thesis
+            {missingThesisCount} of {positions.length} positions have no thesis
           </p>
           <Button
             variant="outline"
             size="sm"
             className="gap-2 border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
-            onClick={() => setShowMissingThesisOnly(!showMissingThesisOnly)}
+            onClick={() => {
+              const firstMissing = positions.find(p => !p.thesis_notes);
+              if (firstMissing) setThesisPosition(firstMissing);
+            }}
           >
-            {showMissingThesisOnly ? "Show All" : "Add thesis"}
+            Add thesis
           </Button>
         </div>
       )}
