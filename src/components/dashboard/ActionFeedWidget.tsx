@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, AlertCircle, Info, Newspaper, Target, Shield, Clock, TrendingDown } from "lucide-react";
+import { AlertTriangle, AlertCircle, Info, Newspaper, Target, Shield, Clock, TrendingDown, X, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActionFeed, type ActionItem, type ActionSeverity, type ActionSource } from "@/hooks/useActionFeed";
 
@@ -18,40 +20,29 @@ const sourceIcon: Record<ActionSource, typeof AlertTriangle> = {
   stale_data: Clock,
 };
 
-function timeAgo(dateStr: string): string {
-  if (!dateStr) return "";
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return "1d ago";
-  return `${days}d ago`;
-}
-
-function ActionRow({ item }: { item: ActionItem }) {
+function ActionRow({ item, onDismiss }: { item: ActionItem; onDismiss?: () => void }) {
   const sev = severityConfig[item.severity];
   const SevIcon = sev.icon;
   const SourceIcon = sourceIcon[item.source];
 
   const content = (
-    <div className={`flex items-start gap-3 p-3 rounded-lg ${sev.bg} hover:opacity-90 transition-opacity`}>
-      <div className="flex-shrink-0 mt-0.5">
-        <SevIcon className={`w-4 h-4 ${sev.color}`} />
-      </div>
+    <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg ${sev.bg}`}>
+      <SevIcon className={`w-4 h-4 ${sev.color} flex-shrink-0`} />
+      <SourceIcon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <SourceIcon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-          <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
-          {item.triggeredAt && (
-            <span className="text-xs text-muted-foreground ml-auto flex-shrink-0">
-              {timeAgo(item.triggeredAt)}
-            </span>
-          )}
-        </div>
-        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</p>
+        <p className="text-sm text-foreground truncate">{item.title}</p>
+        {item.description !== item.title && (
+          <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+        )}
       </div>
+      {item.dismissible && onDismiss && (
+        <button
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDismiss(); }}
+          className="p-1 rounded hover:bg-background/50 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      )}
     </div>
   );
 
@@ -62,7 +53,8 @@ function ActionRow({ item }: { item: ActionItem }) {
 }
 
 export function ActionFeedWidget() {
-  const { actions, isLoading } = useActionFeed();
+  const { actions, isLoading, dismiss } = useActionFeed();
+  const [expanded, setExpanded] = useState(false);
 
   if (isLoading) {
     return (
@@ -71,62 +63,56 @@ export function ActionFeedWidget() {
           <CardTitle className="text-lg">Actions Needed</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
         </CardContent>
       </Card>
     );
   }
 
-  if (actions.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Actions Needed</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground text-center py-4">
-            All clear — no actions needed right now
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
+  if (actions.length === 0) return null;
 
   const critical = actions.filter(a => a.severity === "critical").length;
-  const warning = actions.filter(a => a.severity === "warning").length;
+  const visible = expanded ? actions : actions.slice(0, 4);
+  const hasMore = actions.length > 4;
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Actions Needed</CardTitle>
-          <div className="flex items-center gap-2 text-xs">
+          <CardTitle className="text-lg flex items-center gap-2">
+            Actions Needed
             {critical > 0 && (
-              <span className="flex items-center gap-1 text-destructive font-medium">
+              <span className="flex items-center gap-1 text-xs text-destructive font-medium">
                 <AlertTriangle className="w-3 h-3" />
                 {critical}
               </span>
             )}
-            {warning > 0 && (
-              <span className="flex items-center gap-1 text-amber-500 font-medium">
-                <AlertCircle className="w-3 h-3" />
-                {warning}
-              </span>
-            )}
-            <span className="text-muted-foreground">{actions.length} total</span>
-          </div>
+          </CardTitle>
+          <span className="text-xs text-muted-foreground">{actions.length} total</span>
         </div>
       </CardHeader>
-      <CardContent className="space-y-2">
-        {actions.slice(0, 8).map(item => (
-          <ActionRow key={item.id} item={item} />
+      <CardContent className="space-y-1.5">
+        {visible.map(item => (
+          <ActionRow
+            key={item.id}
+            item={item}
+            onDismiss={item.dismissible ? () => dismiss(item) : undefined}
+          />
         ))}
-        {actions.length > 8 && (
-          <p className="text-xs text-muted-foreground text-center pt-1">
-            +{actions.length - 8} more actions
-          </p>
+        {hasMore && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-xs text-muted-foreground gap-1"
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? (
+              <>Show less <ChevronUp className="w-3 h-3" /></>
+            ) : (
+              <>{actions.length - 4} more <ChevronDown className="w-3 h-3" /></>
+            )}
+          </Button>
         )}
       </CardContent>
     </Card>
