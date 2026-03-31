@@ -119,29 +119,41 @@ function NewsletterIntelWidget() {
     queryKey: ["newsletter-dashboard-status", user?.id],
     queryFn: async () => {
       // Get latest intelligence brief
-      const { data: brief, error: briefErr } = await supabase
-        .from("intelligence_briefs")
-        .select("generated_at, newsletters_analyzed")
-        .eq("user_id", user!.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (briefErr) throw briefErr;
+      let briefDate: string | null = null;
+      let newslettersAnalyzed = 0;
+      try {
+        const { data: brief, error: briefErr } = await supabase
+          .from("intelligence_briefs")
+          .select("generated_at, newsletters_analyzed")
+          .eq("user_id", user!.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!briefErr && brief) {
+          briefDate = brief.generated_at ?? null;
+          newslettersAnalyzed = brief.newsletters_analyzed ?? 0;
+        }
+      } catch {
+        // Brief query failed — continue with defaults
+      }
 
       // Count unprocessed newsletters
-      const { count: unprocessed, error: nlErr } = await supabase
-        .from("newsletters")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user!.id)
-        .eq("is_processed", false)
-        .eq("is_archived", false);
-      if (nlErr) throw nlErr;
+      let unprocessed = 0;
+      try {
+        const { count, error: nlErr } = await supabase
+          .from("newsletters")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .eq("processed", false)
+          .eq("is_archived", false);
+        if (!nlErr) {
+          unprocessed = count ?? 0;
+        }
+      } catch {
+        // Newsletter count query failed — continue with defaults
+      }
 
-      return {
-        briefDate: brief?.generated_at ?? null,
-        newslettersAnalyzed: brief?.newsletters_analyzed ?? 0,
-        unprocessed: unprocessed ?? 0,
-      };
+      return { briefDate, newslettersAnalyzed, unprocessed };
     },
     enabled: !!user,
   });
