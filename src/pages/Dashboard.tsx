@@ -13,6 +13,7 @@ import { useAllETFMetadata } from "@/hooks/useAllETFMetadata";
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { RiskProfileCard } from "@/components/dashboard/RiskProfileCard";
 import { NorthStarWidget } from "@/components/dashboard/NorthStarWidget";
+import { usePhilosophyRules } from "@/hooks/usePhilosophyRules";
 import { Button } from "@/components/ui/button";
 import { useMemo } from "react";
 
@@ -34,12 +35,45 @@ export default function Dashboard() {
   } = useDashboardData();
 
   const { data: etfMetadata = {} } = useAllETFMetadata();
+  const { rules } = usePhilosophyRules();
 
-  // Investment type chart data with targets (including cash)
+  // Derive targets from philosophy rules (midpoint of min/max range)
+  const ruleTargets = useMemo(() => {
+    const findRule = (metric: string) => rules.find(r => r.metric === metric && r.is_active);
+    const midpoint = (r: { threshold_min?: number | null; threshold_max?: number | null } | undefined, fallback: number) => {
+      if (!r) return fallback;
+      const min = r.threshold_min ?? 0;
+      const max = r.threshold_max ?? min;
+      return Math.round((min + max) / 2);
+    };
+
+    const equityRule = findRule("equity_percent");
+    const bondRule = findRule("bonds_percent");
+    const commodityRule = findRule("commodities_gold_percent");
+    const cashRule = findRule("cash_percent");
+    const stocksOfEqRule = findRule("stocks_of_equities_percent");
+    const etfsOfEqRule = findRule("etfs_of_equities_percent");
+
+    const equityTarget = midpoint(equityRule, 50);
+    const bondTarget = midpoint(bondRule, 25);
+    const commodityTarget = midpoint(commodityRule, 10);
+    const cashTarget = cashRule?.threshold_max != null ? Math.round(cashRule.threshold_max / 2) : 5;
+
+    // Stocks/ETFs targets are % of equities in rules, but the donut shows % of total portfolio
+    // Convert: stocks_target_of_total = stocks_of_equities_target * equity_target / 100
+    const stocksOfEqTarget = midpoint(stocksOfEqRule, 20);
+    const etfsOfEqTarget = midpoint(etfsOfEqRule, 80);
+    const stocksTarget = Math.round(stocksOfEqTarget * equityTarget / 100);
+    const etfsTarget = Math.round(etfsOfEqTarget * equityTarget / 100);
+
+    return { equityTarget, bondTarget, commodityTarget, cashTarget, stocksTarget, etfsTarget };
+  }, [rules]);
+
+  // Investment type chart data with targets derived from philosophy rules
   const investmentTypeData = [
-    { name: "Stocks", value: stocksPercent, color: "hsl(38, 92%, 50%)", target: 20 },
-    { name: "ETFs", value: etfsPercent, color: "hsl(160, 84%, 39%)", target: 80 },
-    { name: "Cash", value: cashPercent, color: "hsl(217, 33%, 40%)" },
+    { name: "Stocks", value: stocksPercent, color: "hsl(38, 92%, 50%)", target: ruleTargets.stocksTarget },
+    { name: "ETFs", value: etfsPercent, color: "hsl(160, 84%, 39%)", target: ruleTargets.etfsTarget },
+    { name: "Cash", value: cashPercent, color: "hsl(217, 33%, 40%)", target: ruleTargets.cashTarget },
   ];
 
   // Calculate asset class breakdown using ETF metadata classifications
@@ -77,10 +111,10 @@ export default function Dashboard() {
     const totalWithCash = Object.values(breakdown).reduce((sum, v) => sum + v, 0) + cashBalance;
 
     return [
-      { name: "Equity", value: totalWithCash > 0 ? (breakdown.equity / totalWithCash) * 100 : 0, color: "hsl(160, 84%, 39%)", target: 65 },
-      { name: "Bonds", value: totalWithCash > 0 ? (breakdown.bond / totalWithCash) * 100 : 0, color: "hsl(199, 89%, 48%)", target: 20 },
-      { name: "Commodities", value: totalWithCash > 0 ? ((breakdown.commodity + breakdown.gold) / totalWithCash) * 100 : 0, color: "hsl(38, 92%, 50%)", target: 5 },
-      { name: "Cash", value: totalWithCash > 0 ? (cashBalance / totalWithCash) * 100 : 0, color: "hsl(217, 33%, 40%)", target: 5 },
+      { name: "Equity", value: totalWithCash > 0 ? (breakdown.equity / totalWithCash) * 100 : 0, color: "hsl(160, 84%, 39%)", target: ruleTargets.equityTarget },
+      { name: "Bonds", value: totalWithCash > 0 ? (breakdown.bond / totalWithCash) * 100 : 0, color: "hsl(199, 89%, 48%)", target: ruleTargets.bondTarget },
+      { name: "Commodities", value: totalWithCash > 0 ? ((breakdown.commodity + breakdown.gold) / totalWithCash) * 100 : 0, color: "hsl(38, 92%, 50%)", target: ruleTargets.commodityTarget },
+      { name: "Cash", value: totalWithCash > 0 ? (cashBalance / totalWithCash) * 100 : 0, color: "hsl(217, 33%, 40%)", target: ruleTargets.cashTarget },
     ].filter(item => item.value > 0);
   }, [positions, etfMetadata, cashBalance]);
 
