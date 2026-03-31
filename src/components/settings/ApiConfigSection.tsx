@@ -68,8 +68,8 @@ export function ApiConfigSection() {
               <Sparkles className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <p className="font-medium text-foreground">Lovable AI</p>
-              <p className="text-sm text-muted-foreground">Server-side configuration active</p>
+              <p className="font-medium text-foreground">Anthropic Claude</p>
+              <p className="text-sm text-muted-foreground">Server-side via Supabase Edge Functions</p>
             </div>
           </div>
           <Button
