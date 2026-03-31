@@ -13,6 +13,7 @@ import { useAllETFMetadata } from "@/hooks/useAllETFMetadata";
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { RiskProfileCard } from "@/components/dashboard/RiskProfileCard";
 import { NorthStarWidget } from "@/components/dashboard/NorthStarWidget";
+import { ActionFeedWidget } from "@/components/dashboard/ActionFeedWidget";
 import { usePhilosophyRules } from "@/hooks/usePhilosophyRules";
 import { Button } from "@/components/ui/button";
 import { useMemo, useCallback } from "react";
@@ -248,7 +249,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Conviction Reviews */}
+      {/* Action Feed + Conviction Reviews */}
+      <ActionFeedWidget />
       <ConvictionReviewWidget />
 
       {/* Portfolio Value + Stats */}

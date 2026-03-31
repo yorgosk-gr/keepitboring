@@ -12,7 +12,9 @@ import {
 } from "@/components/ui/tooltip";
 import type { Position } from "@/hooks/usePositions";
 import { ETFInfoTooltip } from "./ETFInfoTooltip";
+import { NewsletterMentionsBadge } from "./NewsletterMentionsBadge";
 import { useETFMetadata } from "@/hooks/useETFMetadata";
+import { useTickerMentions } from "@/hooks/useTickerMentions";
 
 type SortField = "ticker" | "name" | "position_type" | "category" | "exchange" | "currency" | "shares" | "avg_cost" | "current_price" | "market_value" | "gain_loss" | "weight_percent";
 type SortDirection = "asc" | "desc";
@@ -145,11 +147,15 @@ export function PositionsTable({
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Get ETF tickers for metadata lookup
-  const etfTickers = useMemo(() => 
+  const etfTickers = useMemo(() =>
     positions.filter(p => p.position_type === "etf").map(p => p.ticker),
     [positions]
   );
   const { data: etfMetadata = {} } = useETFMetadata(etfTickers);
+
+  // Newsletter mentions for held tickers
+  const allTickers = useMemo(() => positions.map(p => p.ticker), [positions]);
+  const { data: tickerMentions = {} } = useTickerMentions(allTickers);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -358,6 +364,9 @@ export function PositionsTable({
                           )}
                           {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                         </button>
+                        {tickerMentions[position.ticker]?.length > 0 && (
+                          <NewsletterMentionsBadge mentions={tickerMentions[position.ticker]} />
+                        )}
                       </div>
                     </td>
                     <td className="py-3 text-muted-foreground max-w-[120px] truncate text-xs">

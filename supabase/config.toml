@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.sync-ib-performance]
 verify_jwt = false
+
+[functions.cron-tasks]
+verify_jwt = false
