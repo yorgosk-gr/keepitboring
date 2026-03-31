@@ -190,9 +190,9 @@ export function RiskProfileCard({ positions, etfMetadata, totalValue, cashBalanc
                   {isOff ? (
                     <span className={cn(
                       "text-sm font-mono font-medium px-1.5 py-0.5 rounded",
-                      isOver ? "bg-amber-500/15 text-amber-500" : "bg-blue-400/15 text-blue-400"
+                      isOver ? "bg-destructive/15 text-destructive" : "bg-blue-400/15 text-blue-400"
                     )}>
-                      {isOver ? "+" : ""}{diff.toFixed(0)}
+                      {diff > 0 ? "+" : ""}{diff.toFixed(0)}
                     </span>
                   ) : (
                     <span className="text-sm text-primary">✓</span>
