@@ -22,7 +22,8 @@ export function useIBCurrentWeights(): IBCurrentWeights {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ib_positions")
-        .select("symbol, percent_of_nav, position_value, description");
+        .select("symbol, percent_of_nav, position_value, description")
+        .eq("user_id", user!.id);
       if (error) throw error;
       return data;
     },
@@ -35,6 +36,7 @@ export function useIBCurrentWeights(): IBCurrentWeights {
       const { data, error } = await supabase
         .from("ib_accounts")
         .select("cash_balance")
+        .eq("user_id", user!.id)
         .limit(1)
         .maybeSingle();
       if (error) throw error;

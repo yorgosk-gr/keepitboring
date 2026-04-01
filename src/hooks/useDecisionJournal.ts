@@ -184,7 +184,8 @@ export function useDecisionJournal(filters?: {
       await supabase
         .from("decision_lessons" as any)
         .update({ times_used: lesson.times_used + 1 } as any)
-        .eq("id", lessonId);
+        .eq("id", lessonId)
+        .eq("user_id", user!.id);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["decision-lessons"] }),
   });
@@ -209,7 +210,7 @@ export function useDecisionJournal(filters?: {
   const topLessons = [...lessons].sort((a, b) => b.times_used - a.times_used).slice(0, 5);
 
   // Best/worst by price change
-  const withPriceChange = entries.filter(e => e.entry_price && e.current_price);
+  const withPriceChange = entries.filter(e => e.entry_price && e.entry_price !== 0 && e.current_price);
   const sorted = [...withPriceChange].sort((a, b) => {
     const aReturn = ((a.current_price! - a.entry_price!) / a.entry_price!) * 100;
     const bReturn = ((b.current_price! - b.entry_price!) / b.entry_price!) * 100;

@@ -83,8 +83,15 @@ export function useIBSync() {
         toast.error(`Performance sync failed: ${perfErr.message}`);
       }
 
-      // Invalidate relevant queries
+      // Invalidate relevant queries so UI refreshes
       queryClient.invalidateQueries({ queryKey: ["ib-account"] });
+      queryClient.invalidateQueries({ queryKey: ["ib-positions"] });
+      queryClient.invalidateQueries({ queryKey: ["ib-positions-weights"] });
+      queryClient.invalidateQueries({ queryKey: ["ib-account-cash"] });
+      queryClient.invalidateQueries({ queryKey: ["position-annotations"] });
+      queryClient.invalidateQueries({ queryKey: ["positions"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["latest-data-date"] });
       queryClient.invalidateQueries({ queryKey: ["risk-profile"] });
       queryClient.invalidateQueries({ queryKey: ["behavioral-signals"] });
     } catch (err: any) {

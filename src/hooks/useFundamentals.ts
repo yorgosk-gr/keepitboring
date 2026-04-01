@@ -78,15 +78,36 @@ export function useFundamentals() {
           for (const pos of batch) {
             const fundData = data.fundamentals[pos.ticker];
             if (fundData) {
-              const { error: updateError } = await supabase
+              // pos.id comes from ib_positions, but fundamentals live in positions table
+              // so we must match by user_id + ticker, not by id
+              const { data: updated, error: updateError } = await supabase
                 .from("positions")
                 .update({
                   fundamentals: fundData as any,
                   last_fundamentals_refresh: new Date().toISOString(),
                 })
-                .eq("id", pos.id);
+                .eq("user_id", pos.user_id)
+                .eq("ticker", pos.ticker)
+                .select("id");
 
-              if (!updateError) totalUpdated++;
+              if (!updateError && updated && updated.length > 0) {
+                totalUpdated++;
+              } else if (!updateError && (!updated || updated.length === 0)) {
+                // No positions row exists yet — create one
+                const { error: insertError } = await supabase
+                  .from("positions")
+                  .insert({
+                    user_id: pos.user_id,
+                    ticker: pos.ticker,
+                    shares: pos.shares ?? 0,
+                    avg_cost: pos.avg_cost ?? 0,
+                    current_price: pos.current_price ?? 0,
+                    market_value: pos.market_value ?? 0,
+                    fundamentals: fundData as any,
+                    last_fundamentals_refresh: new Date().toISOString(),
+                  });
+                if (!insertError) totalUpdated++;
+              }
             }
           }
         }

@@ -19,7 +19,7 @@ export function useTickerMentions(heldTickers: string[]) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ["ticker-mentions", user?.id, heldTickers.sort().join(",")],
+    queryKey: ["ticker-mentions", user?.id, [...heldTickers].sort().join(",")],
     queryFn: async (): Promise<TickerMentionsMap> => {
       if (heldTickers.length === 0) return {};
 

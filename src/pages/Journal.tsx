@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import {
   BookOpen, Filter, Search, Plus, ChevronDown, ChevronUp,
@@ -154,9 +154,11 @@ export default function Journal() {
   );
 
   // Auto-select first entry if nothing selected
-  if (!selectedId && entries.length > 0 && !isLoading) {
-    setSelectedId(entries[0].id);
-  }
+  useEffect(() => {
+    if (!selectedId && entries.length > 0 && !isLoading) {
+      setSelectedId(entries[0].id);
+    }
+  }, [selectedId, entries, isLoading]);
 
   return (
     <div className="space-y-4">

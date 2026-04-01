@@ -5,10 +5,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIBCurrentWeights } from "./useIBCurrentWeights";
 
 export type ActionSource =
+  | "rebalance"
   | "conviction_review"
-  | "rule_violation"
+  | "thesis_missing"
+  | "newsletter_bearish"
   | "north_star"
-  | "newsletter_mention"
   | "stale_data";
 
 export type ActionSeverity = "critical" | "warning" | "info";
@@ -18,17 +19,16 @@ export interface ActionItem {
   source: ActionSource;
   ticker?: string;
   title: string;
-  description: string;
   severity: ActionSeverity;
-  triggeredAt: string;
   link?: string;
   dismissible?: boolean;
+  _reviewIds?: string[];
 }
 
 export function useActionFeed() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { weights } = useIBCurrentWeights();
+  const { weights, cashWeight, totalValue } = useIBCurrentWeights();
   const heldTickers = useMemo(() => Object.keys(weights), [weights]);
 
   // 1. Undismissed conviction reviews
@@ -49,25 +49,7 @@ export function useActionFeed() {
     staleTime: 60_000,
   });
 
-  // 2. Unresolved rule violations (limit to 10, we'll group them)
-  const alertsQuery = useQuery({
-    queryKey: ["action-feed-alerts", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("alerts")
-        .select("id, alert_type, severity, message, created_at")
-        .eq("user_id", user!.id)
-        .eq("resolved", false)
-        .order("created_at", { ascending: false })
-        .limit(30);
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!user,
-    staleTime: 60_000,
-  });
-
-  // 3. North Star positions needing action (build/reduce/exit)
+  // 2. North Star positions needing action
   const nsQuery = useQuery({
     queryKey: ["action-feed-northstar", user?.id],
     queryFn: async () => {
@@ -82,7 +64,7 @@ export function useActionFeed() {
 
       const { data, error } = await supabase
         .from("north_star_positions" as any)
-        .select("id, ticker, name, status, target_weight_ideal, rationale")
+        .select("id, ticker, status, target_weight_ideal")
         .eq("portfolio_id", (portfolio as any).id)
         .in("status", ["build", "reduce", "exit"])
         .order("priority", { ascending: true })
@@ -94,9 +76,9 @@ export function useActionFeed() {
     staleTime: 60_000,
   });
 
-  // 4. Recent newsletter mentions of held tickers (last 14 days)
+  // 3. Bearish newsletter mentions (last 14 days)
   const mentionsQuery = useQuery({
-    queryKey: ["action-feed-mentions", user?.id, heldTickers.sort().join(",")],
+    queryKey: ["action-feed-mentions", user?.id, [...heldTickers].sort().join(",")],
     queryFn: async () => {
       if (heldTickers.length === 0) return [];
       const cutoff = new Date();
@@ -104,8 +86,9 @@ export function useActionFeed() {
 
       const { data, error } = await supabase
         .from("insights")
-        .select("id, content, tickers_mentioned, sentiment, insight_type, created_at")
+        .select("id, content, tickers_mentioned, sentiment, created_at")
         .overlaps("tickers_mentioned", heldTickers)
+        .eq("sentiment", "bearish")
         .gte("created_at", cutoff.toISOString())
         .order("created_at", { ascending: false })
         .limit(5);
@@ -114,6 +97,32 @@ export function useActionFeed() {
     },
     enabled: !!user && heldTickers.length > 0,
     staleTime: 5 * 60_000,
+  });
+
+  // 4. Positions missing thesis
+  const positionsQuery = useQuery({
+    queryKey: ["action-feed-thesis", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ib_positions")
+        .select("symbol")
+        .eq("user_id", user!.id);
+      if (error) throw error;
+
+      const symbols = (data ?? []).map((p: any) => p.symbol);
+      if (symbols.length === 0) return { total: 0, missing: 0 };
+
+      const { data: annotations } = await supabase
+        .from("positions")
+        .select("ticker, thesis_notes")
+        .eq("user_id", user!.id)
+        .in("ticker", symbols);
+
+      const annotated = new Set((annotations ?? []).filter((a) => a.thesis_notes).map((a) => a.ticker));
+      return { total: symbols.length, missing: symbols.length - annotated.size };
+    },
+    enabled: !!user,
+    staleTime: 60_000,
   });
 
   // 5. Stale data check
@@ -133,28 +142,16 @@ export function useActionFeed() {
     staleTime: 60_000,
   });
 
-  // Dismiss an alert (resolve it)
-  const dismissAlert = useMutation({
-    mutationFn: async (alertId: string) => {
-      await supabase
-        .from("alerts")
-        .update({ resolved: true })
-        .eq("id", alertId)
-        .eq("user_id", user!.id);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["action-feed-alerts"] });
-    },
-  });
-
-  // Dismiss a conviction review
+  // Dismiss conviction reviews
   const dismissReview = useMutation({
-    mutationFn: async (reviewId: string) => {
-      await supabase
-        .from("position_reviews" as any)
-        .update({ dismissed_at: new Date().toISOString() } as any)
-        .eq("id", reviewId)
-        .eq("user_id", user!.id);
+    mutationFn: async (reviewIds: string[]) => {
+      for (const id of reviewIds) {
+        await supabase
+          .from("position_reviews" as any)
+          .update({ dismissed_at: new Date().toISOString() } as any)
+          .eq("id", id)
+          .eq("user_id", user!.id);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["action-feed-reviews"] });
@@ -162,137 +159,121 @@ export function useActionFeed() {
   });
 
   const dismiss = (item: ActionItem) => {
-    const rawId = item.id.replace(/^(alert-|review-)/, "");
-    if (item.source === "rule_violation") {
-      // Dismiss all alerts in a grouped item
-      const alertIds = (item as any)._alertIds ?? [rawId];
-      for (const id of alertIds) {
-        dismissAlert.mutate(id);
-      }
-    } else if (item.source === "conviction_review") {
-      dismissReview.mutate(rawId);
+    if (item._reviewIds) {
+      dismissReview.mutate(item._reviewIds);
     }
   };
 
   const actions = useMemo(() => {
     const items: ActionItem[] = [];
 
-    // Conviction reviews → group by review_type, show count
-    const reviewsByType = new Map<string, any[]>();
-    for (const r of reviewsQuery.data ?? []) {
-      const key = r.review_type;
-      if (!reviewsByType.has(key)) reviewsByType.set(key, []);
-      reviewsByType.get(key)!.push(r);
-    }
-    for (const [type, reviews] of reviewsByType) {
-      const typeLabels: Record<string, string> = {
-        conviction_check: "Conviction check due",
-        volatility_alert: "Volatility alert",
-        thesis_drift: "Thesis drift detected",
-        anniversary: "Position anniversary",
-      };
-      const tickers = reviews.map(r => r.ticker).join(", ");
-      items.push({
-        id: `review-${reviews[0].id}`,
-        source: "conviction_review",
-        ticker: reviews[0].ticker,
-        title: `${typeLabels[type] ?? type}: ${tickers}`,
-        description: reviews.length > 1
-          ? `${reviews.length} positions need review`
-          : reviews[0].price_change_pct
-            ? `Price moved ${reviews[0].price_change_pct > 0 ? "+" : ""}${Number(reviews[0].price_change_pct).toFixed(1)}%`
-            : "Review your thesis",
-        severity: type === "volatility_alert" ? "critical" : "warning",
-        triggeredAt: reviews[0].triggered_at,
-        link: "/portfolio",
-        dismissible: true,
-      });
-    }
+    // Conviction reviews — actionable: "Review your thesis on X"
+    const reviews = reviewsQuery.data ?? [];
+    if (reviews.length > 0) {
+      const volatility = reviews.filter((r: any) => r.review_type === "volatility_alert");
+      const others = reviews.filter((r: any) => r.review_type !== "volatility_alert");
 
-    // Rule violations → group by category, deduplicate
-    const alerts = alertsQuery.data ?? [];
-    // Categorize alerts
-    const allocationAlerts: typeof alerts = [];
-    const positionAlerts: typeof alerts = [];
-    for (const a of alerts) {
-      const msg = a.message.toLowerCase();
-      if (msg.includes("percent") || msg.includes("allocation") || msg.includes("diversification")) {
-        allocationAlerts.push(a);
-      } else {
-        positionAlerts.push(a);
+      if (volatility.length > 0) {
+        const tickers = volatility.map((r: any) => r.ticker).join(", ");
+        const topMove = volatility.reduce((best: any, r: any) =>
+          Math.abs(r.price_change_pct ?? 0) > Math.abs(best.price_change_pct ?? 0) ? r : best
+        , volatility[0]);
+        items.push({
+          id: "vol-reviews",
+          source: "conviction_review",
+          ticker: volatility[0].ticker,
+          title: `${tickers} moved sharply (${topMove.price_change_pct > 0 ? "+" : ""}${Number(topMove.price_change_pct).toFixed(0)}%) — review thesis`,
+          severity: "critical",
+          link: "/portfolio",
+          dismissible: true,
+          _reviewIds: volatility.map((r: any) => r.id),
+        });
+      }
+
+      if (others.length > 0) {
+        const tickers = others.map((r: any) => r.ticker).join(", ");
+        items.push({
+          id: "other-reviews",
+          source: "conviction_review",
+          ticker: others[0].ticker,
+          title: `Review due: ${tickers}`,
+          severity: "info",
+          link: "/portfolio",
+          dismissible: true,
+          _reviewIds: others.map((r: any) => r.id),
+        });
       }
     }
 
-    // Show allocation alerts as one grouped item
-    if (allocationAlerts.length > 0) {
-      const critCount = allocationAlerts.filter(a => a.severity === "critical").length;
-      const item: ActionItem & { _alertIds?: string[] } = {
-        id: `alert-${allocationAlerts[0].id}`,
-        source: "rule_violation",
-        title: `${allocationAlerts.length} allocation rule${allocationAlerts.length > 1 ? "s" : ""} outside target`,
-        description: allocationAlerts.slice(0, 3).map(a => {
-          // Extract just the metric name and value
-          const match = a.message.match(/^(.+?) at ([\d.]+%)/);
-          return match ? `${match[1]}: ${match[2]}` : a.message.substring(0, 40);
-        }).join(" · "),
-        severity: critCount > 0 ? "critical" : "warning",
-        triggeredAt: allocationAlerts[0].created_at ?? "",
-        link: "/philosophy",
-        dismissible: true,
-        _alertIds: allocationAlerts.map(a => a.id),
-      };
-      items.push(item);
-    }
+    // North Star — concrete rebalancing actions
+    const nsPositions = nsQuery.data ?? [];
+    const exits = nsPositions.filter((n: any) => n.status === "exit");
+    const reduces = nsPositions.filter((n: any) => n.status === "reduce");
+    const builds = nsPositions.filter((n: any) => n.status === "build");
 
-    // Show position-level alerts as one grouped item
-    if (positionAlerts.length > 0) {
-      const item: ActionItem & { _alertIds?: string[] } = {
-        id: `alert-pos-${positionAlerts[0].id}`,
-        source: "rule_violation",
-        title: `${positionAlerts.length} position alert${positionAlerts.length > 1 ? "s" : ""}`,
-        description: positionAlerts.slice(0, 3).map(a => a.message.substring(0, 40)).join(" · "),
-        severity: "warning",
-        triggeredAt: positionAlerts[0].created_at ?? "",
-        link: "/portfolio",
-        dismissible: true,
-        _alertIds: positionAlerts.map(a => a.id),
-      };
-      items.push(item);
-    }
-
-    // North Star deviations → only show exit and reduce (build is low priority)
-    for (const ns of (nsQuery.data ?? []).filter((n: any) => n.status === "exit" || n.status === "reduce")) {
+    if (exits.length > 0) {
       items.push({
-        id: `ns-${ns.id}`,
+        id: "ns-exits",
         source: "north_star",
-        ticker: ns.ticker,
-        title: `${ns.ticker}: ${ns.status === "exit" ? "Exit position" : "Reduce position"}`,
-        description: `Target: ${ns.target_weight_ideal?.toFixed(1) ?? "?"}%`,
-        severity: ns.status === "exit" ? "critical" : "warning",
-        triggeredAt: "",
+        title: `Exit: ${exits.map((n: any) => n.ticker).join(", ")}`,
+        severity: "critical",
         link: "/north-star",
       });
     }
 
-    // Newsletter mentions → only bearish ones (actionable)
-    for (const m of mentionsQuery.data ?? []) {
-      if (m.sentiment !== "bearish") continue;
-      const tickers = (m.tickers_mentioned as string[]) ?? [];
-      const relevantTickers = tickers.filter(t => heldTickers.includes(t));
-      if (relevantTickers.length === 0) continue;
+    if (reduces.length > 0) {
       items.push({
-        id: `mention-${m.id}`,
-        source: "newsletter_mention",
-        ticker: relevantTickers[0],
-        title: `Bearish signal: ${relevantTickers.join(", ")}`,
-        description: (m.content ?? "").substring(0, 80),
+        id: "ns-reduces",
+        source: "north_star",
+        title: `Trim: ${reduces.map((n: any) => n.ticker).join(", ")} — above target weight`,
         severity: "warning",
-        triggeredAt: m.created_at ?? "",
-        link: "/newsletters",
+        link: "/north-star",
       });
     }
 
-    // Stale data → action
+    if (builds.length > 0) {
+      items.push({
+        id: "ns-builds",
+        source: "north_star",
+        title: `Build: ${builds.map((n: any) => n.ticker).join(", ")} — below target weight`,
+        severity: "info",
+        link: "/north-star",
+      });
+    }
+
+    // Bearish newsletter mentions — "heads up" on held positions
+    const bearishMentions = mentionsQuery.data ?? [];
+    if (bearishMentions.length > 0) {
+      const mentionedTickers = new Set<string>();
+      for (const m of bearishMentions) {
+        for (const t of (m.tickers_mentioned as string[]) ?? []) {
+          if (heldTickers.includes(t)) mentionedTickers.add(t);
+        }
+      }
+      if (mentionedTickers.size > 0) {
+        items.push({
+          id: "bearish-mentions",
+          source: "newsletter_bearish",
+          title: `Bearish signals on ${[...mentionedTickers].join(", ")} in recent newsletters`,
+          severity: "warning",
+          link: "/newsletters",
+        });
+      }
+    }
+
+    // Missing thesis — nudge to add
+    const thesisData = positionsQuery.data;
+    if (thesisData && thesisData.missing > 0 && thesisData.missing >= thesisData.total * 0.5) {
+      items.push({
+        id: "missing-thesis",
+        source: "thesis_missing",
+        title: `${thesisData.missing} of ${thesisData.total} positions have no thesis — add one`,
+        severity: "info",
+        link: "/portfolio",
+      });
+    }
+
+    // Stale data
     if (stalenessQuery.data?.created_at) {
       const daysSince = Math.floor(
         (Date.now() - new Date(stalenessQuery.data.created_at).getTime()) / 86_400_000
@@ -301,28 +282,20 @@ export function useActionFeed() {
         items.push({
           id: "stale-prices",
           source: "stale_data",
-          title: "Prices may be outdated",
-          description: `Last refresh ${daysSince} days ago`,
+          title: `Prices are ${daysSince} days old — refresh needed`,
           severity: daysSince >= 14 ? "critical" : "warning",
-          triggeredAt: stalenessQuery.data.created_at,
         });
       }
     }
 
-    // Sort: critical first, then warning, then info
+    // Sort: critical > warning > info
     const severityOrder: Record<ActionSeverity, number> = { critical: 0, warning: 1, info: 2 };
-    items.sort((a, b) => {
-      const sevDiff = severityOrder[a.severity] - severityOrder[b.severity];
-      if (sevDiff !== 0) return sevDiff;
-      if (!a.triggeredAt) return 1;
-      if (!b.triggeredAt) return -1;
-      return new Date(b.triggeredAt).getTime() - new Date(a.triggeredAt).getTime();
-    });
+    items.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 
     return items;
-  }, [reviewsQuery.data, alertsQuery.data, nsQuery.data, mentionsQuery.data, stalenessQuery.data, heldTickers]);
+  }, [reviewsQuery.data, nsQuery.data, mentionsQuery.data, positionsQuery.data, stalenessQuery.data, heldTickers]);
 
-  const isLoading = reviewsQuery.isLoading || alertsQuery.isLoading || nsQuery.isLoading;
+  const isLoading = reviewsQuery.isLoading || nsQuery.isLoading;
 
   return { actions, isLoading, dismiss };
 }

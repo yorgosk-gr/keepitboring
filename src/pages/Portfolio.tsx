@@ -333,7 +333,7 @@ export default function Portfolio() {
   };
 
 
-  // but we can still create snapshots for tracking
+  // Apply fetched prices: update ib_positions.mark_price + create snapshot
   const handleApplyPriceUpdates = async (updates: { id: string; current_price: number }[]) => {
     // Capture previous prices for volatility detection
     const previousPrices: Record<string, number> = {};
@@ -345,11 +345,40 @@ export default function Portfolio() {
     if (!user) return;
 
     try {
-      const totalMV = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
-      const stocksValue = positions
+      // Step 1: Update actual prices in ib_positions
+      let updatedCount = 0;
+      for (const update of updates) {
+        const pos = positions.find(p => p.id === update.id);
+        if (!pos) continue;
+
+        const newValue = pos.shares ? pos.shares * update.current_price : null;
+        const { error: updateErr } = await supabase
+          .from("ib_positions")
+          .update({
+            mark_price: update.current_price,
+            ...(newValue !== null ? { position_value: newValue } : {}),
+            synced_at: new Date().toISOString(),
+          })
+          .eq("id", update.id)
+          .eq("user_id", user.id);
+
+        if (!updateErr) updatedCount++;
+      }
+
+      // Step 2: Recalculate totals for snapshot
+      // Re-fetch so we have updated values
+      const updatedPositions = positions.map(p => {
+        const upd = updates.find(u => u.id === p.id);
+        if (!upd) return p;
+        const newMV = p.shares ? p.shares * upd.current_price : p.market_value;
+        return { ...p, current_price: upd.current_price, market_value: newMV };
+      });
+
+      const totalMV = updatedPositions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
+      const stocksValue = updatedPositions
         .filter(p => p.position_type === "stock")
         .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
-      const etfsValue = positions
+      const etfsValue = updatedPositions
         .filter(p => p.position_type === "etf")
         .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
 
@@ -361,13 +390,15 @@ export default function Portfolio() {
         cash_balance: cashBalance,
         data_json: {
           price_refresh: new Date().toISOString(),
-          updated_count: updates.length,
+          updated_count: updatedCount,
         },
       });
 
       setLastPriceRefresh(new Date());
       queryClient.invalidateQueries({ queryKey: ["ib-positions"] });
+      queryClient.invalidateQueries({ queryKey: ["ib-positions-weights"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["latest-data-date"] });
 
       // Check for volatility alerts
       if (fetchedPrices.length > 0) {
@@ -378,7 +409,7 @@ export default function Portfolio() {
         }
       }
 
-      toast.success(`Price snapshot recorded for ${updates.length} positions`);
+      toast.success(`Updated prices for ${updatedCount} positions`);
     } catch (error) {
       console.error("Failed to apply price updates:", error);
       toast.error("Failed to update prices. Please try again.");

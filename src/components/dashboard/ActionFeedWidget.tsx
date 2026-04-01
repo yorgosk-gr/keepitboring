@@ -13,10 +13,11 @@ const severityConfig: Record<ActionSeverity, { icon: typeof AlertTriangle; color
 };
 
 const sourceIcon: Record<ActionSource, typeof AlertTriangle> = {
+  rebalance: Shield,
   conviction_review: TrendingDown,
-  rule_violation: Shield,
+  thesis_missing: Info,
+  newsletter_bearish: Newspaper,
   north_star: Target,
-  newsletter_mention: Newspaper,
   stale_data: Clock,
 };
 
@@ -31,9 +32,6 @@ function ActionRow({ item, onDismiss }: { item: ActionItem; onDismiss?: () => vo
       <SourceIcon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-sm text-foreground truncate">{item.title}</p>
-        {item.description !== item.title && (
-          <p className="text-xs text-muted-foreground truncate">{item.description}</p>
-        )}
       </div>
       {item.dismissible && onDismiss && (
         <button

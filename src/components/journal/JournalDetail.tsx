@@ -75,8 +75,9 @@ export function JournalDetail({
     (Date.now() - new Date(entry.created_at).getTime()) / 86_400_000
   );
 
-  const priceReturn = entry.entry_price && entry.current_price
-    ? ((entry.current_price - entry.entry_price) / entry.entry_price) * 100
+  const comparePrice = entry.reviewed_at ? entry.price_at_review : entry.current_price;
+  const priceReturn = entry.entry_price && comparePrice
+    ? ((comparePrice - entry.entry_price) / entry.entry_price) * 100
     : null;
 
   const handleSaveOutcome = () => {
