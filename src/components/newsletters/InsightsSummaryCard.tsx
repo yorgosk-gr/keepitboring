@@ -399,7 +399,7 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
             <NarrativeSection title="What This Means For Your Portfolio" content={sections.what_this_means_for_your_portfolio} />
           )}
 
-          {/* Temporal Shifts (from key_points) */}
+          {/* Temporal Shifts */}
           <TemporalShiftsSection shifts={summary.temporal_shifts as any[]} />
 
           {/* Structured: Country Tilts */}
