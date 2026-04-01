@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { derivePositionType, deriveCategory } from "@/lib/positionUtils";
+import { derivePositionType, deriveCategory, getReferenceName } from "@/lib/positionUtils";
 
 // Unified position type combining IB data + annotations
 export interface Position {
@@ -119,21 +119,21 @@ export function usePositions() {
     const meta = lookupEtfMeta(ticker);
     const hasEtfMetadata = !!meta;
 
-    // Position type: manual override > etf_metadata > derive from IB fields
+    // Position type: manual override > etf_metadata > local reference > IB fields
     const posType = ann?.manually_classified
-      ? (ann.position_type || derivePositionType(ib.asset_class, ib.sub_category, hasEtfMetadata))
-      : derivePositionType(ib.asset_class, ib.sub_category, hasEtfMetadata);
+      ? (ann.position_type || derivePositionType(ib.asset_class, ib.sub_category, hasEtfMetadata, ticker))
+      : derivePositionType(ib.asset_class, ib.sub_category, hasEtfMetadata, ticker);
 
-    // Category: manual override > etf_metadata category > derive from asset_class
+    // Category: manual override > etf_metadata > local reference > IB fields
     const cat = ann?.manually_classified
-      ? (ann.category || deriveCategory(ib.asset_class, meta?.category ?? null, ib.description))
-      : deriveCategory(ib.asset_class, meta?.category ?? null, ib.description);
+      ? (ann.category || deriveCategory(ib.asset_class, meta?.category ?? null, ib.description, ticker))
+      : deriveCategory(ib.asset_class, meta?.category ?? null, ib.description, ticker);
 
     return {
       id: ib.id,
       user_id: ib.user_id,
       ticker,
-      name: ann?.name || meta?.full_name || ib.description || null,
+      name: ann?.name || meta?.full_name || getReferenceName(ticker) || ib.description || null,
       position_type: posType,
       category: cat,
       exchange: ann?.exchange || ib.listing_exchange || null,

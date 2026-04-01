@@ -187,8 +187,8 @@ export function useDashboardData() {
     const ann = annotations[ticker];
     const hasEtfMeta = etfTickers.has(ticker);
     const posType = ann?.manually_classified
-      ? (ann.position_type || derivePositionType(ib.asset_class, ib.sub_category, hasEtfMeta))
-      : derivePositionType(ib.asset_class, ib.sub_category, hasEtfMeta);
+      ? (ann.position_type || derivePositionType(ib.asset_class, ib.sub_category, hasEtfMeta, ticker))
+      : derivePositionType(ib.asset_class, ib.sub_category, hasEtfMeta, ticker);
 
     return {
       id: ib.id,

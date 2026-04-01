@@ -1,14 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Briefcase, RefreshCw, DollarSign, Clock, Tags, CheckCircle, TrendingUp, Trash2, Download, BarChart3, AlertCircle } from "lucide-react";
+import { Search, Briefcase, DollarSign, Trash2, Download, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePositions, type Position, type PositionFormData } from "@/hooks/usePositions";
 import { useDashboardData } from "@/hooks/useDashboardData";
-import { useTickerVerification } from "@/hooks/useTickerVerification";
 import { usePriceRefresh, type PriceUpdate } from "@/hooks/usePriceRefresh";
-import { useFundamentals } from "@/hooks/useFundamentals";
-import { lookupTicker } from "@/lib/tickerReference";
 
 import { PositionsTable } from "@/components/portfolio/PositionsTable";
 import { PositionModal } from "@/components/portfolio/PositionModal";
@@ -51,6 +48,7 @@ export default function Portfolio() {
   const { cashBalance, totalValue, updateCashBalance, isUpdatingCash } = useDashboardData();
   const { sync, isSyncing, isConnected, lastSynced } = useIBSync();
   const { checkVolatility } = useVolatilityAlerts();
+  const { fetchPrices, isFetching: isFetchingPrices, progress: priceProgress } = usePriceRefresh();
 
   // Fetch latest data date (most recent of: last sync, last price refresh, last trade)
   const { data: latestDataDate } = useQuery({
@@ -97,10 +95,6 @@ export default function Portfolio() {
     };
   }, [latestDataDate]);
 
-  const { verifySinglePosition, verifyPositions, isVerifying, progress: verifyProgress } = useTickerVerification();
-  
-  const { fetchPrices, isFetching: isFetchingPrices, progress: priceProgress } = usePriceRefresh();
-  const { fetchFundamentals, isFetching: isFetchingFundamentals } = useFundamentals();
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [fetchedPrices, setFetchedPrices] = useState<PriceUpdate[]>([]);
   const [volatilityAlerts, setVolatilityAlerts] = useState<VolatilityAlert[]>([]);
@@ -109,7 +103,6 @@ export default function Portfolio() {
   const [lastPriceRefresh, setLastPriceRefresh] = useState<Date | null>(null);
   
   const queryClient = useQueryClient();
-  const [verifyingPositionId, setVerifyingPositionId] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   
@@ -173,78 +166,6 @@ export default function Portfolio() {
     setEditingPosition(null);
   };
 
-  // Handle position verification via web search
-  const handleVerifyPosition = async (position: Position) => {
-    setVerifyingPositionId(position.id);
-    
-    const result = await verifySinglePosition({
-      ticker: position.ticker,
-      name: position.name,
-      current_price: position.current_price,
-      market_value: position.market_value,
-    });
-
-    if (result) {
-      // Save corrections as annotations
-      if (result.name || result.category || result.asset_type) {
-        await updateAnnotation({
-          ticker: position.ticker,
-          formData: {
-            name: result.name || undefined,
-            category: result.category as any || undefined,
-            position_type: result.asset_type as any || undefined,
-          } as any,
-        });
-      }
-      
-      if (result.verification_status === "confirmed") {
-        toast.success(`${position.ticker} verified successfully`);
-      } else if (result.verification_status === "corrected") {
-        toast.info(`${position.ticker} may need attention: ${result.notes}`);
-      }
-    }
-    
-    setVerifyingPositionId(null);
-  };
-
-  const handleVerifyAll = async () => {
-    if (positions.length === 0) {
-      toast.info("No positions to verify");
-      return;
-    }
-
-    const positionsToVerify = positions.map(p => ({
-      ticker: p.ticker,
-      name: p.name,
-      current_price: p.current_price,
-      market_value: p.market_value,
-    }));
-
-    const results = await verifyPositions(positionsToVerify);
-    
-    if (results.length > 0) {
-      for (const result of results) {
-        if (result.name || result.category || result.asset_type) {
-          await updateAnnotation({
-            ticker: result.original_ticker,
-            formData: {
-              name: result.name || undefined,
-              category: result.category as any || undefined,
-              position_type: result.asset_type as any || undefined,
-            } as any,
-          });
-        }
-      }
-
-      const confirmedCount = results.filter(r => r.verification_status === "confirmed").length;
-      const correctedCount = results.filter(r => r.verification_status === "corrected").length;
-      
-      if (correctedCount > 0) {
-        toast.info(`Verified ${confirmedCount} positions. ${correctedCount} may need attention.`);
-      }
-    }
-  };
-
   // Handle price refresh
   const handleRefreshPrices = async () => {
     if (positions.length === 0) {
@@ -262,47 +183,6 @@ export default function Portfolio() {
     const { prices, notFound } = await fetchPrices(tickerInfos);
     setFetchedPrices(prices);
     setNotFoundTickers(notFound);
-  };
-
-  // Handle ETF reclassification using local ticker reference
-  const handleReclassifyETFs = async () => {
-    if (positions.length === 0) {
-      toast.info("No positions to reclassify");
-      return;
-    }
-
-    let updatedCount = 0;
-
-    for (const position of positions) {
-      const lookup = lookupTicker(position.ticker);
-      if (!lookup) continue;
-
-      const updates: Partial<PositionFormData> = {};
-
-      if (lookup.type === "etf" && position.position_type !== "etf") {
-        updates.position_type = "etf";
-      }
-      if (lookup.type === "stock" && position.position_type !== "stock") {
-        updates.position_type = "stock";
-      }
-      if (lookup.category && position.category !== lookup.category) {
-        updates.category = lookup.category as any;
-      }
-      if (lookup.name) {
-        updates.name = lookup.name;
-      }
-
-      if (Object.keys(updates).length > 0) {
-        await updateAnnotation({ ticker: position.ticker, formData: updates as any });
-        updatedCount++;
-      }
-    }
-
-    if (updatedCount > 0) {
-      toast.success(`Updated ${updatedCount} positions from ticker reference`);
-    } else {
-      toast.info("All positions already correctly classified");
-    }
   };
 
   // Handle clearing all positions (IB source + annotations) and reset cash
@@ -521,73 +401,19 @@ export default function Portfolio() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  className="gap-2"
-                  onClick={handleReclassifyETFs}
-                  disabled={positions.length === 0}
-                >
-                  <Tags className="w-4 h-4" />
-                  <span className="hidden sm:inline">①</span> Reclassify
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-xs">
-                <p className="font-medium">Step 1: Reclassify ETFs</p>
-                <p className="text-xs text-muted-foreground">Instantly correct types &amp; categories using local reference. Fast &amp; free.</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
                 <Button
                   variant="outline"
-                  className="gap-2"
-                  onClick={handleVerifyAll}
-                  disabled={positions.length === 0 || isVerifying}
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  <span className="hidden sm:inline">②</span> {isVerifying ? "Verifying..." : "Verify"}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-xs">
-                <p className="font-medium">Step 2: Verify Tickers</p>
-                <p className="text-xs text-muted-foreground">AI web search to confirm tickers, correct mismatches, fill metadata. Cached 24h.</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="outline" 
                   className="gap-2"
                   onClick={handleRefreshPrices}
                   disabled={positions.length === 0 || isFetchingPrices}
                 >
                   <DollarSign className="w-4 h-4" />
-                  <span className="hidden sm:inline">③</span> Prices
+                  {isFetchingPrices ? "Fetching..." : "Refresh Prices"}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-xs">
-                <p className="font-medium">Step 3: Refresh Prices</p>
-                <p className="text-xs text-muted-foreground">Live prices from Yahoo Finance, FX-converted to USD, with preview before applying.</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  className="gap-2"
-                  onClick={() => fetchFundamentals(positions)}
-                  disabled={positions.length === 0 || isFetchingFundamentals}
-                >
-                  <TrendingUp className="w-4 h-4" />
-                  <span className="hidden sm:inline">④</span> {isFetchingFundamentals ? "Fetching..." : "Fundamentals"}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-xs">
-                <p className="font-medium">Step 4: Fetch Fundamentals</p>
-                <p className="text-xs text-muted-foreground">Pull ROIC, Earnings Yield etc. for stocks. Powers portfolio analysis quality checks.</p>
+                <p className="font-medium">Refresh Prices</p>
+                <p className="text-xs text-muted-foreground">Live prices from Yahoo Finance, FX-converted to USD.</p>
               </TooltipContent>
             </Tooltip>
 
@@ -623,11 +449,6 @@ export default function Portfolio() {
             className="pl-10 bg-secondary border-border"
           />
         </div>
-        {isVerifying && verifyProgress.total > 0 && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Verifying {verifyProgress.current}-{Math.min(verifyProgress.current + 4, verifyProgress.total)} of {verifyProgress.total}...</span>
-          </div>
-        )}
       </div>
 
       {/* Positions Table or Empty State */}
@@ -648,9 +469,6 @@ export default function Portfolio() {
           onEdit={setEditingPosition}
           onDelete={() => {}} // No-op: IB is source of truth
           onLogDecision={setLoggingDecisionFor}
-          onVerify={handleVerifyPosition}
-          isVerifying={isVerifying}
-          verifyingId={verifyingPositionId}
           selectedIds={[]}
           onSelectionChange={() => {}}
           hideDeleteActions
@@ -724,27 +542,6 @@ export default function Portfolio() {
         isSaving={isUpdating}
       />
 
-      {/* Workflow Reference */}
-      <div className="rounded-lg border border-border bg-secondary/30 p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Data Enrichment Workflow</h3>
-        <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-          {[
-            { step: "①", title: "Sync IB", desc: "Pull latest positions, trades & cash from your IB Flex Query." },
-            { step: "②", title: "Reclassify", desc: "Re-categorize positions (ETF vs Stock, Broad vs Thematic) using local ticker reference." },
-            { step: "③", title: "Verify", desc: "AI web search to validate symbols & enrich metadata. Cached 24h." },
-            { step: "④", title: "Prices", desc: "Fetch live prices from Yahoo Finance, convert currencies to USD, update market values." },
-            { step: "⑤", title: "Fundamentals", desc: "Fetch quality metrics (ROIC, earnings yield, debt ratios) for the analysis engine." },
-          ].map((item) => (
-            <li key={item.step} className="flex gap-3">
-              <span className="text-lg leading-5 text-primary">{item.step}</span>
-              <div>
-                <p className="font-semibold text-foreground">{item.title}</p>
-                <p className="text-muted-foreground mt-0.5">{item.desc}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </div>
     </div>
   );
 }
