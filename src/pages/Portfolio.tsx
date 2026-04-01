@@ -1,16 +1,14 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Briefcase, DollarSign, Trash2, Download, BarChart3 } from "lucide-react";
+import { Search, Briefcase, Trash2, Download, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePositions, type Position, type PositionFormData } from "@/hooks/usePositions";
 import { useDashboardData } from "@/hooks/useDashboardData";
-import { usePriceRefresh, type PriceUpdate } from "@/hooks/usePriceRefresh";
 
 import { PositionsTable } from "@/components/portfolio/PositionsTable";
 import { PositionModal } from "@/components/portfolio/PositionModal";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
-import { RefreshPricesModal } from "@/components/portfolio/RefreshPricesModal";
 import { DeleteConfirmModal } from "@/components/portfolio/DeleteConfirmModal";
 import { ThesisPanel } from "@/components/portfolio/ThesisPanel";
 import { PortfolioValue } from "@/components/dashboard/PortfolioValue";
@@ -19,10 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIBSync } from "@/hooks/useIBSync";
-import { useVolatilityAlerts, type VolatilityAlert } from "@/hooks/useVolatilityAlerts";
-import { VolatilityAlertModal } from "@/components/portfolio/VolatilityAlertModal";
 import { toast } from "sonner";
-import { formatDistanceToNow, format, isWeekend, subDays, isSameDay, isAfter, startOfDay } from "date-fns";
+import { formatDistanceToNow, format, isWeekend, isSameDay, startOfDay } from "date-fns";
 
 /** Count business days between two dates (exclusive of both endpoints) */
 function businessDaysBetween(from: Date, to: Date): number {
@@ -45,18 +41,15 @@ export default function Portfolio() {
     isUpdating,
   } = usePositions();
 
-  const { cashBalance, totalValue, updateCashBalance, isUpdatingCash } = useDashboardData();
+  const { cashBalance, totalValue } = useDashboardData();
   const { sync, isSyncing, isConnected, lastSynced } = useIBSync();
-  const { checkVolatility } = useVolatilityAlerts();
-  const { fetchPrices, isFetching: isFetchingPrices, progress: priceProgress } = usePriceRefresh();
 
-  // Fetch latest data date (most recent of: last sync, last price refresh, last trade)
+  // Fetch latest data date (most recent of: last sync, last snapshot)
   const { data: latestDataDate } = useQuery({
     queryKey: ["latest-data-date", user?.id],
     queryFn: async () => {
       const dates: Date[] = [];
 
-      // Check last portfolio snapshot (price refresh)
       const { data: snapshot } = await supabase
         .from("portfolio_snapshots")
         .select("created_at")
@@ -66,7 +59,6 @@ export default function Portfolio() {
         .maybeSingle();
       if (snapshot?.created_at) dates.push(new Date(snapshot.created_at));
 
-      // Check last IB sync
       const { data: account } = await supabase
         .from("ib_accounts")
         .select("last_synced_at")
@@ -95,17 +87,10 @@ export default function Portfolio() {
     };
   }, [latestDataDate]);
 
-  const [showPriceModal, setShowPriceModal] = useState(false);
-  const [fetchedPrices, setFetchedPrices] = useState<PriceUpdate[]>([]);
-  const [volatilityAlerts, setVolatilityAlerts] = useState<VolatilityAlert[]>([]);
-  const [showVolatilityModal, setShowVolatilityModal] = useState(false);
-  const [notFoundTickers, setNotFoundTickers] = useState<string[]>([]);
-  const [lastPriceRefresh, setLastPriceRefresh] = useState<Date | null>(null);
-  
   const queryClient = useQueryClient();
 
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   // Modal states
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [loggingDecisionFor, setLoggingDecisionFor] = useState<Position | null>(null);
@@ -113,29 +98,6 @@ export default function Portfolio() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [showMissingThesisOnly, setShowMissingThesisOnly] = useState(false);
-
-  // Load last price refresh timestamp
-  useEffect(() => {
-    const loadLastRefresh = async () => {
-      if (!user) return;
-      
-      const { data } = await supabase
-        .from("portfolio_snapshots")
-        .select("created_at, data_json")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (data?.data_json && typeof data.data_json === "object" && "price_refresh" in (data.data_json as Record<string, unknown>)) {
-        setLastPriceRefresh(new Date((data.data_json as Record<string, string>).price_refresh));
-      } else if (data) {
-        setLastPriceRefresh(new Date(data.created_at));
-      }
-    };
-    
-    loadLastRefresh();
-  }, [user]);
 
   // Filter positions by search
   const filteredPositions = useMemo(() => {
@@ -145,7 +107,7 @@ export default function Portfolio() {
     }
     if (!searchQuery.trim()) return result;
     const query = searchQuery.toLowerCase();
-    return result.filter(p => 
+    return result.filter(p =>
       p.ticker.toLowerCase().includes(query) ||
       p.name?.toLowerCase().includes(query)
     );
@@ -166,31 +128,11 @@ export default function Portfolio() {
     setEditingPosition(null);
   };
 
-  // Handle price refresh
-  const handleRefreshPrices = async () => {
-    if (positions.length === 0) {
-      toast.info("No positions to refresh");
-      return;
-    }
-
-    setShowPriceModal(true);
-    const tickerInfos = positions.map(p => ({
-      ticker: p.ticker,
-      currency: p.currency || undefined,
-      exchange: p.exchange || undefined,
-      instrumentType: p.position_type === "stock" ? "Stock" : p.position_type === "etf" ? "ETF" : undefined,
-    }));
-    const { prices, notFound } = await fetchPrices(tickerInfos);
-    setFetchedPrices(prices);
-    setNotFoundTickers(notFound);
-  };
-
   // Handle clearing all positions (IB source + annotations) and reset cash
   const handleClearAllPositions = async () => {
     if (!user) return;
     setIsClearing(true);
     try {
-      // Delete positions/annotations and reset cash in parallel
       const [ibResult, posResult, cashResult] = await Promise.all([
         supabase.from("ib_positions").delete().eq("user_id", user.id),
         supabase.from("positions").delete().eq("user_id", user.id),
@@ -212,104 +154,8 @@ export default function Portfolio() {
     }
   };
 
-
-  // Apply fetched prices: update ib_positions.mark_price + create snapshot
-  const handleApplyPriceUpdates = async (updates: { id: string; current_price: number }[]) => {
-    // Capture previous prices for volatility detection
-    const previousPrices: Record<string, number> = {};
-    for (const pos of positions) {
-      if (pos.ticker && pos.current_price) {
-        previousPrices[pos.ticker] = pos.current_price;
-      }
-    }
-    if (!user) return;
-
-    try {
-      // Step 1: Update actual prices in ib_positions
-      let updatedCount = 0;
-      for (const update of updates) {
-        const pos = positions.find(p => p.id === update.id);
-        if (!pos) continue;
-
-        const newValue = pos.shares ? pos.shares * update.current_price : null;
-        const { error: updateErr } = await supabase
-          .from("ib_positions")
-          .update({
-            mark_price: update.current_price,
-            ...(newValue !== null ? { position_value: newValue } : {}),
-            synced_at: new Date().toISOString(),
-          })
-          .eq("id", update.id)
-          .eq("user_id", user.id);
-
-        if (!updateErr) updatedCount++;
-      }
-
-      // Step 2: Recalculate totals for snapshot
-      // Re-fetch so we have updated values
-      const updatedPositions = positions.map(p => {
-        const upd = updates.find(u => u.id === p.id);
-        if (!upd) return p;
-        const newMV = p.shares ? p.shares * upd.current_price : p.market_value;
-        return { ...p, current_price: upd.current_price, market_value: newMV };
-      });
-
-      const totalMV = updatedPositions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
-      const stocksValue = updatedPositions
-        .filter(p => p.position_type === "stock")
-        .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
-      const etfsValue = updatedPositions
-        .filter(p => p.position_type === "etf")
-        .reduce((sum, p) => sum + (p.market_value ?? 0), 0);
-
-      await supabase.from("portfolio_snapshots").insert({
-        user_id: user.id,
-        total_value: totalMV,
-        stocks_percent: totalMV > 0 ? (stocksValue / totalMV) * 100 : 0,
-        etfs_percent: totalMV > 0 ? (etfsValue / totalMV) * 100 : 0,
-        cash_balance: cashBalance,
-        data_json: {
-          price_refresh: new Date().toISOString(),
-          updated_count: updatedCount,
-        },
-      });
-
-      setLastPriceRefresh(new Date());
-      queryClient.invalidateQueries({ queryKey: ["ib-positions"] });
-      queryClient.invalidateQueries({ queryKey: ["ib-positions-weights"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["latest-data-date"] });
-
-      // Check for volatility alerts
-      if (fetchedPrices.length > 0) {
-        const alerts = await checkVolatility(fetchedPrices, previousPrices);
-        if (alerts.length > 0) {
-          setVolatilityAlerts(alerts);
-          setShowVolatilityModal(true);
-        }
-      }
-
-      toast.success(`Updated prices for ${updatedCount} positions`);
-    } catch (error) {
-      console.error("Failed to apply price updates:", error);
-      toast.error("Failed to update prices. Please try again.");
-    }
-  };
-
   return (
     <div className="space-y-6">
-      <VolatilityAlertModal
-        open={showVolatilityModal}
-        alerts={volatilityAlerts}
-        onClose={() => setShowVolatilityModal(false)}
-        onLogDecision={(ticker) => {
-          setShowVolatilityModal(false);
-          const pos = positions.find(p => p.ticker === ticker);
-          if (pos) {
-            setLoggingDecisionFor(pos);
-          }
-        }}
-      />
       {/* Data Freshness Notice */}
       {dataFreshnessNotice && (
         <div className={`flex items-center justify-between p-4 rounded-lg border ${
@@ -371,7 +217,6 @@ export default function Portfolio() {
       />
 
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-end">
-        
         <div className="flex flex-wrap gap-2">
           <TooltipProvider delayDuration={300}>
             {isConnected && (
@@ -394,7 +239,7 @@ export default function Portfolio() {
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-xs">
                   <p className="font-medium">Sync from Interactive Brokers</p>
-                  <p className="text-xs text-muted-foreground">Pull latest positions, trades & cash from your IB Flex Query.</p>
+                  <p className="text-xs text-muted-foreground">Pull latest positions, prices, trades & cash from your IB Flex Query.</p>
                 </TooltipContent>
               </Tooltip>
             )}
@@ -403,24 +248,6 @@ export default function Portfolio() {
               <TooltipTrigger asChild>
                 <Button
                   variant="outline"
-                  className="gap-2"
-                  onClick={handleRefreshPrices}
-                  disabled={positions.length === 0 || isFetchingPrices}
-                >
-                  <DollarSign className="w-4 h-4" />
-                  {isFetchingPrices ? "Fetching..." : "Refresh Prices"}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-xs">
-                <p className="font-medium">Refresh Prices</p>
-                <p className="text-xs text-muted-foreground">Live prices from Yahoo Finance, FX-converted to USD.</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="outline" 
                   className="gap-2 text-destructive hover:bg-destructive/10"
                   onClick={() => setShowClearConfirm(true)}
                   disabled={positions.length === 0 && cashBalance <= 0}
@@ -436,7 +263,6 @@ export default function Portfolio() {
           </TooltipProvider>
         </div>
       </div>
-
 
       {/* Search Bar */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -467,7 +293,7 @@ export default function Portfolio() {
           positions={filteredPositions}
           isLoading={isLoading}
           onEdit={setEditingPosition}
-          onDelete={() => {}} // No-op: IB is source of truth
+          onDelete={() => {}}
           onLogDecision={setLoggingDecisionFor}
           selectedIds={[]}
           onSelectionChange={() => {}}
@@ -493,22 +319,6 @@ export default function Portfolio() {
         open={!!loggingDecisionFor}
         onClose={() => setLoggingDecisionFor(null)}
         position={loggingDecisionFor}
-      />
-
-      {/* Refresh Prices Modal */}
-      <RefreshPricesModal
-        open={showPriceModal}
-        onClose={() => {
-          setShowPriceModal(false);
-          setFetchedPrices([]);
-          setNotFoundTickers([]);
-        }}
-        positions={positions}
-        prices={fetchedPrices}
-        notFound={notFoundTickers}
-        isFetching={isFetchingPrices}
-        progress={priceProgress}
-        onApply={handleApplyPriceUpdates}
       />
 
       {/* Clear All Positions Confirmation */}
@@ -541,7 +351,6 @@ export default function Portfolio() {
         }}
         isSaving={isUpdating}
       />
-
     </div>
   );
 }

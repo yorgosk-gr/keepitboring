@@ -10,7 +10,6 @@ export function useDecisionOutcomes() {
   // Fetch decisions that need outcome tracking
   const { data: pendingOutcomes = [] } = useQuery({
     queryKey: ["decision_outcomes_pending", user?.id],
-    enabled: !!user,
     queryFn: async () => {
       const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
       const { data, error } = await supabase
@@ -31,7 +30,6 @@ export function useDecisionOutcomes() {
   // Fetch decisions with outcomes for review
   const { data: completedOutcomes = [] } = useQuery({
     queryKey: ["decision_outcomes_complete", user?.id],
-    enabled: !!user,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("decision_log" as any)

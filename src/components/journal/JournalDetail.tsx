@@ -140,7 +140,7 @@ export function JournalDetail({
                     </span>
                   )}
                   {isLocked && (
-                    <Lock className="w-3.5 h-3.5 text-muted-foreground" title="Thesis locked" />
+                    <Lock className="w-3.5 h-3.5 text-muted-foreground" />
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
