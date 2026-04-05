@@ -131,24 +131,53 @@ export function useInsightsSummary() {
         throw new Error("You must be logged in to generate summaries");
       }
 
-      // The server streams keep-alive pings while generating, then sends JSON as the last line
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 180000);
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      };
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL;
 
-      let response: Response;
+      // ── Phase 1: Gather data and build prompt ──
+      toast.info("Gathering newsletter data...");
+
+      const phase1 = await fetch(`${baseUrl}/functions/v1/prepare-brief-data`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      });
+
+      if (!phase1.ok) {
+        const err = await phase1.json().catch(() => ({}));
+        throw new Error(err.error || `Data gathering failed (${phase1.status})`);
+      }
+
+      const prepData = await phase1.json();
+
+      // If no newsletters, return early result
+      if (prepData.empty) {
+        return prepData.result as InsightsSummary;
+      }
+
+      // ── Phase 2: Call Anthropic and save ──
+      toast.info("Generating intelligence brief... (30-45s)");
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
+
+      let phase2: Response;
       try {
-        response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/summarize-insights`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({}),
-            signal: controller.signal,
-          }
-        );
+        phase2 = await fetch(`${baseUrl}/functions/v1/summarize-insights`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            user_prompt: prepData.user_prompt,
+            user_id: prepData.user_id,
+            newsletters_count: prepData.newsletters_count,
+            insights_count: prepData.insights_count,
+            market_context_available: prepData.market_context_available,
+          }),
+          signal: controller.signal,
+        });
       } catch (fetchError: any) {
         clearTimeout(timeout);
         if (fetchError?.name === "AbortError") {
@@ -158,23 +187,12 @@ export function useInsightsSummary() {
       }
       clearTimeout(timeout);
 
-      // Read streamed response — lines of "ping" followed by final JSON
-      const text = await response.text();
-      const lines = text.trim().split("\n").filter(l => l.trim() && l.trim() !== "ping");
-
-      if (lines.length === 0) {
-        throw new Error("Server returned empty response");
+      if (!phase2.ok) {
+        const err = await phase2.json().catch(() => ({}));
+        throw new Error(err.error || `Brief generation failed (${phase2.status})`);
       }
 
-      // The last non-ping line is the JSON result
-      const lastLine = lines[lines.length - 1];
-      let data: any;
-      try {
-        data = JSON.parse(lastLine);
-      } catch {
-        throw new Error("Server returned invalid response");
-      }
-
+      const data = await phase2.json();
       if (data.error) throw new Error(data.error);
 
       return data as InsightsSummary;

@@ -33,6 +33,9 @@ verify_jwt = false
 [functions.sync-ib-performance]
 verify_jwt = false
 
+[functions.prepare-brief-data]
+verify_jwt = false
+
 [functions.summarize-insights]
 verify_jwt = false
 
