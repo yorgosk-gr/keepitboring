@@ -142,9 +142,16 @@ export function useInsightsSummary() {
         }
       );
 
-      const data = await response.json();
+      let data: any;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error(`Server returned ${response.status} with non-JSON response`);
+      }
       if (!response.ok) {
-        throw new Error(data.error || "Summary generation failed");
+        // Supabase gateway uses "msg", edge functions use "error"
+        const msg = data.error || data.msg || data.message || `Server error ${response.status}`;
+        throw new Error(msg);
       }
       if (data.error) throw new Error(data.error);
 

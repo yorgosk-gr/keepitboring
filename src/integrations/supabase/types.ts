@@ -874,6 +874,7 @@ export type Database = {
           id: string
           is_archived: boolean
           processed: boolean
+          processing_error: string | null
           processing_started_at: string | null
           publication_date: string | null
           raw_text: string | null
@@ -888,6 +889,7 @@ export type Database = {
           id?: string
           is_archived?: boolean
           processed?: boolean
+          processing_error?: string | null
           processing_started_at?: string | null
           publication_date?: string | null
           raw_text?: string | null
@@ -902,6 +904,7 @@ export type Database = {
           id?: string
           is_archived?: boolean
           processed?: boolean
+          processing_error?: string | null
           processing_started_at?: string | null
           publication_date?: string | null
           raw_text?: string | null

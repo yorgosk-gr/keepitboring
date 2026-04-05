@@ -54,9 +54,11 @@ export default function Newsletters() {
   };
 
   const handleBulkReprocess = async () => {
-    const unprocessed = newsletters.filter(n => n.processed && (n.insights_count ?? 0) === 0);
+    const unprocessed = newsletters.filter(
+      n => !!n.processing_error || (n.processed && (n.insights_count ?? 0) === 0)
+    );
     if (unprocessed.length === 0) {
-      toast.info("No newsletters with 0 insights found");
+      toast.info("No newsletters need reprocessing");
       return;
     }
     setIsBulkProcessing(true);
@@ -193,14 +195,14 @@ export default function Newsletters() {
 
       {/* Newsletter List */}
       {/* Bulk reprocess button */}
-      {newsletters.some(n => n.processed && (n.insights_count ?? 0) === 0) && (
+      {newsletters.some(n => !!n.processing_error || (n.processed && (n.insights_count ?? 0) === 0)) && (
         <div className="flex items-center justify-between p-3 rounded-lg border border-amber-500/20 bg-amber-500/5">
           <div>
             <p className="text-sm font-medium text-amber-500">
-              {newsletters.filter(n => n.processed && (n.insights_count ?? 0) === 0).length} newsletters processed with 0 insights
+              {newsletters.filter(n => !!n.processing_error || (n.processed && (n.insights_count ?? 0) === 0)).length} newsletters need attention
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {bulkProgress ? `Processing ${bulkProgress.done}/${bulkProgress.total}...` : "Click to re-extract insights from all of them"}
+              {bulkProgress ? `Processing ${bulkProgress.done}/${bulkProgress.total}...` : "Some newsletters failed or produced 0 insights — click to retry"}
             </p>
           </div>
           <Button

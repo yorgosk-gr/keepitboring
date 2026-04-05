@@ -12,6 +12,7 @@ import {
   User,
   Calendar,
   RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type Newsletter } from "@/hooks/useNewsletters";
 import { SourceQualityBadge } from "@/components/newsletters/SourceQualityBadge";
 
@@ -197,6 +199,18 @@ export function NewsletterList({
                     <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
                       Processed
                     </Badge>
+                  ) : newsletter.processing_error ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 gap-1 cursor-help">
+                          <AlertCircle className="w-3 h-3" />
+                          Failed
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="text-sm">{newsletter.processing_error}</p>
+                      </TooltipContent>
+                    </Tooltip>
                   ) : (
                     <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/20">
                       Pending
@@ -218,7 +232,7 @@ export function NewsletterList({
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-end gap-1">
-                    {!newsletter.processed && (
+                    {!newsletter.processed && !newsletter.processing_error && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -234,11 +248,11 @@ export function NewsletterList({
                         Process
                       </Button>
                     )}
-                    {newsletter.processed && (newsletter.insights_count || 0) === 0 && (
+                    {(newsletter.processing_error || (newsletter.processed && (newsletter.insights_count || 0) === 0)) && (
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="gap-1 text-amber-500"
+                        className={`gap-1 ${newsletter.processing_error ? "text-destructive" : "text-amber-500"}`}
                         onClick={() => onProcess(newsletter)}
                         disabled={processingId === newsletter.id}
                       >

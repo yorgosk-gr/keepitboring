@@ -58,10 +58,11 @@ serve(async (req) => {
     console.log(`Processing newsletter ${newsletterId}, text length: ${rawText.length}`);
 
     // Acquire processing lock — prevents duplicate processing from concurrent calls
+    // Also clears any previous error so the UI shows "Pending" during retry
     const lockCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const { data: lockResult } = await supabase
       .from("newsletters")
-      .update({ processing_started_at: new Date().toISOString() })
+      .update({ processing_started_at: new Date().toISOString(), processing_error: null })
       .eq("id", newsletterId)
       .or(`processing_started_at.is.null,processing_started_at.lt.${lockCutoff}`)
       .select("id")
@@ -80,6 +81,14 @@ serve(async (req) => {
       await supabase
         .from("newsletters")
         .update({ processing_started_at: null })
+        .eq("id", newsletterId);
+    };
+
+    // Write error to DB and release lock in one update
+    const writeError = async (errorMessage: string) => {
+      await supabase
+        .from("newsletters")
+        .update({ processing_error: errorMessage, processing_started_at: null })
         .eq("id", newsletterId);
     };
 
@@ -233,21 +242,21 @@ EXTRACTION RULES:
       console.error("AI gateway error:", response.status, errorText);
 
       if (response.status === 429) {
-        await releaseLock();
+        await writeError("Rate limit exceeded. Please try again in a moment.");
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment.", retry_after_seconds: 30 }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "30" } }
         );
       }
       if (response.status === 402) {
-        await releaseLock();
+        await writeError("AI credits exhausted.");
         return new Response(
           JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      await releaseLock();
+      await writeError(`AI processing failed (HTTP ${response.status}).`);
       return new Response(
         JSON.stringify({ error: "AI processing failed. Please try again." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -260,7 +269,7 @@ EXTRACTION RULES:
 
     if (!content) {
       console.error("No content in AI response:", aiResponse);
-      await releaseLock();
+      await writeError("AI returned empty response.");
       return new Response(
         JSON.stringify({ error: "AI returned empty response" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -269,7 +278,7 @@ EXTRACTION RULES:
 
     if (finishReason === "max_tokens") {
       console.error("AI response truncated (finish_reason: length)");
-      await releaseLock();
+      await writeError("Newsletter too long for single-pass processing.");
       return new Response(
         JSON.stringify({ error: "Newsletter generated too many insights for a single pass. Please try reprocessing." }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -309,8 +318,7 @@ EXTRACTION RULES:
       }
     } catch (parseError) {
       console.error("Failed to parse AI response:", content.substring(0, 1000));
-      // Release processing lock before returning
-      await supabase.from("newsletters").update({ processing_started_at: null }).eq("id", newsletterId);
+      await writeError("Could not parse AI response.");
       return new Response(
         JSON.stringify({ error: "Could not parse AI response", raw: content.substring(0, 500) }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -466,6 +474,7 @@ EXTRACTION RULES:
       const { error: insertError } = await supabase.from("insights").insert(insightsToInsert);
       if (insertError) {
         console.error("Failed to insert insights:", insertError);
+        await writeError("Failed to save insights to database.");
         return new Response(
           JSON.stringify({ error: "Failed to save insights" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -482,6 +491,8 @@ EXTRACTION RULES:
       .from("newsletters")
       .update({
         processed: true,
+        processing_error: null,
+        processing_started_at: null,
         ...(authorValue ? { author: authorValue } : {}),
         ...(pubDateValue ? { publication_date: pubDateValue } : {}),
       })
@@ -516,7 +527,6 @@ EXTRACTION RULES:
 
     console.log(`Successfully processed newsletter ${newsletterId}, inserted ${insightsToInsert.length} insights`);
 
-    await releaseLock();
     return new Response(
       JSON.stringify({
         success: true,
@@ -528,8 +538,9 @@ EXTRACTION RULES:
     );
 
     } catch (innerError) {
-      // Release processing lock on any error within the processing block
-      await releaseLock();
+      // Write error and release processing lock
+      const msg = innerError instanceof Error ? innerError.message : "Processing failed";
+      await writeError(msg);
       throw innerError;
     }
   } catch (error) {

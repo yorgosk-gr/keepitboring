@@ -272,12 +272,15 @@ RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown. No code blocks. Use
     if (PERPLEXITY_API_KEY) {
       try {
         const today = new Date().toISOString().split("T")[0];
+        const perplexityController = new AbortController();
+        const perplexityTimeout = setTimeout(() => perplexityController.abort(), 15000);
         const perplexityRes = await fetch("https://api.perplexity.ai/chat/completions", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
             "Content-Type": "application/json",
           },
+          signal: perplexityController.signal,
           body: JSON.stringify({
             model: "sonar",
             messages: [
@@ -289,6 +292,7 @@ RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown. No code blocks. Use
             search_recency_filter: "week",
           }),
         });
+        clearTimeout(perplexityTimeout);
 
         if (perplexityRes.ok) {
           const perplexityData = await perplexityRes.json();
@@ -351,29 +355,43 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
 
     console.log(`Summarizing ${insightsList.length} insights from ${newsletters?.length} newsletters...`);
 
-    // Retry wrapper for Anthropic API calls
-    async function callAnthropicWithRetry(body: object, maxRetries = 2): Promise<Response> {
+    // Retry wrapper for Anthropic API calls (with 50s timeout per attempt to stay within edge function limits)
+    async function callAnthropicWithRetry(body: object, maxRetries = 1): Promise<Response> {
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        const resp = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(body),
-        });
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 50000);
+        try {
+          const resp = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "x-api-key": ANTHROPIC_API_KEY,
+              "anthropic-version": "2023-06-01",
+              "Content-Type": "application/json",
+            },
+            signal: controller.signal,
+            body: JSON.stringify(body),
+          });
+          clearTimeout(timeout);
 
-        if (resp.ok) return resp;
-        if (resp.status === 401 || resp.status === 402 || resp.status === 403) return resp;
+          if (resp.ok) return resp;
+          if (resp.status === 401 || resp.status === 402 || resp.status === 403) return resp;
 
-        if (attempt < maxRetries && (resp.status === 429 || resp.status >= 500)) {
-          const delay = resp.status === 429 ? 5000 * (attempt + 1) : 2000 * (attempt + 1);
-          console.log(`Anthropic returned ${resp.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
-          await new Promise(r => setTimeout(r, delay));
-          continue;
+          if (attempt < maxRetries && (resp.status === 429 || resp.status >= 500)) {
+            const delay = resp.status === 429 ? 3000 : 2000;
+            console.log(`Anthropic returned ${resp.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+          return resp;
+        } catch (e) {
+          clearTimeout(timeout);
+          if (e instanceof DOMException && e.name === "AbortError") {
+            console.error(`Anthropic API timed out on attempt ${attempt + 1}`);
+            if (attempt < maxRetries) continue;
+            throw new Error("AI request timed out. Please try again.");
+          }
+          throw e;
         }
-        return resp;
       }
       throw new Error("Unreachable");
     }
@@ -382,7 +400,7 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
       model: "claude-sonnet-4-5-20250929",
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
-      max_tokens: 8192,
+      max_tokens: 5000,
     });
 
     if (!response.ok) {

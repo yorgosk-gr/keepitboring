@@ -9,6 +9,7 @@ export interface Newsletter {
   source_name: string;
   upload_date: string;
   processed: boolean;
+  processing_error?: string | null;
   file_path: string | null;
   raw_text: string | null;
   created_at: string;
@@ -40,7 +41,7 @@ export function useNewsletters() {
     queryFn: async () => {
       const { data: newsletters, error } = await supabase
         .from("newsletters")
-        .select("id, user_id, source_name, upload_date, processed, file_path, created_at, is_archived, author, publication_date")
+        .select("id, user_id, source_name, upload_date, processed, processing_error, file_path, created_at, is_archived, author, publication_date")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
 
