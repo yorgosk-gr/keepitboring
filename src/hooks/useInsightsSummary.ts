@@ -91,6 +91,8 @@ export function useInsightsSummary() {
         .from("intelligence_briefs")
         .select("*")
         .eq("user_id", user!.id)
+        .not("executive_summary", "eq", "__generating__")
+        .not("executive_summary", "like", "__error__:%")
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
