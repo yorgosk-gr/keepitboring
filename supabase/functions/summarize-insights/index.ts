@@ -323,26 +323,27 @@ RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown. No code blocks. Use
       ? `\n\nREAL-TIME MARKET CONTEXT (verified data as of today — use this to cross-check newsletter claims):\n${marketContext}\n\nIMPORTANT: Cross-check newsletter claims against the real-time market context above. If a newsletter claim contradicts current verified data, note the discrepancy in your letter and use the verified data. Do not repeat stale or inaccurate claims from newsletters.`
       : "";
 
-    const userPrompt = `PORTFOLIO CONTEXT (for exposure flagging only — do not write as portfolio manager):
-${JSON.stringify(portfolioContext, null, 2)}
+    // Truncate content to keep prompt within token budget for fast completion
+    const truncate = (s: string | null, max: number) => {
+      if (!s) return "";
+      return s.length > max ? s.substring(0, max) + "…" : s;
+    };
 
-PORTFOLIO TICKERS: ${JSON.stringify(portfolioTickers)}
+    const userPrompt = `PORTFOLIO: ${JSON.stringify(portfolioContext)}
+TICKERS: ${JSON.stringify(portfolioTickers)}
 
-NEWSLETTERS THIS PERIOD (${newsletters?.length ?? 0} sources):
+SOURCES (${newsletters?.length ?? 0}):
 ${(newsletters ?? []).map(n => `- "${n.source_name}" (${n.upload_date})`).join("\n")}
 
-PREVIOUS BRIEF (for temporal tracking):
-Previous themes: ${JSON.stringify(previousThemeNames)}
-Previous key points: ${JSON.stringify(previousKeyPointTitles)}
+PREVIOUS BRIEF — themes: ${JSON.stringify(previousThemeNames)}, key points: ${JSON.stringify(previousKeyPointTitles)}
 
-ALL INSIGHTS (${insightsList.length} total, sorted newest first):
-${JSON.stringify(insightsList.slice(0, 300).map(i => {
+INSIGHTS (${insightsList.length} total, newest first, field key: t=type,c=content,s=sentiment,src=source,tk=tickers,conf=confidence,mgmt=management_tone,guid=guidance,earn=earnings,spec=specificity,data=data_backed,conv=conviction,cons=consensus,cat=catalyst):
+${JSON.stringify(insightsList.slice(0, 250).map(i => {
   const meta = (i as any).metadata ?? {};
   const ageDays = Math.floor((Date.now() - new Date(i.created_at).getTime()) / (1000 * 60 * 60 * 24));
-  // Compact format: omit null/undefined fields to reduce token count
   const obj: Record<string, any> = {
     t: i.insight_type,
-    c: i.content,
+    c: truncate(i.content, 200),
     s: i.sentiment,
     src: (i.newsletters as any)?.source_name,
     age: ageDays,
@@ -406,7 +407,7 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
     }
 
     const response = await callAnthropicWithRetry({
-      model: "claude-sonnet-4-5-20250929",
+      model: "claude-haiku-4-5-20251001",
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
       max_tokens: 5000,
