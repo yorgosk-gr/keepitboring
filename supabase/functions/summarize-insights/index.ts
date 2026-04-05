@@ -411,8 +411,14 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      let errorDetail = "";
+      try {
+        const errorBody = await response.json();
+        errorDetail = errorBody?.error?.message || JSON.stringify(errorBody?.error) || "";
+      } catch {
+        errorDetail = await response.text().catch(() => "");
+      }
+      console.error("AI gateway error:", response.status, errorDetail);
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
@@ -425,8 +431,14 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      if (response.status === 401 || response.status === 403) {
+        return new Response(
+          JSON.stringify({ error: `AI authentication failed (${response.status}). Check API key configuration.` }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       return new Response(
-        JSON.stringify({ error: "AI summarization failed. Please try again." }),
+        JSON.stringify({ error: `AI request failed (${response.status}): ${errorDetail || "unknown error"}` }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
