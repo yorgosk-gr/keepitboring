@@ -335,28 +335,30 @@ PREVIOUS BRIEF (for temporal tracking):
 Previous themes: ${JSON.stringify(previousThemeNames)}
 Previous key points: ${JSON.stringify(previousKeyPointTitles)}
 
-ALL INSIGHTS (${insightsList.length} total, with metadata, sorted newest first):
-${JSON.stringify(insightsList.map(i => {
+ALL INSIGHTS (${insightsList.length} total, sorted newest first):
+${JSON.stringify(insightsList.slice(0, 300).map(i => {
   const meta = (i as any).metadata ?? {};
   const ageDays = Math.floor((Date.now() - new Date(i.created_at).getTime()) / (1000 * 60 * 60 * 24));
-  return {
-    type: i.insight_type,
-    content: i.content,
-    sentiment: i.sentiment,
-    tickers: i.tickers_mentioned,
-    source: (i.newsletters as any)?.source_name,
-    age_days: ageDays,
-    source_confidence: meta.source_confidence ?? 0.5,
-    management_tone: meta.management_tone,
-    guidance_revision: meta.guidance_revision,
-    earnings_surprise: meta.earnings_surprise,
-    claim_specificity: meta.claim_specificity,
-    data_backed: meta.data_backed,
-    conviction_level: meta.conviction_level,
-    is_consensus_view: meta.is_consensus_view,
-    catalyst: meta.catalyst,
+  // Compact format: omit null/undefined fields to reduce token count
+  const obj: Record<string, any> = {
+    t: i.insight_type,
+    c: i.content,
+    s: i.sentiment,
+    src: (i.newsletters as any)?.source_name,
+    age: ageDays,
+    conf: meta.source_confidence ?? 0.5,
   };
-}), null, 2)}
+  if (i.tickers_mentioned?.length) obj.tk = i.tickers_mentioned;
+  if (meta.management_tone && meta.management_tone !== "not_mentioned") obj.mgmt = meta.management_tone;
+  if (meta.guidance_revision && meta.guidance_revision !== "not_mentioned") obj.guid = meta.guidance_revision;
+  if (meta.earnings_surprise && meta.earnings_surprise !== "not_mentioned") obj.earn = meta.earnings_surprise;
+  if (meta.claim_specificity) obj.spec = meta.claim_specificity;
+  if (meta.data_backed) obj.data = true;
+  if (meta.conviction_level) obj.conv = meta.conviction_level;
+  if (meta.is_consensus_view) obj.cons = true;
+  if (meta.catalyst) obj.cat = meta.catalyst;
+  return obj;
+}))}
 
 Write the weekly intelligence letter. Synthesize, weigh, and judge — do not just summarize. Flag consensus vs edge signals. Note any temporal shifts from the previous brief. Ground every claim in specific newsletter evidence.${marketVerificationBlock}`;
 
