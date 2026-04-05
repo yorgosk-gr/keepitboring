@@ -5,11 +5,14 @@ import {
   TrendingDown,
   Minus,
   AlertTriangle,
-  Filter,
   ChevronDown,
   ChevronUp,
   Lightbulb,
   Search,
+  Globe,
+  BarChart3,
+  Target,
+  ThumbsUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,14 +24,38 @@ import { useAllInsights, type InsightWithSource } from "@/hooks/useAllInsights";
 import { usePositions } from "@/hooks/usePositions";
 
 type GroupBy = "type" | "source" | "sentiment";
-type InsightType = "macro" | "stock_mention" | "sentiment" | "recommendation" | "bubble_signal";
 
-const TYPE_LABELS: Record<string, string> = {
-  macro: "Macro Views",
-  stock_mention: "Stock Mentions",
-  sentiment: "Sentiment",
-  recommendation: "Recommendations",
-  bubble_signal: "Bubble Signals",
+const TYPE_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string; bgColor: string }> = {
+  macro: {
+    label: "Macro Views",
+    icon: <Globe className="w-4 h-4" />,
+    color: "text-blue-500",
+    bgColor: "bg-blue-500/10 border-blue-500/20",
+  },
+  stock_mention: {
+    label: "Stock Mentions",
+    icon: <BarChart3 className="w-4 h-4" />,
+    color: "text-violet-500",
+    bgColor: "bg-violet-500/10 border-violet-500/20",
+  },
+  recommendation: {
+    label: "Recommendations",
+    icon: <Target className="w-4 h-4" />,
+    color: "text-amber-500",
+    bgColor: "bg-amber-500/10 border-amber-500/20",
+  },
+  sentiment: {
+    label: "Sentiment",
+    icon: <ThumbsUp className="w-4 h-4" />,
+    color: "text-cyan-500",
+    bgColor: "bg-cyan-500/10 border-cyan-500/20",
+  },
+  bubble_signal: {
+    label: "Bubble Signals",
+    icon: <AlertTriangle className="w-4 h-4" />,
+    color: "text-red-500",
+    bgColor: "bg-red-500/10 border-red-500/20",
+  },
 };
 
 const TYPE_ORDER: string[] = ["macro", "stock_mention", "recommendation", "sentiment", "bubble_signal"];
@@ -38,6 +65,8 @@ const SENTIMENT_LABELS: Record<string, string> = {
   bearish: "Bearish",
   neutral: "Neutral",
 };
+
+const INITIAL_SHOW = 5;
 
 const getSentimentIcon = (sentiment: string | null) => {
   switch (sentiment) {
@@ -61,6 +90,7 @@ const getSentimentColor = (sentiment: string | null) => {
   }
 };
 
+/* ─── Insight row ─── */
 function InsightRow({
   insight,
   portfolioTickers,
@@ -129,14 +159,16 @@ function InsightRow({
   );
 }
 
+/* ─── Collapsible group with "show more" ─── */
 function InsightGroup({
   title,
   insights,
   portfolioTickers,
   showSource,
   onToggleStar,
-  defaultOpen = true,
-  badge,
+  defaultOpen = false,
+  icon,
+  accentColor,
 }: {
   title: string;
   insights: InsightWithSource[];
@@ -144,9 +176,18 @@ function InsightGroup({
   showSource: boolean;
   onToggleStar: (params: { id: string; isStarred: boolean }) => void;
   defaultOpen?: boolean;
-  badge?: React.ReactNode;
+  icon?: React.ReactNode;
+  accentColor?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [showAll, setShowAll] = useState(false);
+
+  const visible = showAll ? insights : insights.slice(0, INITIAL_SHOW);
+  const remaining = insights.length - INITIAL_SHOW;
+
+  // Sentiment breakdown for the group header
+  const bullish = insights.filter((i) => i.sentiment === "bullish").length;
+  const bearish = insights.filter((i) => i.sentiment === "bearish").length;
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -154,18 +195,39 @@ function InsightGroup({
         className="w-full flex items-center justify-between px-4 py-3 bg-secondary/50 hover:bg-secondary/70 transition-colors"
         onClick={() => setOpen(!open)}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          {icon && <span className={accentColor}>{icon}</span>}
           <span className="font-medium text-sm text-foreground">{title}</span>
           <Badge variant="secondary" className="h-5 px-1.5 text-xs">
             {insights.length}
           </Badge>
-          {badge}
+          {/* Mini sentiment bar */}
+          {(bullish > 0 || bearish > 0) && (
+            <div className="hidden sm:flex items-center gap-1.5 ml-1">
+              {bullish > 0 && (
+                <span className="flex items-center gap-0.5 text-xs text-emerald-500">
+                  <TrendingUp className="w-3 h-3" />
+                  {bullish}
+                </span>
+              )}
+              {bearish > 0 && (
+                <span className="flex items-center gap-0.5 text-xs text-red-500">
+                  <TrendingDown className="w-3 h-3" />
+                  {bearish}
+                </span>
+              )}
+            </div>
+          )}
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+        {open ? (
+          <ChevronUp className="w-4 h-4 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+        )}
       </button>
       {open && (
         <div>
-          {insights.map((insight) => (
+          {visible.map((insight) => (
             <InsightRow
               key={insight.id}
               insight={insight}
@@ -174,12 +236,84 @@ function InsightGroup({
               onToggleStar={onToggleStar}
             />
           ))}
+          {!showAll && remaining > 0 && (
+            <button
+              className="w-full py-2.5 text-xs font-medium text-primary hover:bg-primary/5 transition-colors border-t border-border"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowAll(true);
+              }}
+            >
+              Show {remaining} more
+            </button>
+          )}
+          {showAll && remaining > 0 && (
+            <button
+              className="w-full py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors border-t border-border"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowAll(false);
+              }}
+            >
+              Show less
+            </button>
+          )}
         </div>
       )}
     </div>
   );
 }
 
+/* ─── Overview cards ─── */
+function TypeOverviewCards({
+  insights,
+  activeType,
+  onSelect,
+}: {
+  insights: InsightWithSource[];
+  activeType: string | null;
+  onSelect: (type: string | null) => void;
+}) {
+  const counts = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const i of insights) {
+      const t = i.insight_type || "other";
+      map[t] = (map[t] || 0) + 1;
+    }
+    return map;
+  }, [insights]);
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+      {TYPE_ORDER.filter((t) => counts[t]).map((type) => {
+        const config = TYPE_CONFIG[type];
+        const isActive = activeType === type;
+        return (
+          <button
+            key={type}
+            onClick={() => onSelect(isActive ? null : type)}
+            className={cn(
+              "flex flex-col items-center gap-1 p-3 rounded-lg border transition-all text-center",
+              isActive
+                ? `${config.bgColor} border-current ${config.color} ring-1 ring-current/20`
+                : "border-border hover:border-primary/30 hover:bg-secondary/50"
+            )}
+          >
+            <span className={cn(isActive ? config.color : "text-muted-foreground")}>
+              {config.icon}
+            </span>
+            <span className={cn("text-lg font-bold", isActive ? config.color : "text-foreground")}>
+              {counts[type]}
+            </span>
+            <span className="text-xs text-muted-foreground leading-tight">{config.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ─── Main panel ─── */
 export function AllInsightsPanel() {
   const { insights, isLoading, toggleStar } = useAllInsights();
   const { positions } = usePositions();
@@ -188,10 +322,12 @@ export function AllInsightsPanel() {
   const [groupBy, setGroupBy] = useState<GroupBy>("type");
   const [searchQuery, setSearchQuery] = useState("");
   const [starredOnly, setStarredOnly] = useState(false);
+  const [activeTypeFilter, setActiveTypeFilter] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let result = insights;
     if (starredOnly) result = result.filter((i) => i.is_starred);
+    if (activeTypeFilter) result = result.filter((i) => i.insight_type === activeTypeFilter);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
@@ -202,7 +338,7 @@ export function AllInsightsPanel() {
       );
     }
     return result;
-  }, [insights, starredOnly, searchQuery]);
+  }, [insights, starredOnly, activeTypeFilter, searchQuery]);
 
   const groups = useMemo(() => {
     const map = new Map<string, InsightWithSource[]>();
@@ -220,7 +356,6 @@ export function AllInsightsPanel() {
       map.get(key)!.push(insight);
     }
 
-    // Sort groups
     const entries = Array.from(map.entries());
     if (groupBy === "type") {
       entries.sort((a, b) => {
@@ -240,16 +375,20 @@ export function AllInsightsPanel() {
 
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-6 w-48" />
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-20 w-full" />
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-20 rounded-lg" />
           ))}
-        </CardContent>
-      </Card>
+        </div>
+        <Card>
+          <CardContent className="space-y-3 pt-6">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-16 w-full" />
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -269,91 +408,122 @@ export function AllInsightsPanel() {
   }
 
   const getGroupLabel = (key: string) => {
-    if (groupBy === "type") return TYPE_LABELS[key] || key;
+    if (groupBy === "type") return TYPE_CONFIG[key]?.label || key;
     if (groupBy === "sentiment") return SENTIMENT_LABELS[key] || key;
     return key;
   };
 
-  const getGroupBadge = (key: string, items: InsightWithSource[]) => {
-    if (groupBy !== "type") return undefined;
-    if (key === "bubble_signal") {
-      return (
-        <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20 text-xs h-5 px-1.5">
-          <AlertTriangle className="w-3 h-3 mr-1" />
-          Warning
-        </Badge>
-      );
-    }
+  const getGroupIcon = (key: string) => {
+    if (groupBy === "type") return TYPE_CONFIG[key]?.icon;
+    if (groupBy === "sentiment") return getSentimentIcon(key);
+    return undefined;
+  };
+
+  const getGroupAccent = (key: string) => {
+    if (groupBy === "type") return TYPE_CONFIG[key]?.color;
     return undefined;
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Search className="w-5 h-5 text-primary" />
-            All Insights
-            <Badge variant="secondary">{insights.length}</Badge>
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <Button
-              variant={starredOnly ? "default" : "outline"}
-              size="sm"
-              className="gap-1 h-8"
-              onClick={() => setStarredOnly(!starredOnly)}
-            >
-              <Star className={cn("w-3.5 h-3.5", starredOnly && "fill-current")} />
-              Starred
-            </Button>
-            <div className="flex items-center border border-border rounded-md overflow-hidden h-8">
-              {(["type", "source", "sentiment"] as GroupBy[]).map((g) => (
-                <button
-                  key={g}
-                  className={cn(
-                    "px-2.5 py-1 text-xs font-medium transition-colors capitalize",
-                    groupBy === g
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  )}
-                  onClick={() => setGroupBy(g)}
+    <div className="space-y-4">
+      {/* Overview cards — clickable type filter */}
+      <TypeOverviewCards
+        insights={insights}
+        activeType={activeTypeFilter}
+        onSelect={(type) => {
+          setActiveTypeFilter(type);
+          // When clicking a type card, also switch groupBy to source so you see
+          // insights for that type broken down by where they came from
+          if (type && groupBy === "type") setGroupBy("source");
+          if (!type) setGroupBy("type");
+        }}
+      />
+
+      {/* Controls + list */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base">
+                {activeTypeFilter
+                  ? TYPE_CONFIG[activeTypeFilter]?.label || activeTypeFilter
+                  : "All Insights"}
+              </CardTitle>
+              <Badge variant="secondary" className="text-xs">{filtered.length}</Badge>
+              {activeTypeFilter && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs text-muted-foreground"
+                  onClick={() => {
+                    setActiveTypeFilter(null);
+                    setGroupBy("type");
+                  }}
                 >
-                  {g}
-                </button>
-              ))}
+                  Clear filter
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={starredOnly ? "default" : "outline"}
+                size="sm"
+                className="gap-1 h-8"
+                onClick={() => setStarredOnly(!starredOnly)}
+              >
+                <Star className={cn("w-3.5 h-3.5", starredOnly && "fill-current")} />
+                Starred
+              </Button>
+              <div className="flex items-center border border-border rounded-md overflow-hidden h-8">
+                {(["type", "source", "sentiment"] as GroupBy[]).map((g) => (
+                  <button
+                    key={g}
+                    className={cn(
+                      "px-2.5 py-1 text-xs font-medium transition-colors capitalize",
+                      groupBy === g
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    )}
+                    onClick={() => setGroupBy(g)}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-        <div className="relative mt-2">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search insights, tickers, sources..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-9"
-          />
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3 pt-0">
-        {filtered.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No insights match your filters
-          </div>
-        ) : (
-          groups.map(([key, items]) => (
-            <InsightGroup
-              key={key}
-              title={getGroupLabel(key)}
-              insights={items}
-              portfolioTickers={portfolioTickers}
-              showSource={groupBy !== "source"}
-              onToggleStar={toggleStar}
-              defaultOpen={groups.length <= 5}
-              badge={getGroupBadge(key, items)}
+          <div className="relative mt-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search insights, tickers, sources..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-9"
             />
-          ))
-        )}
-      </CardContent>
-    </Card>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 pt-0">
+          {filtered.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No insights match your filters
+            </div>
+          ) : (
+            groups.map(([key, items], idx) => (
+              <InsightGroup
+                key={key}
+                title={getGroupLabel(key)}
+                insights={items}
+                portfolioTickers={portfolioTickers}
+                showSource={groupBy !== "source"}
+                onToggleStar={toggleStar}
+                defaultOpen={idx === 0}
+                icon={getGroupIcon(key)}
+                accentColor={getGroupAccent(key)}
+              />
+            ))
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
