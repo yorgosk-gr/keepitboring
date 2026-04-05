@@ -1,0 +1,74 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+
+export interface InsightWithSource {
+  id: string;
+  newsletter_id: string;
+  insight_type: string | null;
+  content: string | null;
+  sentiment: string | null;
+  tickers_mentioned: string[] | null;
+  confidence_words: string[] | null;
+  is_starred: boolean;
+  created_at: string;
+  source_name: string;
+  upload_date: string;
+}
+
+export function useAllInsights() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ["all_insights", user?.id],
+    queryFn: async () => {
+      const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data, error } = await supabase
+        .from("insights")
+        .select("id, newsletter_id, insight_type, content, sentiment, tickers_mentioned, confidence_words, is_starred, created_at, newsletters(source_name, upload_date)")
+        .gte("created_at", tenDaysAgo)
+        .order("created_at", { ascending: false })
+        .limit(1000);
+
+      if (error) throw error;
+
+      // Filter to only this user's insights (via newsletter ownership) and flatten
+      return (data ?? []).map((row: any) => ({
+        id: row.id,
+        newsletter_id: row.newsletter_id,
+        insight_type: row.insight_type,
+        content: row.content,
+        sentiment: row.sentiment,
+        tickers_mentioned: row.tickers_mentioned,
+        confidence_words: row.confidence_words,
+        is_starred: row.is_starred,
+        created_at: row.created_at,
+        source_name: row.newsletters?.source_name ?? "Unknown",
+        upload_date: row.newsletters?.upload_date ?? "",
+      })) as InsightWithSource[];
+    },
+    enabled: !!user,
+  });
+
+  const toggleStarMutation = useMutation({
+    mutationFn: async ({ id, isStarred }: { id: string; isStarred: boolean }) => {
+      const { error } = await supabase
+        .from("insights")
+        .update({ is_starred: isStarred })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all_insights"] });
+      queryClient.invalidateQueries({ queryKey: ["insights"] });
+    },
+  });
+
+  return {
+    insights: query.data ?? [],
+    isLoading: query.isLoading,
+    toggleStar: toggleStarMutation.mutate,
+  };
+}

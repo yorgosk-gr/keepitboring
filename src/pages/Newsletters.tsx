@@ -10,6 +10,7 @@ import { PasteTextModal } from "@/components/newsletters/PasteTextModal";
 import { InsightsSummaryCard } from "@/components/newsletters/InsightsSummaryCard";
 import { useInsightsSummary } from "@/hooks/useInsightsSummary";
 import { SourceReputationPanel } from "@/components/newsletters/SourceReputationPanel";
+import { AllInsightsPanel } from "@/components/newsletters/AllInsightsPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
@@ -221,6 +222,7 @@ export default function Newsletters() {
       <Tabs defaultValue="newsletters" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="newsletters">All Newsletters</TabsTrigger>
+          <TabsTrigger value="insights">All Insights</TabsTrigger>
           <TabsTrigger value="sources">Source Rankings</TabsTrigger>
         </TabsList>
         <TabsContent value="newsletters">
@@ -233,6 +235,9 @@ export default function Newsletters() {
             onUpdateSourceName={(id, name) => updateSourceName({ id, sourceName: name })}
             processingId={processingId}
           />
+        </TabsContent>
+        <TabsContent value="insights">
+          <AllInsightsPanel />
         </TabsContent>
         <TabsContent value="sources">
           <SourceReputationPanel />
