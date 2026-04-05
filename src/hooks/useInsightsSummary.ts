@@ -131,7 +131,7 @@ export function useInsightsSummary() {
         throw new Error("You must be logged in to generate summaries");
       }
 
-      // 3 minute client timeout — streaming keeps the connection alive but we need a ceiling
+      // The server streams keep-alive pings while generating, then sends JSON as the last line
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 180000);
 
@@ -158,16 +158,23 @@ export function useInsightsSummary() {
       }
       clearTimeout(timeout);
 
+      // Read streamed response — lines of "ping" followed by final JSON
+      const text = await response.text();
+      const lines = text.trim().split("\n").filter(l => l.trim() && l.trim() !== "ping");
+
+      if (lines.length === 0) {
+        throw new Error("Server returned empty response");
+      }
+
+      // The last non-ping line is the JSON result
+      const lastLine = lines[lines.length - 1];
       let data: any;
       try {
-        data = await response.json();
+        data = JSON.parse(lastLine);
       } catch {
-        throw new Error(`Server returned ${response.status} with non-JSON response`);
+        throw new Error("Server returned invalid response");
       }
-      if (!response.ok) {
-        const msg = data.error || data.msg || data.message || `Server error ${response.status}`;
-        throw new Error(msg);
-      }
+
       if (data.error) throw new Error(data.error);
 
       return data as InsightsSummary;
