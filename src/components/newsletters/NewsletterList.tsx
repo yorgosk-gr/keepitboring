@@ -200,14 +200,16 @@ export function NewsletterList({
                       Processed
                     </Badge>
                   ) : newsletter.processing_error ? (
-                    <Tooltip>
+                    <Tooltip delayDuration={0}>
                       <TooltipTrigger asChild>
-                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 gap-1 cursor-help">
-                          <AlertCircle className="w-3 h-3" />
-                          Failed
-                        </Badge>
+                        <span className="inline-flex">
+                          <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 gap-1 cursor-help">
+                            <AlertCircle className="w-3 h-3" />
+                            Failed
+                          </Badge>
+                        </span>
                       </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
+                      <TooltipContent side="top" className="max-w-xs">
                         <p className="text-sm">{newsletter.processing_error}</p>
                       </TooltipContent>
                     </Tooltip>
