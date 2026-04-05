@@ -124,38 +124,23 @@ export function useInsightsSummary() {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      // Get fresh session token (supabase.functions.invoke uses cached token which can go stale)
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         throw new Error("You must be logged in to generate summaries");
       }
 
-      // 90s client-side timeout — Supabase gateway has ~60s limit, this catches hung connections
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 90000);
-
-      let response: Response;
-      try {
-        response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/summarize-insights`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({}),
-            signal: controller.signal,
-          }
-        );
-      } catch (fetchError: any) {
-        clearTimeout(timeout);
-        if (fetchError?.name === "AbortError") {
-          throw new Error("Request timed out. The server took too long to respond — please try again.");
+      // Step 1: Kick off background generation (returns immediately)
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/summarize-insights`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({}),
         }
-        throw new Error("Network error — check your connection and try again.");
-      }
-      clearTimeout(timeout);
+      );
 
       let data: any;
       try {
@@ -164,24 +149,76 @@ export function useInsightsSummary() {
         throw new Error(`Server returned ${response.status} with non-JSON response`);
       }
       if (!response.ok) {
-        // Supabase gateway uses "msg", edge functions use "error"
         const msg = data.error || data.msg || data.message || `Server error ${response.status}`;
         throw new Error(msg);
       }
       if (data.error) throw new Error(data.error);
 
-      // Brief is persisted server-side by the edge function
-      return data as InsightsSummary;
+      // If the server returned a complete brief directly (e.g. no newsletters), use it
+      if (data.status === "complete" || data.letter) {
+        return data as InsightsSummary;
+      }
+
+      // Step 2: Poll for the brief to be completed in the background
+      const briefId = data.briefId;
+      if (!briefId) throw new Error("Server did not return a brief ID");
+
+      toast.info("Generating intelligence brief — this takes about a minute...");
+
+      const maxAttempts = 40; // 40 * 3s = 2 minutes max
+      for (let i = 0; i < maxAttempts; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+
+        const { data: brief, error: pollError } = await supabase
+          .from("intelligence_briefs")
+          .select("*")
+          .eq("id", briefId)
+          .single();
+
+        if (pollError) continue;
+
+        // Still generating
+        if (brief.executive_summary === "__generating__") continue;
+
+        // Failed in background
+        if (brief.executive_summary?.startsWith("__error__:")) {
+          const errorMsg = brief.executive_summary.replace("__error__:", "");
+          // Clean up the failed placeholder
+          await supabase.from("intelligence_briefs").delete().eq("id", briefId);
+          throw new Error(errorMsg);
+        }
+
+        // Success — brief is ready
+        return {
+          letter: brief.letter ?? null,
+          section_titles: (brief.section_titles as InsightsSummary["section_titles"]) ?? {
+            market: "State of the Market",
+            portfolio: "Consensus vs Divergence",
+            invest: "Where to Invest",
+            watch: "Watch This Week",
+          },
+          stocks_to_research: (brief.stocks_to_research as unknown as StockToResearch[]) ?? [],
+          country_tilts: (brief.country_tilts as unknown as CountryTilt[]) ?? [],
+          sector_tilts: (brief.sector_tilts as unknown as SectorTilt[]) ?? [],
+          contrarian_opportunities: (brief.contrarian_opportunities as unknown as ContrarianOpportunity[]) ?? [],
+          crowded_trades: brief.crowded_trades ?? [],
+          temporal_shifts: (brief.temporal_shifts as unknown as TemporalShift[]) ?? [],
+          weekly_priority: brief.weekly_priority ?? null,
+          executive_summary: brief.executive_summary ?? "",
+          newsletters_analyzed: brief.newsletters_analyzed ?? 0,
+          insights_analyzed: brief.insights_analyzed ?? 0,
+          generated_at: brief.generated_at,
+        } as InsightsSummary;
+      }
+
+      // Timed out waiting
+      throw new Error("Brief generation is taking longer than expected. Check back in a minute.");
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["intelligence_brief"] });
       queryClient.invalidateQueries({ queryKey: ["newsletters"] });
       queryClient.invalidateQueries({ queryKey: ["insights"] });
-      if ((data as any)?.market_context_available === false) {
-        toast.warning("Brief generated without real-time market data — claims are not cross-checked against live prices");
-      } else {
-        toast.success("Intelligence brief generated");
-      }
+      toast.success("Intelligence brief generated");
     },
     onError: (error) => {
       console.error("Summary generation failed:", error);
