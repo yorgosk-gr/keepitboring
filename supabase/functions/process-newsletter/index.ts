@@ -474,9 +474,10 @@ EXTRACTION RULES:
       const { error: insertError } = await supabase.from("insights").insert(insightsToInsert);
       if (insertError) {
         console.error("Failed to insert insights:", insertError);
-        await writeError("Failed to save insights to database.");
+        const detail = insertError.message || insertError.code || "unknown";
+        await writeError(`Failed to save insights: ${detail}`);
         return new Response(
-          JSON.stringify({ error: "Failed to save insights" }),
+          JSON.stringify({ error: "Failed to save insights", detail }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

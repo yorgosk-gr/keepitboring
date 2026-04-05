@@ -130,17 +130,32 @@ export function useInsightsSummary() {
         throw new Error("You must be logged in to generate summaries");
       }
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/summarize-insights`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({}),
+      // 90s client-side timeout — Supabase gateway has ~60s limit, this catches hung connections
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 90000);
+
+      let response: Response;
+      try {
+        response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/summarize-insights`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({}),
+            signal: controller.signal,
+          }
+        );
+      } catch (fetchError: any) {
+        clearTimeout(timeout);
+        if (fetchError?.name === "AbortError") {
+          throw new Error("Request timed out. The server took too long to respond — please try again.");
         }
-      );
+        throw new Error("Network error — check your connection and try again.");
+      }
+      clearTimeout(timeout);
 
       let data: any;
       try {

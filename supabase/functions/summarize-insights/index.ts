@@ -107,20 +107,82 @@ serve(async (req) => {
       });
     }
 
-    const { data: insights } = await supabase
+    // Parallelize all DB queries + Perplexity to minimize wall-clock time
+    const insightsPromise = supabase
       .from("insights")
       .select("*, newsletters(source_name)")
       .in("newsletter_id", newsletterIds)
       .order("created_at", { ascending: false })
       .limit(500);
 
-    const insightsList = insights ?? [];
-
-    // Fetch user positions for portfolio context
-    const { data: positions } = await supabase
+    const positionsPromise = supabase
       .from("positions")
       .select("ticker, name, position_type, category, market_value, weight_percent")
       .eq("user_id", user.id);
+
+    const previousBriefPromise = supabase
+      .from("intelligence_briefs")
+      .select("temporal_shifts, sector_tilts, crowded_trades_legacy")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // Fetch real-time market context via Perplexity (in parallel with DB queries)
+    const marketContextPromise = (async () => {
+      const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
+      if (!PERPLEXITY_API_KEY) {
+        console.warn("PERPLEXITY_API_KEY not configured — skipping real-time market verification");
+        return "";
+      }
+      try {
+        const today = new Date().toISOString().split("T")[0];
+        const perplexityController = new AbortController();
+        const perplexityTimeout = setTimeout(() => perplexityController.abort(), 12000);
+        const perplexityRes = await fetch("https://api.perplexity.ai/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          signal: perplexityController.signal,
+          body: JSON.stringify({
+            model: "sonar",
+            messages: [
+              {
+                role: "user",
+                content: `As of ${today}: Give me a concise factual summary of current market conditions. Include: S&P 500, Nasdaq, Dow Jones, and Euro Stoxx 50 levels and weekly % change; 10-year US Treasury yield; Fed funds rate and latest FOMC guidance; USD/EUR and USD/JPY; gold and oil prices; VIX level; and the 2-3 most important macro events or data releases this week. Facts only, no opinions. Cite sources.`,
+              },
+            ],
+            search_recency_filter: "week",
+          }),
+        });
+        clearTimeout(perplexityTimeout);
+
+        if (perplexityRes.ok) {
+          const perplexityData = await perplexityRes.json();
+          let ctx = perplexityData.choices?.[0]?.message?.content ?? "";
+          const citations = perplexityData.citations ?? [];
+          if (citations.length > 0) {
+            ctx += `\n\nSources: ${citations.join(", ")}`;
+          }
+          console.log("Perplexity market context fetched successfully");
+          return ctx;
+        } else {
+          console.warn("Perplexity API returned", perplexityRes.status, "— proceeding without market verification");
+          return "";
+        }
+      } catch (e) {
+        console.warn("Perplexity call failed, proceeding without market verification:", e);
+        return "";
+      }
+    })();
+
+    // Await all in parallel
+    const [{ data: insights }, { data: positions }, { data: previousBrief }, marketContext] =
+      await Promise.all([insightsPromise, positionsPromise, previousBriefPromise, marketContextPromise]);
+
+    const insightsList = insights ?? [];
 
     const portfolioTickers = (positions ?? []).map(p => p.ticker);
     const portfolioContext = (positions ?? []).map(p => ({
@@ -130,15 +192,6 @@ serve(async (req) => {
       category: p.category,
       weight: p.weight_percent,
     }));
-
-    // Fetch previous brief for signal persistence tracking
-    const { data: previousBrief } = await supabase
-      .from("intelligence_briefs")
-      .select("temporal_shifts, sector_tilts, crowded_trades_legacy")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
 
     const previousKeyPointTitles = ((previousBrief?.temporal_shifts as any[]) ?? []).map((ts: any) => ts.topic || ts.title);
     const previousThemeNames = ((previousBrief?.sector_tilts as any[]) ?? []).map((t: any) => t.sector || t.theme);
@@ -266,52 +319,6 @@ RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown. No code blocks. Use
   "insights_analyzed": 0
 }`;
 
-    // Step: Fetch real-time market context via Perplexity
-    let marketContext = "";
-    const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
-    if (PERPLEXITY_API_KEY) {
-      try {
-        const today = new Date().toISOString().split("T")[0];
-        const perplexityController = new AbortController();
-        const perplexityTimeout = setTimeout(() => perplexityController.abort(), 15000);
-        const perplexityRes = await fetch("https://api.perplexity.ai/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          signal: perplexityController.signal,
-          body: JSON.stringify({
-            model: "sonar",
-            messages: [
-              {
-                role: "user",
-                content: `As of ${today}: Give me a concise factual summary of current market conditions. Include: S&P 500, Nasdaq, Dow Jones, and Euro Stoxx 50 levels and weekly % change; 10-year US Treasury yield; Fed funds rate and latest FOMC guidance; USD/EUR and USD/JPY; gold and oil prices; VIX level; and the 2-3 most important macro events or data releases this week. Facts only, no opinions. Cite sources.`,
-              },
-            ],
-            search_recency_filter: "week",
-          }),
-        });
-        clearTimeout(perplexityTimeout);
-
-        if (perplexityRes.ok) {
-          const perplexityData = await perplexityRes.json();
-          marketContext = perplexityData.choices?.[0]?.message?.content ?? "";
-          const citations = perplexityData.citations ?? [];
-          if (citations.length > 0) {
-            marketContext += `\n\nSources: ${citations.join(", ")}`;
-          }
-          console.log("Perplexity market context fetched successfully");
-        } else {
-          console.warn("Perplexity API returned", perplexityRes.status, "— proceeding without market verification");
-        }
-      } catch (e) {
-        console.warn("Perplexity call failed, proceeding without market verification:", e);
-      }
-    } else {
-      console.warn("PERPLEXITY_API_KEY not configured — skipping real-time market verification");
-    }
-
     const marketVerificationBlock = marketContext
       ? `\n\nREAL-TIME MARKET CONTEXT (verified data as of today — use this to cross-check newsletter claims):\n${marketContext}\n\nIMPORTANT: Cross-check newsletter claims against the real-time market context above. If a newsletter claim contradicts current verified data, note the discrepancy in your letter and use the verified data. Do not repeat stale or inaccurate claims from newsletters.`
       : "";
@@ -355,11 +362,11 @@ Write the weekly intelligence letter. Synthesize, weigh, and judge — do not ju
 
     console.log(`Summarizing ${insightsList.length} insights from ${newsletters?.length} newsletters...`);
 
-    // Retry wrapper for Anthropic API calls (with 50s timeout per attempt to stay within edge function limits)
-    async function callAnthropicWithRetry(body: object, maxRetries = 1): Promise<Response> {
+    // Retry wrapper for Anthropic API calls (with 45s timeout to stay within edge function 60s limit)
+    async function callAnthropicWithRetry(body: object, maxRetries = 0): Promise<Response> {
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 50000);
+        const timeout = setTimeout(() => controller.abort(), 45000);
         try {
           const resp = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
