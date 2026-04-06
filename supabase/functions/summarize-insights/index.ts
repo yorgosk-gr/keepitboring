@@ -230,7 +230,6 @@ RULES:
 - 3+ sources sharing a view → 'consensus' (crowded, lower edge)
 - Sources diverging → most valuable signal. Name disagreements
 - Weight by source_confidence: ≥0.8 + data_backed=true = 2x weight
-- Compare against PREVIOUS BRIEF themes — flag reversals, persistence, silence
 - Aggregate management_tone/earnings patterns by sector
 - Write as market analyst, not portfolio manager
 - Portfolio context only for flagging exposure intersections
@@ -247,12 +246,9 @@ Single sentence. Dominant signal. Judgment, not description.
 ═══ STATE OF THE MARKET ═══
 1–2 paragraphs. What's happening and why. End with signal quality: HIGH/MEDIUM/LOW + why.
 
-═══ CONSENSUS vs DIVERGENCE ═══
-Where do sources agree/disagree? What does disagreement tell you? Keep it tight.
-
 ═══ WHAT TO WATCH NEXT WEEK ═══
 2–3 sentences. One event. One price level. One surprise scenario.
 
 Return ONLY raw JSON. No markdown.
 
-{"letter":"sections with headers","section_titles":{"market":"...","portfolio":"...","invest":"...","watch":"..."},"stocks_to_research":[{"ticker":"OXY","name":"Occidental","setup":"one sentence","thesis":"one sentence","trigger":"what to watch","time_horizon":"short|medium|long","risk_level":"low|moderate|high","mentioned_in":2,"source_confidence_avg":0.75,"consensus_or_edge":"consensus|edge|divergent"}],"country_tilts":[{"region":"Japan","direction":"overweight|underweight|neutral","conviction":"high|medium|low","etf_proxy":"EWJ","in_portfolio":true,"reasoning":"one sentence","signal_type":"consensus|edge|divergent","vs_prior_brief":"new|unchanged|strengthened|reversed"}],"sector_tilts":[{"sector":"Energy","direction":"overweight|underweight|neutral","conviction":"high|medium|low","portfolio_tickers":["IGLN"],"reasoning":"one sentence","signal_type":"consensus|edge|divergent","vs_prior_brief":"new|unchanged|strengthened|reversed","earnings_pattern":"beats|misses|mixed|no_data"}],"contrarian_opportunities":[{"title":"headline","macro_tailwind":"reason","why_not_crowded":"what market misses","second_order_logic":"if X then Y","ticker":"ETF/stock","ticker_name":"name","in_portfolio":false,"time_horizon":"medium|long","conviction":"high|medium|low"}],"crowded_trades":["description"],"temporal_shifts":[{"topic":"AI","prior_view":"bullish","current_view":"scrutiny","weeks_tracked":2,"significance":"one sentence"}],"weekly_priority":"single action item","signal_quality":"high|medium|low"}`;
+{"letter":"sections with headers","section_titles":{"market":"...","invest":"...","watch":"..."},"country_tilts":[{"region":"Japan","direction":"overweight|underweight|neutral","conviction":"high|medium|low","etf_proxy":"EWJ","in_portfolio":true,"reasoning":"one sentence","signal_type":"consensus|edge|divergent"}],"sector_tilts":[{"sector":"Energy","direction":"overweight|underweight|neutral","conviction":"high|medium|low","portfolio_tickers":["IGLN"],"reasoning":"one sentence","signal_type":"consensus|edge|divergent","earnings_pattern":"beats|misses|mixed|no_data"}],"weekly_priority":"single action item","signal_quality":"high|medium|low"}`;
