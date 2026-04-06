@@ -96,19 +96,28 @@ serve(async (req) => {
 
     const cap = (s: string | null, max: number) => !s ? "" : s.length > max ? s.substring(0, max) + "…" : s;
 
+    // Prioritise high-confidence and starred insights, then take the top 100.
+    // This keeps input tokens to ~8k so Sonnet finishes well within 60s.
+    const prioritised = [...insightsList].sort((a: any, b: any) => {
+      const aConf = (a.metadata as any)?.source_confidence ?? 0.5;
+      const bConf = (b.metadata as any)?.source_confidence ?? 0.5;
+      const aStar = a.is_starred ? 1 : 0;
+      const bStar = b.is_starred ? 1 : 0;
+      return (bStar - aStar) || (bConf - aConf);
+    }).slice(0, 100);
+
     const userPrompt = `PORTFOLIO: ${JSON.stringify(portfolioContext)}
 TICKERS: ${JSON.stringify(portfolioTickers)}
 SOURCES (${newsletters!.length}): ${newsletters!.map((n: any) => `"${n.source_name}" (${n.upload_date})`).join("; ")}
 PREV BRIEF — themes: ${JSON.stringify(prevThemes)}, points: ${JSON.stringify(prevPoints)}
 
-INSIGHTS (${insightsList.length}, key: t=type,c=content,s=sentiment,src=source,tk=tickers,conf=confidence):
-${JSON.stringify(insightsList.slice(0, 250).map((i: any) => {
+INSIGHTS (${prioritised.length} of ${insightsList.length} total, highest confidence selected):
+${JSON.stringify(prioritised.map((i: any) => {
   const meta = i.metadata ?? {};
-  const obj: Record<string, any> = { t: i.insight_type, c: cap(i.content, 200), s: i.sentiment, src: i.newsletters?.source_name, conf: meta.source_confidence ?? 0.5 };
+  const obj: Record<string, any> = { t: i.insight_type, c: cap(i.content, 120), s: i.sentiment, src: i.newsletters?.source_name };
   if (i.tickers_mentioned?.length) obj.tk = i.tickers_mentioned;
-  if (meta.management_tone && meta.management_tone !== "not_mentioned") obj.mgmt = meta.management_tone;
   if (meta.data_backed) obj.data = true;
-  if (meta.conviction_level) obj.conv = meta.conviction_level;
+  if (meta.conviction_level && meta.conviction_level !== "low") obj.conv = meta.conviction_level;
   if (meta.catalyst) obj.cat = meta.catalyst;
   return obj;
 }))}

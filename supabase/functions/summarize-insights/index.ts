@@ -83,7 +83,7 @@ serve(async (req) => {
 
     // Call Anthropic — non-streaming, max_tokens=4096 to stay within ~40s
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 50000); // 50s hard limit
+    const timeout = setTimeout(() => controller.abort(), 55000); // 55s — just under Supabase's 60s wall-clock limit
 
     let response: Response;
     try {
@@ -105,7 +105,7 @@ serve(async (req) => {
     } catch (fetchError: any) {
       clearTimeout(timeout);
       if (fetchError?.name === "AbortError") {
-        return new Response(JSON.stringify({ error: "AI generation timed out (50s). Try again — it often works on retry." }), {
+        return new Response(JSON.stringify({ error: "AI generation timed out. Please try again." }), {
           status: 504,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
