@@ -7,11 +7,20 @@ const corsHeaders = {
 };
 
 /**
- * Phase 1 of brief generation: gather all data and build the prompt.
- * Returns the assembled prompt + metadata so the client can pass it
- * to summarize-insights (Phase 2) which only calls Anthropic.
+ * Phase 1 of brief generation.
  *
- * This keeps each function well under the 60s Supabase timeout.
+ * Steps:
+ *  1. Fetch newsletters, insights, positions, previous brief, market context (parallel)
+ *  2. Pre-process raw insights with Haiku:
+ *       - merge near-duplicates
+ *       - identify consensus vs. divergence
+ *       - flag contradictions
+ *       - drop stale / irrelevant entries
+ *  3. Return a compact signal digest for Phase 2 (Sonnet brief writer)
+ *
+ * Haiku handles the messy deduplication work cheaply and fast (~10s).
+ * Sonnet then receives clean, structured signals and can focus purely
+ * on analysis and letter writing — with a much smaller input (~3-5k tokens).
  */
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -40,6 +49,14 @@ serve(async (req) => {
       });
     }
 
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
+      return new Response(JSON.stringify({ error: "AI service not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
     const { data: newsletters } = await supabase
       .from("newsletters")
@@ -64,7 +81,7 @@ serve(async (req) => {
       });
     }
 
-    // Parallel: DB queries + Perplexity market context
+    // ── Step 1: Parallel data fetch ──────────────────────────────────────────
     const [{ data: insights }, { data: positions }, { data: previousBrief }, marketContext] =
       await Promise.all([
         supabase.from("insights").select("*, newsletters(source_name)")
@@ -90,41 +107,161 @@ serve(async (req) => {
     const prevThemes = ((previousBrief?.sector_tilts as any[]) ?? []).map((t: any) => t.sector || t.theme);
     const prevPoints = ((previousBrief?.temporal_shifts as any[]) ?? []).map((ts: any) => ts.topic || ts.title);
 
+    console.log(`Fetched ${insightsList.length} raw insights from ${newsletters!.length} newsletters`);
+
+    // ── Step 2: Haiku pre-processing ─────────────────────────────────────────
+    // Send all raw insights to Haiku for deduplication, contradiction detection,
+    // and relevance filtering. Haiku is fast and cheap for this structured task.
+    const cap = (s: string | null, max: number) => !s ? "" : s.length > max ? s.substring(0, max) + "…" : s;
+    const today = new Date().toISOString().split("T")[0];
+
+    const rawInsightsPayload = insightsList.map((i: any) => {
+      const meta = i.metadata ?? {};
+      const obj: Record<string, any> = {
+        type: i.insight_type,
+        content: cap(i.content, 200),
+        sentiment: i.sentiment,
+        source: i.newsletters?.source_name,
+        confidence: meta.source_confidence ?? 0.5,
+      };
+      if (i.tickers_mentioned?.length) obj.tickers = i.tickers_mentioned;
+      if (meta.data_backed) obj.data_backed = true;
+      if (meta.conviction_level) obj.conviction = meta.conviction_level;
+      if (meta.catalyst) obj.catalyst = meta.catalyst;
+      if (i.is_starred) obj.starred = true;
+      return obj;
+    });
+
+    const preprocessPrompt = `Today is ${today}. You are pre-processing raw investment newsletter insights before they are synthesised into a weekly intelligence brief.
+
+RAW INSIGHTS (${rawInsightsPayload.length} total from ${newsletters!.length} sources):
+${JSON.stringify(rawInsightsPayload)}
+
+Your job — clean and consolidate these signals:
+
+1. MERGE near-duplicates: if multiple sources say essentially the same thing about the same ticker or macro topic, combine them into ONE signal with source_count > 1.
+2. DETECT contradictions: if sources explicitly disagree (e.g. one says AAPL bullish, another says AAPL bearish), keep BOTH but set contradicted=true and add a contradiction_note.
+3. CLASSIFY signal strength: consensus = 3+ sources agree; edge = 1-2 sources, differentiated view; divergent = sources disagree.
+4. DROP stale/irrelevant: remove references to past events that have already resolved (earnings already reported, catalysts already fired), vague filler ("markets are volatile"), or entries with no actionable content.
+5. PRESERVE starred insights always — never drop them.
+
+Return ONLY a JSON object, no markdown:
+{
+  "signals": [
+    {
+      "type": "stock|macro|sector|recommendation|bubble",
+      "topic": "ticker symbol or macro topic name",
+      "tickers": ["AAPL"],
+      "sentiment": "bullish|bearish|neutral",
+      "signal_strength": "consensus|edge|divergent",
+      "sources": ["source name 1", "source name 2"],
+      "source_count": 2,
+      "insight": "one clear consolidated sentence capturing the signal",
+      "contradicted": false,
+      "contradiction_note": null,
+      "data_backed": false,
+      "conviction": "high|medium|low",
+      "catalyst": null
+    }
+  ],
+  "dropped_count": 12,
+  "stats": {
+    "consensus_signals": 4,
+    "edge_signals": 8,
+    "divergent_signals": 2,
+    "contradictions": 1
+  }
+}`;
+
+    let processedSignals: any = null;
+
+    try {
+      const haiku = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5",
+          messages: [{ role: "user", content: preprocessPrompt }],
+          max_tokens: 4096,
+        }),
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (haiku.ok) {
+        const haikuResult = await haiku.json();
+        const haikuText = haikuResult.content?.[0]?.text ?? "";
+        try {
+          let jsonStr = haikuText.trim();
+          const m = jsonStr.match(/```json\s*([\s\S]*?)```/);
+          if (m) jsonStr = m[1].trim();
+          else {
+            const f = jsonStr.indexOf("{"), l = jsonStr.lastIndexOf("}");
+            if (f !== -1 && l > f) jsonStr = jsonStr.substring(f, l + 1);
+          }
+          processedSignals = JSON.parse(jsonStr);
+          console.log(`Haiku pre-processing: ${processedSignals.signals?.length} signals from ${insightsList.length} raw insights (dropped ${processedSignals.dropped_count ?? "?"})`);
+        } catch {
+          console.warn("Haiku output failed to parse — falling back to raw insights");
+        }
+      } else {
+        console.warn(`Haiku pre-processing returned ${haiku.status} — falling back to raw insights`);
+      }
+    } catch (haikuErr) {
+      console.warn("Haiku pre-processing failed — falling back to raw insights:", haikuErr);
+    }
+
+    // ── Step 3: Build the prompt for Phase 2 (Sonnet) ───────────────────────
     const mktBlock = marketContext
-      ? `\n\nREAL-TIME MARKET CONTEXT:\n${marketContext}\n\nCross-check newsletter claims against this data. Note discrepancies.`
+      ? `\n\nREAL-TIME MARKET CONTEXT (from Perplexity, cross-check newsletter claims):\n${marketContext}`
       : "";
 
-    const cap = (s: string | null, max: number) => !s ? "" : s.length > max ? s.substring(0, max) + "…" : s;
+    let userPrompt: string;
 
-    // Prioritise high-confidence and starred insights, then take the top 100.
-    // This keeps input tokens to ~8k so Sonnet finishes well within 60s.
-    const prioritised = [...insightsList].sort((a: any, b: any) => {
-      const aConf = (a.metadata as any)?.source_confidence ?? 0.5;
-      const bConf = (b.metadata as any)?.source_confidence ?? 0.5;
-      const aStar = a.is_starred ? 1 : 0;
-      const bStar = b.is_starred ? 1 : 0;
-      return (bStar - aStar) || (bConf - aConf);
-    }).slice(0, 100);
+    if (processedSignals?.signals?.length) {
+      // Use the clean pre-processed digest — much smaller input for Sonnet
+      const stats = processedSignals.stats ?? {};
+      userPrompt = `PORTFOLIO: ${JSON.stringify(portfolioContext)}
+TICKERS IN PORTFOLIO: ${JSON.stringify(portfolioTickers)}
+SOURCES THIS WEEK (${newsletters!.length}): ${newsletters!.map((n: any) => `"${n.source_name}" (${n.upload_date})`).join("; ")}
+PREV BRIEF — themes: ${JSON.stringify(prevThemes)}, tracked points: ${JSON.stringify(prevPoints)}
 
-    const userPrompt = `PORTFOLIO: ${JSON.stringify(portfolioContext)}
-TICKERS: ${JSON.stringify(portfolioTickers)}
-SOURCES (${newsletters!.length}): ${newsletters!.map((n: any) => `"${n.source_name}" (${n.upload_date})`).join("; ")}
-PREV BRIEF — themes: ${JSON.stringify(prevThemes)}, points: ${JSON.stringify(prevPoints)}
+PRE-PROCESSED SIGNAL DIGEST (${processedSignals.signals.length} signals consolidated from ${insightsList.length} raw insights; ${processedSignals.dropped_count ?? 0} dropped as duplicate/stale):
+Consensus: ${stats.consensus_signals ?? "?"} | Edge: ${stats.edge_signals ?? "?"} | Divergent: ${stats.divergent_signals ?? "?"} | Contradictions: ${stats.contradictions ?? "?"}
 
-INSIGHTS (${prioritised.length} of ${insightsList.length} total, highest confidence selected):
+${JSON.stringify(processedSignals.signals)}
+
+Write the weekly intelligence letter.${mktBlock}`;
+    } else {
+      // Fallback: use raw insights, prioritised and capped
+      const prioritised = [...insightsList].sort((a: any, b: any) => {
+        const aConf = (a.metadata as any)?.source_confidence ?? 0.5;
+        const bConf = (b.metadata as any)?.source_confidence ?? 0.5;
+        const aStar = a.is_starred ? 1 : 0;
+        const bStar = b.is_starred ? 1 : 0;
+        return (bStar - aStar) || (bConf - aConf);
+      }).slice(0, 100);
+
+      userPrompt = `PORTFOLIO: ${JSON.stringify(portfolioContext)}
+TICKERS IN PORTFOLIO: ${JSON.stringify(portfolioTickers)}
+SOURCES THIS WEEK (${newsletters!.length}): ${newsletters!.map((n: any) => `"${n.source_name}" (${n.upload_date})`).join("; ")}
+PREV BRIEF — themes: ${JSON.stringify(prevThemes)}, tracked points: ${JSON.stringify(prevPoints)}
+
+RAW INSIGHTS (${prioritised.length} of ${insightsList.length}, highest confidence):
 ${JSON.stringify(prioritised.map((i: any) => {
   const meta = i.metadata ?? {};
   const obj: Record<string, any> = { t: i.insight_type, c: cap(i.content, 120), s: i.sentiment, src: i.newsletters?.source_name };
   if (i.tickers_mentioned?.length) obj.tk = i.tickers_mentioned;
   if (meta.data_backed) obj.data = true;
   if (meta.conviction_level && meta.conviction_level !== "low") obj.conv = meta.conviction_level;
-  if (meta.catalyst) obj.cat = meta.catalyst;
   return obj;
 }))}
 
 Write the weekly intelligence letter.${mktBlock}`;
-
-    console.log(`Prepared brief data: ${insightsList.length} insights from ${newsletters!.length} newsletters`);
+    }
 
     return new Response(JSON.stringify({
       empty: false,
@@ -132,6 +269,7 @@ Write the weekly intelligence letter.${mktBlock}`;
       user_id: user.id,
       newsletters_count: newsletters!.length,
       insights_count: insightsList.length,
+      preprocessed_signals: processedSignals?.signals?.length ?? null,
       market_context_available: !!marketContext,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
