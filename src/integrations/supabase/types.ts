@@ -716,12 +716,14 @@ export type Database = {
           confidence_words: string[] | null
           content: string | null
           created_at: string
+          excluded_from_brief: boolean
           id: string
           insight_type: string | null
           is_starred: boolean
           is_summarized: boolean
           metadata: Json | null
           newsletter_id: string
+          quality_score: number | null
           sentiment: string | null
           summarized_from_ids: string[] | null
           tickers_mentioned: string[] | null
@@ -730,12 +732,14 @@ export type Database = {
           confidence_words?: string[] | null
           content?: string | null
           created_at?: string
+          excluded_from_brief?: boolean
           id?: string
           insight_type?: string | null
           is_starred?: boolean
           is_summarized?: boolean
           metadata?: Json | null
           newsletter_id: string
+          quality_score?: number | null
           sentiment?: string | null
           summarized_from_ids?: string[] | null
           tickers_mentioned?: string[] | null
@@ -744,12 +748,14 @@ export type Database = {
           confidence_words?: string[] | null
           content?: string | null
           created_at?: string
+          excluded_from_brief?: boolean
           id?: string
           insight_type?: string | null
           is_starred?: boolean
           is_summarized?: boolean
           metadata?: Json | null
           newsletter_id?: string
+          quality_score?: number | null
           sentiment?: string | null
           summarized_from_ids?: string[] | null
           tickers_mentioned?: string[] | null

@@ -13,12 +13,15 @@ import {
   BarChart3,
   Target,
   ThumbsUp,
+  EyeOff,
+  Eye,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useAllInsights, type InsightWithSource } from "@/hooks/useAllInsights";
 import { usePositions } from "@/hooks/usePositions";
@@ -90,35 +93,69 @@ const getSentimentColor = (sentiment: string | null) => {
   }
 };
 
+// Quality score dot indicator
+const SCORE_CONFIG: Record<number, { color: string; label: string }> = {
+  1: { color: "bg-muted-foreground/40", label: "Noise — auto-excluded" },
+  2: { color: "bg-amber-500/50", label: "Low quality" },
+  3: { color: "bg-yellow-500", label: "Medium quality" },
+  4: { color: "bg-blue-500", label: "Good quality" },
+  5: { color: "bg-emerald-500", label: "Strong signal" },
+};
+
+function QualityDot({ score }: { score: number | null }) {
+  if (score == null) return null;
+  const cfg = SCORE_CONFIG[score] ?? SCORE_CONFIG[3];
+  return (
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={cn("inline-block w-2 h-2 rounded-full shrink-0 mt-1.5", cfg.color)} />
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs">
+          Score {score}/5 — {cfg.label}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 /* ─── Insight row ─── */
 function InsightRow({
   insight,
   portfolioTickers,
   showSource,
   onToggleStar,
+  onToggleExclude,
 }: {
   insight: InsightWithSource;
   portfolioTickers: string[];
   showSource: boolean;
   onToggleStar: (params: { id: string; isStarred: boolean }) => void;
+  onToggleExclude: (params: { id: string; excluded: boolean }) => void;
 }) {
   const tickersInPortfolio = (insight.tickers_mentioned || []).filter((t) =>
     portfolioTickers.includes(t.toUpperCase())
   );
 
+  const isExcluded = insight.excluded_from_brief;
+
   return (
     <div
       className={cn(
         "px-4 py-3 border-b border-border last:border-b-0 hover:bg-secondary/30 transition-colors",
-        tickersInPortfolio.length > 0 && "bg-primary/5"
+        tickersInPortfolio.length > 0 && !isExcluded && "bg-primary/5",
+        isExcluded && "opacity-50"
       )}
     >
       <div className="flex items-start gap-3">
+        <QualityDot score={insight.quality_score} />
         <div className="flex items-center gap-1 pt-0.5 shrink-0">
           {getSentimentIcon(insight.sentiment)}
         </div>
         <div className="flex-1 min-w-0 space-y-1">
-          <p className="text-sm text-foreground leading-relaxed">{insight.content}</p>
+          <p className={cn("text-sm text-foreground leading-relaxed", isExcluded && "line-through decoration-muted-foreground/50")}>
+            {insight.content}
+          </p>
           <div className="flex items-center gap-2 flex-wrap">
             {showSource && (
               <span className="text-xs text-muted-foreground font-medium">{insight.source_name}</span>
@@ -143,17 +180,44 @@ function InsightRow({
             </Badge>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "shrink-0 h-7 w-7",
-            insight.is_starred ? "text-amber-500" : "text-muted-foreground opacity-40 hover:opacity-100"
-          )}
-          onClick={() => onToggleStar({ id: insight.id, isStarred: !insight.is_starred })}
-        >
-          <Star className={cn("w-3.5 h-3.5", insight.is_starred && "fill-current")} />
-        </Button>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "h-7 w-7",
+                    isExcluded
+                      ? "text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground opacity-40 hover:opacity-100"
+                  )}
+                  onClick={() => onToggleExclude({ id: insight.id, excluded: !isExcluded })}
+                >
+                  {isExcluded
+                    ? <Eye className="w-3.5 h-3.5" />
+                    : <EyeOff className="w-3.5 h-3.5" />
+                  }
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                {isExcluded ? "Re-include in brief" : "Exclude from brief"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-7 w-7",
+              insight.is_starred ? "text-amber-500" : "text-muted-foreground opacity-40 hover:opacity-100"
+            )}
+            onClick={() => onToggleStar({ id: insight.id, isStarred: !insight.is_starred })}
+          >
+            <Star className={cn("w-3.5 h-3.5", insight.is_starred && "fill-current")} />
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -166,6 +230,7 @@ function InsightGroup({
   portfolioTickers,
   showSource,
   onToggleStar,
+  onToggleExclude,
   defaultOpen = false,
   icon,
   accentColor,
@@ -175,6 +240,7 @@ function InsightGroup({
   portfolioTickers: string[];
   showSource: boolean;
   onToggleStar: (params: { id: string; isStarred: boolean }) => void;
+  onToggleExclude: (params: { id: string; excluded: boolean }) => void;
   defaultOpen?: boolean;
   icon?: React.ReactNode;
   accentColor?: string;
@@ -188,6 +254,7 @@ function InsightGroup({
   // Sentiment breakdown for the group header
   const bullish = insights.filter((i) => i.sentiment === "bullish").length;
   const bearish = insights.filter((i) => i.sentiment === "bearish").length;
+  const excluded = insights.filter((i) => i.excluded_from_brief).length;
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -218,6 +285,12 @@ function InsightGroup({
               )}
             </div>
           )}
+          {excluded > 0 && (
+            <span className="hidden sm:flex items-center gap-0.5 text-xs text-muted-foreground ml-1">
+              <EyeOff className="w-3 h-3" />
+              {excluded} excluded
+            </span>
+          )}
         </div>
         {open ? (
           <ChevronUp className="w-4 h-4 text-muted-foreground" />
@@ -234,6 +307,7 @@ function InsightGroup({
               portfolioTickers={portfolioTickers}
               showSource={showSource}
               onToggleStar={onToggleStar}
+              onToggleExclude={onToggleExclude}
             />
           ))}
           {!showAll && remaining > 0 && (
@@ -315,17 +389,24 @@ function TypeOverviewCards({
 
 /* ─── Main panel ─── */
 export function AllInsightsPanel() {
-  const { insights, isLoading, toggleStar } = useAllInsights();
+  const { insights, isLoading, toggleStar, toggleExclude } = useAllInsights();
   const { positions } = usePositions();
   const portfolioTickers = positions.map((p) => p.ticker.toUpperCase());
 
   const [groupBy, setGroupBy] = useState<GroupBy>("type");
   const [searchQuery, setSearchQuery] = useState("");
   const [starredOnly, setStarredOnly] = useState(false);
+  const [showExcluded, setShowExcluded] = useState(false);
   const [activeTypeFilter, setActiveTypeFilter] = useState<string | null>(null);
+
+  const excludedCount = useMemo(
+    () => insights.filter((i) => i.excluded_from_brief).length,
+    [insights]
+  );
 
   const filtered = useMemo(() => {
     let result = insights;
+    if (!showExcluded) result = result.filter((i) => !i.excluded_from_brief);
     if (starredOnly) result = result.filter((i) => i.is_starred);
     if (activeTypeFilter) result = result.filter((i) => i.insight_type === activeTypeFilter);
     if (searchQuery.trim()) {
@@ -338,7 +419,7 @@ export function AllInsightsPanel() {
       );
     }
     return result;
-  }, [insights, starredOnly, activeTypeFilter, searchQuery]);
+  }, [insights, starredOnly, showExcluded, activeTypeFilter, searchQuery]);
 
   const groups = useMemo(() => {
     const map = new Map<string, InsightWithSource[]>();
@@ -432,8 +513,6 @@ export function AllInsightsPanel() {
         activeType={activeTypeFilter}
         onSelect={(type) => {
           setActiveTypeFilter(type);
-          // When clicking a type card, also switch groupBy to source so you see
-          // insights for that type broken down by where they came from
           if (type && groupBy === "type") setGroupBy("source");
           if (!type) setGroupBy("type");
         }}
@@ -464,7 +543,19 @@ export function AllInsightsPanel() {
                 </Button>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Show excluded toggle — only visible if there are excluded insights */}
+              {excludedCount > 0 && (
+                <Button
+                  variant={showExcluded ? "default" : "outline"}
+                  size="sm"
+                  className="gap-1 h-8"
+                  onClick={() => setShowExcluded(!showExcluded)}
+                >
+                  <EyeOff className="w-3.5 h-3.5" />
+                  Excluded ({excludedCount})
+                </Button>
+              )}
               <Button
                 variant={starredOnly ? "default" : "outline"}
                 size="sm"
@@ -516,6 +607,7 @@ export function AllInsightsPanel() {
                 portfolioTickers={portfolioTickers}
                 showSource={groupBy !== "source"}
                 onToggleStar={toggleStar}
+                onToggleExclude={toggleExclude}
                 defaultOpen={idx === 0}
                 icon={getGroupIcon(key)}
                 accentColor={getGroupAccent(key)}
@@ -524,6 +616,17 @@ export function AllInsightsPanel() {
           )}
         </CardContent>
       </Card>
+
+      {/* Legend */}
+      <div className="flex items-center gap-3 flex-wrap px-1">
+        <span className="text-xs text-muted-foreground">Quality score:</span>
+        {[1, 2, 3, 4, 5].map((s) => (
+          <span key={s} className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span className={cn("inline-block w-2 h-2 rounded-full", SCORE_CONFIG[s].color)} />
+            {s} — {SCORE_CONFIG[s].label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

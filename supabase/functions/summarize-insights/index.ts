@@ -81,7 +81,8 @@ serve(async (req) => {
 
     console.log(`Calling Anthropic for ${insights_count} insights from ${newsletters_count} newsletters...`);
 
-    // Call Anthropic — non-streaming, max_tokens=4096 to stay within ~40s
+    // Call Anthropic — non-streaming, max_tokens=2500 to stay well within ~40s
+    // (Sonnet ~50-80 tok/s → 2500 tok ≈ 30-50s; 4096 was hitting the 55s abort timeout)
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 55000); // 55s — just under Supabase's 60s wall-clock limit
 
@@ -98,7 +99,7 @@ serve(async (req) => {
           model: "claude-sonnet-4-5-20250929",
           system: SYSTEM_PROMPT,
           messages: [{ role: "user", content: user_prompt }],
-          max_tokens: 4096,
+          max_tokens: 2500,
         }),
         signal: controller.signal,
       });

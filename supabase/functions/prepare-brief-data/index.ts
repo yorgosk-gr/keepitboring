@@ -85,7 +85,11 @@ serve(async (req) => {
     const [{ data: insights }, { data: positions }, { data: previousBrief }, marketContext] =
       await Promise.all([
         supabase.from("insights").select("*, newsletters(source_name)")
-          .in("newsletter_id", newsletterIds).order("created_at", { ascending: false }).limit(500),
+          .in("newsletter_id", newsletterIds)
+          .eq("excluded_from_brief", false)
+          .order("quality_score", { ascending: false, nullsFirst: false })
+          .order("created_at", { ascending: false })
+          .limit(500),
         supabase.from("positions")
           .select("ticker, name, position_type, category, market_value, weight_percent")
           .eq("user_id", user.id),

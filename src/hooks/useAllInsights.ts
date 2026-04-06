@@ -11,6 +11,8 @@ export interface InsightWithSource {
   tickers_mentioned: string[] | null;
   confidence_words: string[] | null;
   is_starred: boolean;
+  quality_score: number | null;
+  excluded_from_brief: boolean;
   created_at: string;
   source_name: string;
   upload_date: string;
@@ -39,8 +41,9 @@ export function useAllInsights() {
 
       const { data, error } = await supabase
         .from("insights")
-        .select("id, newsletter_id, insight_type, content, sentiment, tickers_mentioned, confidence_words, is_starred, created_at, newsletters(source_name, upload_date)")
+        .select("id, newsletter_id, insight_type, content, sentiment, tickers_mentioned, confidence_words, is_starred, quality_score, excluded_from_brief, created_at, newsletters(source_name, upload_date)")
         .in("newsletter_id", newsletterIds)
+        .order("quality_score", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
         .limit(2000);
 
@@ -55,6 +58,8 @@ export function useAllInsights() {
         tickers_mentioned: row.tickers_mentioned,
         confidence_words: row.confidence_words,
         is_starred: row.is_starred,
+        quality_score: row.quality_score,
+        excluded_from_brief: row.excluded_from_brief,
         created_at: row.created_at,
         source_name: row.newsletters?.source_name ?? "Unknown",
         upload_date: row.newsletters?.upload_date ?? "",
@@ -77,9 +82,23 @@ export function useAllInsights() {
     },
   });
 
+  const toggleExcludeMutation = useMutation({
+    mutationFn: async ({ id, excluded }: { id: string; excluded: boolean }) => {
+      const { error } = await supabase
+        .from("insights")
+        .update({ excluded_from_brief: excluded })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all_insights"] });
+    },
+  });
+
   return {
     insights: query.data ?? [],
     isLoading: query.isLoading,
     toggleStar: toggleStarMutation.mutate,
+    toggleExclude: toggleExcludeMutation.mutate,
   };
 }

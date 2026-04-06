@@ -327,143 +327,175 @@ EXTRACTION RULES:
     await supabase.from("insights").delete().eq("newsletter_id", newsletterId);
 
     const sourceConfidence = insights.source_profile?.confidence_score ?? 0.5;
-    const insightsToInsert = [];
+
+    // ── Quality scoring (1–5) ─────────────────────────────────────────────────
+    // Scores each insight on specificity, data-backing, and conviction.
+    // Score 1 = auto-excluded from brief (pure filler). Users can override any score.
+    const FILLER_PATTERNS = [
+      /markets? (are|remain[s]?) volatile/i,
+      /uncertainty remains/i,
+      /mixed signals/i,
+      /it'?s? hard to (say|predict|know)/i,
+      /we (will|shall) see/i,
+      /time will tell/i,
+      /proceed with caution/i,
+    ];
+    const isFiller = (text: string) => FILLER_PATTERNS.some((r) => r.test(text ?? ""));
+
+    function scoreInsight(
+      type: string,
+      meta: Record<string, any>,
+      content: string,
+    ): number {
+      let s = 2; // baseline — directional claim with no supporting data
+      switch (type) {
+        case "stock_mention":
+          if (meta.data_backed) s += 1;
+          if (meta.claim_specificity === "high") s += 1;
+          if (meta.catalyst) s += 1;
+          if (meta.claim_specificity === "low") s -= 1;
+          break;
+        case "macro":
+          if (meta.conviction_level === "high") s += 1;
+          if (meta.supporting_data) s += 1;
+          if (meta.is_consensus_view) s -= 1; // consensus = lower edge value
+          break;
+        case "recommendation":
+          if (meta.conviction_level === "high") s += 1;
+          if (meta.conviction_level === "low") s -= 1;
+          break;
+        case "bubble_signal":
+          s = 3; // inherently specific
+          if (meta.severity === "high") s += 1;
+          if (meta.severity === "low") s -= 1;
+          break;
+        case "sentiment":
+          // key takeaways are narrative summaries — moderately useful
+          s = 2;
+          if (meta.overall_conviction === "high") s += 1;
+          break;
+      }
+      if (isFiller(content)) s -= 1;
+      return Math.max(1, Math.min(5, s));
+    }
+
+    const insightsToInsert: any[] = [];
+
+    // Helper: build insight with auto quality_score + excluded_from_brief
+    const mkInsight = (
+      type: string,
+      content: string,
+      meta: Record<string, any>,
+      extra: Record<string, any>,
+    ) => {
+      const qs = scoreInsight(type, meta, content);
+      return {
+        newsletter_id: newsletterId,
+        insight_type: type,
+        content,
+        metadata: meta,
+        quality_score: qs,
+        excluded_from_brief: qs <= 1,
+        ...extra,
+      };
+    };
 
     // Stock mentions
     for (const stock of insights.stock_mentions || []) {
-      insightsToInsert.push({
-        newsletter_id: newsletterId,
-        insight_type: "stock_mention",
-        content: stock.summary,
+      const meta = {
+        management_tone: stock.management_tone,
+        guidance_revision: stock.guidance_revision,
+        earnings_surprise: stock.earnings_surprise,
+        claim_specificity: stock.claim_specificity,
+        data_backed: stock.data_backed,
+        catalyst: stock.catalyst || null,
+        source_confidence: sourceConfidence,
+      };
+      insightsToInsert.push(mkInsight("stock_mention", stock.summary, meta, {
         sentiment: stock.sentiment,
         tickers_mentioned: [stock.ticker],
         confidence_words: stock.confidence_language || [],
-        metadata: {
-          management_tone: stock.management_tone,
-          guidance_revision: stock.guidance_revision,
-          earnings_surprise: stock.earnings_surprise,
-          claim_specificity: stock.claim_specificity,
-          data_backed: stock.data_backed,
-          catalyst: stock.catalyst || null,
-          source_confidence: sourceConfidence,
-        },
-      });
+      }));
     }
 
     // Macro views
     for (const macro of insights.macro_views || []) {
-      insightsToInsert.push({
-        newsletter_id: newsletterId,
-        insight_type: "macro",
-        content: `${macro.topic}: ${macro.view}`,
+      const meta = {
+        conviction_level: macro.conviction_level,
+        is_consensus_view: macro.is_consensus_view,
+        supporting_data: macro.supporting_data,
+        source_confidence: sourceConfidence,
+      };
+      insightsToInsert.push(mkInsight("macro", `${macro.topic}: ${macro.view}`, meta, {
         sentiment: macro.sentiment,
         tickers_mentioned: [],
         confidence_words: macro.conviction_level ? [macro.conviction_level] : [],
-        metadata: {
-          conviction_level: macro.conviction_level,
-          is_consensus_view: macro.is_consensus_view,
-          supporting_data: macro.supporting_data,
-          source_confidence: sourceConfidence,
-        },
-      });
+      }));
     }
 
     // Sector views
     for (const sector of insights.sector_views || []) {
-      insightsToInsert.push({
-        newsletter_id: newsletterId,
-        insight_type: "recommendation",
-        content: `${sector.sector}: ${sector.view}`,
+      const meta = { conviction_level: sector.conviction_level, source_confidence: sourceConfidence };
+      insightsToInsert.push(mkInsight("recommendation", `${sector.sector}: ${sector.view}`, meta, {
         sentiment: sector.sentiment,
         tickers_mentioned: [],
         confidence_words: [],
-        metadata: {
-          conviction_level: sector.conviction_level,
-          source_confidence: sourceConfidence,
-        },
-      });
+      }));
     }
 
     // Bubble signals
     for (const bubble of insights.bubble_signals || []) {
-      insightsToInsert.push({
-        newsletter_id: newsletterId,
-        insight_type: "bubble_signal",
-        content: `"${bubble.phrase}" - ${bubble.context}`,
+      const meta = { severity: bubble.severity, source_confidence: sourceConfidence };
+      insightsToInsert.push(mkInsight("bubble_signal", `"${bubble.phrase}" - ${bubble.context}`, meta, {
         sentiment: "bearish",
         tickers_mentioned: [],
         confidence_words: [],
-        metadata: {
-          severity: bubble.severity,
-          source_confidence: sourceConfidence,
-        },
-      });
+      }));
     }
 
     // Country views
     for (const cv of insights.country_views || []) {
-      insightsToInsert.push({
-        newsletter_id: newsletterId,
-        insight_type: "macro",
-        content: `Country: ${cv.country}: ${cv.view}`,
+      const meta = { conviction_level: cv.conviction_level, source_confidence: sourceConfidence };
+      insightsToInsert.push(mkInsight("macro", `Country: ${cv.country}: ${cv.view}`, meta, {
         sentiment: cv.sentiment,
         tickers_mentioned: cv.etf_proxy ? [cv.etf_proxy] : [],
         confidence_words: [],
-        metadata: {
-          conviction_level: cv.conviction_level,
-          source_confidence: sourceConfidence,
-        },
-      });
+      }));
     }
 
     // Sector tilts
     for (const st of insights.sector_tilts || []) {
-      insightsToInsert.push({
-        newsletter_id: newsletterId,
-        insight_type: "recommendation",
-        content: `Sector tilt: ${st.sector}: ${st.direction} — ${st.reasoning}`,
-        sentiment: st.direction === "overweight" ? "bullish" : st.direction === "underweight" ? "bearish" : "neutral",
+      const meta = { conviction_level: st.conviction, source_confidence: sourceConfidence };
+      const sentiment = st.direction === "overweight" ? "bullish" : st.direction === "underweight" ? "bearish" : "neutral";
+      insightsToInsert.push(mkInsight("recommendation", `Sector tilt: ${st.sector}: ${st.direction} — ${st.reasoning}`, meta, {
+        sentiment,
         tickers_mentioned: [],
         confidence_words: st.conviction ? [st.conviction] : [],
-        metadata: {
-          conviction_level: st.conviction,
-          source_confidence: sourceConfidence,
-        },
-      });
+      }));
     }
 
     // Stock ideas
     for (const si of insights.stock_ideas || []) {
-      insightsToInsert.push({
-        newsletter_id: newsletterId,
-        insight_type: "stock_mention",
-        content: `${si.name || si.ticker}: ${si.thesis}`,
+      const meta = { claim_specificity: si.claim_specificity, catalyst: si.catalyst, source_confidence: sourceConfidence };
+      insightsToInsert.push(mkInsight("stock_mention", `${si.name || si.ticker}: ${si.thesis}`, meta, {
         sentiment: si.sentiment || "bullish",
         tickers_mentioned: [si.ticker],
         confidence_words: [],
-        metadata: {
-          claim_specificity: si.claim_specificity,
-          catalyst: si.catalyst,
-          source_confidence: sourceConfidence,
-        },
-      });
+      }));
     }
 
     // Key takeaways
     for (const takeaway of insights.key_takeaways || []) {
-      insightsToInsert.push({
-        newsletter_id: newsletterId,
-        insight_type: "sentiment",
-        content: takeaway,
+      const meta = {
+        overall_conviction: insights.overall_conviction,
+        source_confidence: sourceConfidence,
+        notable_omissions: insights.notable_omissions || [],
+      };
+      insightsToInsert.push(mkInsight("sentiment", takeaway, meta, {
         sentiment: insights.overall_sentiment || "neutral",
         tickers_mentioned: [],
         confidence_words: [],
-        metadata: {
-          overall_conviction: insights.overall_conviction,
-          source_confidence: sourceConfidence,
-          notable_omissions: insights.notable_omissions || [],
-        },
-      });
+      }));
     }
 
     if (insightsToInsert.length > 0) {
@@ -522,7 +554,7 @@ EXTRACTION RULES:
     // Wait for both in parallel
     await Promise.all([updateNewsletterPromise, updateReputationPromise]);
 
-    console.log(`Successfully processed newsletter ${newsletterId}, inserted ${insightsToInsert.length} insights`);
+    console.log(`Successfully processed newsletter ${newsletterId}, inserted ${insightsToInsert.length} insights (scores: ${insightsToInsert.map((i: any) => i.quality_score).join(",")})`);
 
     return new Response(
       JSON.stringify({
