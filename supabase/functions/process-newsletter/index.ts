@@ -25,16 +25,12 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const isServiceRole = token === supabaseKey;
-
-    if (!isServiceRole) {
-      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-      if (authError || !user) {
-        return new Response(
-          JSON.stringify({ error: "Unauthorized" }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const { newsletterId, rawText } = await req.json();

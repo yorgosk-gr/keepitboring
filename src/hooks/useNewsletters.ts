@@ -217,6 +217,7 @@ export function useNewsletters() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["newsletters"] });
+      queryClient.invalidateQueries({ queryKey: ["all_insights"] });
       toast.success(`Extracted ${result.insights_count} insights!`);
     },
     onError: (error) => {
@@ -245,6 +246,7 @@ export function useNewsletters() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["newsletters"] });
+      queryClient.invalidateQueries({ queryKey: ["all_insights"] });
       toast.success("Newsletter deleted");
     },
     onError: (error) => {

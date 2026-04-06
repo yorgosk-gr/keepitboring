@@ -82,10 +82,14 @@ export default function Newsletters() {
       }
       done++;
       setBulkProgress({ done, total: unprocessed.length });
-      await new Promise(r => setTimeout(r, delay));
+      // Don't delay after the last item
+      if (done < unprocessed.length) {
+        await new Promise(r => setTimeout(r, delay));
+      }
     }
     setIsBulkProcessing(false);
     setBulkProgress(null);
+    refetchNewsletters(); // Refresh list so banner count and status badges update
     const successCount = done - failures;
     if (failures > 0) {
       toast.warning(`Reprocessed ${successCount}/${done} newsletters (${failures} failed)`);

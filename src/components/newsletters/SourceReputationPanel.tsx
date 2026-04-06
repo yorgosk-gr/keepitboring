@@ -20,7 +20,8 @@ export function SourceReputationPanel() {
     if (!isLoading && sources.length === 0) {
       rebuildReputation();
     }
-  }, [isLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, sources.length]);
 
   if (isLoading) {
     return (

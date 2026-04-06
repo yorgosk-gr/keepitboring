@@ -25,16 +25,27 @@ export function useAllInsights() {
     queryFn: async () => {
       const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
 
+      // First get this user's newsletter IDs from the last 10 days so we
+      // filter at the DB level rather than fetching everything and discarding.
+      const { data: userNewsletters } = await supabase
+        .from("newsletters")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("is_archived", false)
+        .gte("created_at", tenDaysAgo);
+
+      const newsletterIds = (userNewsletters ?? []).map((n: any) => n.id);
+      if (newsletterIds.length === 0) return [];
+
       const { data, error } = await supabase
         .from("insights")
         .select("id, newsletter_id, insight_type, content, sentiment, tickers_mentioned, confidence_words, is_starred, created_at, newsletters(source_name, upload_date)")
-        .gte("created_at", tenDaysAgo)
+        .in("newsletter_id", newsletterIds)
         .order("created_at", { ascending: false })
-        .limit(1000);
+        .limit(2000);
 
       if (error) throw error;
 
-      // Filter to only this user's insights (via newsletter ownership) and flatten
       return (data ?? []).map((row: any) => ({
         id: row.id,
         newsletter_id: row.newsletter_id,
