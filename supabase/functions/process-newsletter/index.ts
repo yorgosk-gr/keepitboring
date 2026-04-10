@@ -381,6 +381,11 @@ EXTRACTION RULES:
 
     const insightsToInsert: any[] = [];
 
+    // Sanitize sentiment — DB has a CHECK constraint: must be bullish|bearish|neutral
+    const VALID_SENTIMENTS = new Set(["bullish", "bearish", "neutral"]);
+    const sanitizeSentiment = (s: unknown): string =>
+      typeof s === "string" && VALID_SENTIMENTS.has(s) ? s : "neutral";
+
     // Helper: build insight with auto quality_score + excluded_from_brief
     const mkInsight = (
       type: string,
@@ -397,6 +402,7 @@ EXTRACTION RULES:
         quality_score: qs,
         excluded_from_brief: qs <= 1,
         ...extra,
+        sentiment: sanitizeSentiment(extra.sentiment), // always override with sanitized value
       };
     };
 
