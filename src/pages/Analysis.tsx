@@ -9,6 +9,7 @@ import { usePositions, type Position } from "@/hooks/usePositions";
 import { useIdealAllocation, type IdealETF } from "@/hooks/useIdealAllocation";
 import { useInsightsSummary } from "@/hooks/useInsightsSummary";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
+import { RecommendedActionsCard } from "@/components/analysis/RecommendedActionsCard";
 import { format, formatDistanceToNow } from "date-fns";
 
 export default function Analysis() {
@@ -20,6 +21,8 @@ export default function Analysis() {
     runAnalysis,
     isAnalyzing,
     hasData,
+    markActionCompleted,
+    dismissAction,
   } = usePortfolioAnalysis();
   const { positions } = usePositions();
   const { result: idealAllocation, generate: generateIdealAllocation, isGenerating: isGeneratingIdeal } = useIdealAllocation();
@@ -91,6 +94,9 @@ export default function Analysis() {
         industry_recommendations: rawResponse?.industry_recommendations,
         portfolio_health_score: latest.health_score ?? 0,
         summary: latest.summary ?? "",
+        health_score_breakdown: rawResponse?.health_score_breakdown ?? undefined,
+        ideal_allocation: rawResponse?.ideal_allocation ?? null,
+        analysis_meta: rawResponse?.analysis_meta ?? undefined,
       } as any);
 
       // Restore persisted action states (completed/dismissed)
@@ -234,6 +240,9 @@ export default function Analysis() {
                   trades_involved: [trade.ticker],
                 });
               }}
+              onMarkCompleted={markActionCompleted}
+              onDismiss={dismissAction}
+              onLogDecisionAction={(recommendation) => setLogDecisionRec(recommendation ?? null)}
             />
           )}
 
@@ -319,7 +328,7 @@ export default function Analysis() {
   );
 }
 
-function AnalysisTextView({ analysis, positions = [], onLogDecision }: { analysis: AnalysisResult; positions?: Position[]; onLogDecision?: (trade: TradeRecommendation) => void }) {
+function AnalysisTextView({ analysis, positions = [], onLogDecision, onMarkCompleted, onDismiss, onLogDecisionAction }: { analysis: AnalysisResult; positions?: Position[]; onLogDecision?: (trade: TradeRecommendation) => void; onMarkCompleted?: (index: number) => void; onDismiss?: (index: number, reason: string) => void; onLogDecisionAction?: (recommendation?: RecommendedAction) => void }) {
   const alloc = analysis.allocation_check;
   const filteredAlerts = analysis.position_alerts.filter((a) => 
     a.alert_type !== "rationale" && 
@@ -529,7 +538,9 @@ function AnalysisTextView({ analysis, positions = [], onLogDecision }: { analysi
                       {tr.shares_to_trade !== 0 ? (tr.shares_to_trade > 0 ? `+${tr.shares_to_trade}` : tr.shares_to_trade) : "—"}
                     </td>
                     <td className="py-2 text-right text-muted-foreground">
-                      {tr.current_weight.toFixed(1)}% → {tr.target_weight.toFixed(1)}%
+                      {tr.action === "HOLD"
+                        ? `${tr.current_weight.toFixed(1)}%`
+                        : `${tr.current_weight.toFixed(1)}% → ${tr.target_weight.toFixed(1)}%`}
                     </td>
                     <td className="py-2 text-muted-foreground text-xs max-w-[300px]">{tr.reasoning}</td>
                     <td className="py-2">
@@ -689,22 +700,14 @@ function AnalysisTextView({ analysis, positions = [], onLogDecision }: { analysi
       )}
 
       {/* Recommended Actions */}
-      {analysis.recommended_actions.length > 0 && (
+      {analysis.recommended_actions.length > 0 && onMarkCompleted && onDismiss && (
         <section>
-          <h2 className="text-lg font-semibold mb-3 border-b border-border pb-2">Recommended Actions</h2>
-          <ol className="space-y-3">
-            {analysis.recommended_actions.map((action, i) => (
-              <li key={i} className="text-sm">
-                <p className="font-medium">
-                  <span className="text-primary">{i + 1}.</span> {action.action}
-                  <span className="text-muted-foreground font-normal ml-2">
-                    ({action.confidence} confidence)
-                  </span>
-                </p>
-                <p className="text-muted-foreground ml-5">{action.reasoning}</p>
-              </li>
-            ))}
-          </ol>
+          <RecommendedActionsCard
+            actions={analysis.recommended_actions}
+            onMarkCompleted={onMarkCompleted}
+            onDismiss={onDismiss}
+            onLogDecision={onLogDecisionAction ?? (() => {})}
+          />
         </section>
       )}
     </article>
