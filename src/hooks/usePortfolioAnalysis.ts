@@ -238,20 +238,28 @@ export function usePortfolioAnalysis() {
       // Get unique newsletter count
       const uniqueNewsletterIds = new Set(selectedInsights.map((i) => i.newsletter_id));
 
-      // Fetch cash balance from latest snapshot
+      // Fetch cash balance from ib_accounts (where IB sync stores it) — primary source
+      const { data: ibAccountData } = await supabase
+        .from("ib_accounts")
+        .select("cash_balance")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+
+      const ibAccountCash = ibAccountData?.cash_balance ?? 0;
+
+      // Fallback: portfolio_snapshots (may be stale)
       const { data: snapshotData } = await supabase
         .from("portfolio_snapshots")
         .select("cash_balance")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       const snapshotCash = snapshotData?.cash_balance ?? 0;
 
-      // Separate cash positions (IB reports cash as a position with position_type "cash").
-      // Also check asset_class directly — existing DB records imported before the fix may still
-      // have position_type = "stock" for IB cash positions (asset_class = "CASH"/"FX"/"FXCONV").
+      // Separate any cash-type positions from ib_positions (some IB configs report
+      // forex balances as positions with asset_class = "CASH"/"FX"/"FXCONV")
       const CASH_ASSET_CLASSES = new Set(["CASH", "FX", "FXCONV"]);
       const isCashPosition = (p: any) =>
         p.position_type === "cash" ||
@@ -260,8 +268,10 @@ export function usePortfolioAnalysis() {
       const nonCashPositions = positions.filter((p) => !isCashPosition(p));
       const cashFromPositions = cashPositions.reduce((s, p) => s + (p.market_value ?? 0), 0);
 
-      // Combine snapshot cash with IB cash position value (avoid double-counting)
-      const cashBalance = cashFromPositions > 0 ? cashFromPositions : snapshotCash;
+      // Use the best available cash source: ib_accounts (primary), cash positions, then snapshots
+      const cashBalance = ibAccountCash > 0 ? ibAccountCash
+        : cashFromPositions > 0 ? cashFromPositions
+        : snapshotCash;
 
       // Calculate live portfolio values (excluding cash positions — cash tracked separately)
       const livePositionsValue = nonCashPositions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
