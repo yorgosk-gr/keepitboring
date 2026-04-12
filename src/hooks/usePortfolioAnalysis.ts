@@ -238,44 +238,64 @@ export function usePortfolioAnalysis() {
       // Get unique newsletter count
       const uniqueNewsletterIds = new Set(selectedInsights.map((i) => i.newsletter_id));
 
-      // Fetch cash balance from ib_accounts (where IB sync stores it) — primary source
-      const { data: ibAccountData } = await supabase
-        .from("ib_accounts")
-        .select("cash_balance")
-        .eq("user_id", user!.id)
-        .maybeSingle();
-
-      const ibAccountCash = ibAccountData?.cash_balance ?? 0;
-
-      // Fallback: portfolio_snapshots (may be stale)
-      const { data: snapshotData } = await supabase
-        .from("portfolio_snapshots")
-        .select("cash_balance")
-        .eq("user_id", user!.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const snapshotCash = snapshotData?.cash_balance ?? 0;
-
-      // Separate any cash-type positions from ib_positions (some IB configs report
-      // forex balances as positions with asset_class = "CASH"/"FX"/"FXCONV")
+      // Filter out any cash-type positions (IB may report forex balances as positions)
       const CASH_ASSET_CLASSES = new Set(["CASH", "FX", "FXCONV"]);
       const isCashPosition = (p: any) =>
         p.position_type === "cash" ||
         CASH_ASSET_CLASSES.has((p.asset_class ?? "").toUpperCase());
-      const cashPositions = positions.filter(isCashPosition);
       const nonCashPositions = positions.filter((p) => !isCashPosition(p));
-      const cashFromPositions = cashPositions.reduce((s, p) => s + (p.market_value ?? 0), 0);
-
-      // Use the best available cash source: ib_accounts (primary), cash positions, then snapshots
-      const cashBalance = ibAccountCash > 0 ? ibAccountCash
-        : cashFromPositions > 0 ? cashFromPositions
-        : snapshotCash;
-
-      // Calculate live portfolio values (excluding cash positions — cash tracked separately)
       const livePositionsValue = nonCashPositions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
-      const totalPortfolioValue = livePositionsValue + cashBalance;
+
+      // Derive cash from IB's NAV: every position has percent_of_nav.
+      // NAV = position_value / (percent_of_nav / 100). Cash = NAV - non-cash positions.
+      // This is the only truly reliable method — doesn't depend on which DB column has the right cash value.
+      const navRef = nonCashPositions.find(
+        (p) => p.market_value && p.weight_percent && p.weight_percent > 0
+      );
+      let cashBalance = 0;
+      let totalPortfolioValue = livePositionsValue;
+
+      if (navRef) {
+        const estimatedNav = (navRef.market_value! / navRef.weight_percent!) * 100;
+        cashBalance = Math.max(0, Math.round((estimatedNav - livePositionsValue) * 100) / 100);
+        totalPortfolioValue = estimatedNav;
+      } else {
+        // Fallback: ib_accounts > portfolio_snapshots > cash positions
+        const { data: ibAccountData } = await supabase
+          .from("ib_accounts")
+          .select("cash_balance")
+          .eq("user_id", user!.id)
+          .maybeSingle();
+        const { data: snapshotData } = await supabase
+          .from("portfolio_snapshots")
+          .select("cash_balance")
+          .eq("user_id", user!.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const cashFromPositions = positions.filter(isCashPosition)
+          .reduce((s, p) => s + (p.market_value ?? 0), 0);
+        cashBalance = Math.max(
+          ibAccountData?.cash_balance ?? 0,
+          snapshotData?.cash_balance ?? 0,
+          cashFromPositions
+        );
+        totalPortfolioValue = livePositionsValue + cashBalance;
+      }
+
+      console.log("[Analysis] Cash derivation:", {
+        method: navRef ? "NAV" : "fallback",
+        navRefTicker: navRef?.ticker,
+        navRefValue: navRef?.market_value,
+        navRefWeight: navRef?.weight_percent,
+        estimatedNav: navRef ? (navRef.market_value! / navRef.weight_percent!) * 100 : null,
+        livePositionsValue,
+        cashBalance,
+        totalPortfolioValue,
+        cashPercent: ((cashBalance / totalPortfolioValue) * 100).toFixed(1),
+        nonCashCount: nonCashPositions.length,
+        totalPositionCount: positions.length,
+      });
 
       // Read the latest intelligence brief (user generates these via the Newsletters page)
       const { data: intelligenceBrief } = await supabase
