@@ -29,6 +29,7 @@ export interface Position {
   cost_basis_money: number | null;
   bet_type: string | null;
   invalidation_trigger: string | null;
+  asset_class: string | null;
 }
 
 // Annotation-only form data (no shares/price/ticker editing)
@@ -153,6 +154,7 @@ export function usePositions() {
       cost_basis_money: ib.cost_basis_money,
       bet_type: ann?.bet_type || null,
       invalidation_trigger: ann?.invalidation_trigger || null,
+      asset_class: ib.asset_class || null,
     };
   });
 
