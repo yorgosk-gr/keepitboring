@@ -152,17 +152,28 @@ export default function Analysis() {
                 </p>
               )}
               {briefAge && (
-                <p className="text-xs">
-                  <span className="text-muted-foreground">Intelligence brief: </span>
-                  <span className={
-                    briefDaysOld !== null && briefDaysOld > 7 ? "text-destructive font-medium" :
-                    briefDaysOld !== null && briefDaysOld > 3 ? "text-amber-500 font-medium" :
-                    "text-emerald-500"
-                  }>
-                    {briefAge}
-                    {briefDaysOld !== null && briefDaysOld > 7 && " — stale, regen recommended"}
-                  </span>
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs">
+                    <span className="text-muted-foreground">Intelligence brief: </span>
+                    <span className={
+                      briefDaysOld !== null && briefDaysOld >= 5 ? "text-destructive font-medium" :
+                      briefDaysOld !== null && briefDaysOld >= 2 ? "text-amber-500 font-medium" :
+                      "text-emerald-500"
+                    }>
+                      {briefAge}
+                      {briefDaysOld !== null && briefDaysOld >= 5 && " — stale"}
+                      {briefDaysOld !== null && briefDaysOld >= 2 && briefDaysOld < 5 && " — consider refreshing"}
+                    </span>
+                  </p>
+                  {briefDaysOld !== null && briefDaysOld >= 2 && (
+                    <a
+                      href="/newsletters"
+                      className="text-xs text-primary underline underline-offset-2 hover:text-primary/80"
+                    >
+                      Regen brief →
+                    </a>
+                  )}
+                </div>
               )}
               {!latestBrief && (
                 <p className="text-xs text-destructive">No intelligence brief — generate one from the Newsletters page</p>
@@ -327,6 +338,43 @@ function AnalysisTextView({ analysis, positions = [], onLogDecision }: { analysi
           Portfolio Health Score: {analysis.portfolio_health_score}/100
         </h2>
         <p className="text-muted-foreground">{analysis.summary}</p>
+        {(analysis as any).health_score_breakdown && (analysis as any).health_score_breakdown.length > 0 && (
+          <div className="mt-4">
+            <h3 className="text-sm font-semibold text-foreground mb-2">Score Breakdown (Hard Rules)</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-muted-foreground border-b border-border">
+                    <th className="pb-1 font-medium">Rule</th>
+                    <th className="pb-1 font-medium text-right">Current</th>
+                    <th className="pb-1 font-medium text-right">Target</th>
+                    <th className="pb-1 font-medium text-right">Status</th>
+                    <th className="pb-1 font-medium text-right">Deducted</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {(analysis as any).health_score_breakdown.map((item: any, i: number) => (
+                    <tr key={i} className={item.status === "breach" ? "text-destructive" : "text-muted-foreground"}>
+                      <td className="py-1">{item.rule}</td>
+                      <td className="py-1 text-right font-mono">{item.current}%</td>
+                      <td className="py-1 text-right font-mono">{item.target}</td>
+                      <td className="py-1 text-right">
+                        {item.status === "breach" ? (
+                          <span className="text-destructive font-medium">breach</span>
+                        ) : (
+                          <span className="text-emerald-500">ok</span>
+                        )}
+                      </td>
+                      <td className="py-1 text-right font-mono">
+                        {item.points_deducted > 0 ? `-${item.points_deducted}` : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Allocation */}
@@ -423,6 +471,11 @@ function AnalysisTextView({ analysis, positions = [], onLogDecision }: { analysi
           <h2 className="text-lg font-semibold mb-3 border-b border-border pb-2">Trade Recommendations</h2>
           {analysis.rebalancing_summary && (
             <div className="text-sm text-muted-foreground mb-3 space-y-0.5">
+              {(analysis.rebalancing_summary as any).execution_sequence_summary && (
+                <p className="text-foreground font-medium mb-1">
+                  Execution order: {(analysis.rebalancing_summary as any).execution_sequence_summary}
+                </p>
+              )}
               <p>Total sells: {analysis.rebalancing_summary.total_sells} · Total buys: {analysis.rebalancing_summary.total_buys}</p>
               <p>Net cash impact: {analysis.rebalancing_summary.net_cash_impact}</p>
               <p>Primary goal: {analysis.rebalancing_summary.primary_goal}</p>
@@ -432,6 +485,7 @@ function AnalysisTextView({ analysis, positions = [], onLogDecision }: { analysi
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-muted-foreground border-b border-border">
+                  <th className="pb-2 font-medium w-8">Exec</th>
                   <th className="pb-2 font-medium">Ticker</th>
                   <th className="pb-2 font-medium">Action</th>
                   <th className="pb-2 font-medium text-right">Shares</th>
@@ -441,8 +495,26 @@ function AnalysisTextView({ analysis, positions = [], onLogDecision }: { analysi
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {analysis.trade_recommendations.map((tr, i) => (
+                {[...analysis.trade_recommendations]
+                  .sort((a, b) => {
+                    const sa = (a as any).execution_step ?? Infinity;
+                    const sb = (b as any).execution_step ?? Infinity;
+                    return sa - sb;
+                  })
+                  .map((tr, i) => (
                   <tr key={i}>
+                    <td className="py-2">
+                      {(tr as any).execution_step != null ? (
+                        <span
+                          title={(tr as any).execution_note ?? ""}
+                          className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-medium cursor-default"
+                        >
+                          {(tr as any).execution_step}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </td>
                     <td className="py-2 font-mono font-bold">{tr.ticker}</td>
                     <td className="py-2">
                       <span className={

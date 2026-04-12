@@ -33,11 +33,21 @@ interface RuleEvaluationMetrics {
   antifragile_percent: number;
 }
 
+interface HealthScoreBreakdownItem {
+  rule: string;
+  metric: string;
+  current: number;
+  target: string;
+  status: "breach" | "ok";
+  points_deducted: number;
+}
+
 interface RuleEvaluation {
   entries: RuleEvaluationEntry[];
   main_allocation_issues: string[];
   soft_issues: string[];
   metrics: RuleEvaluationMetrics;
+  health_score_breakdown: HealthScoreBreakdownItem[];
 }
 
 function computeRuleEvaluation(
@@ -223,6 +233,35 @@ function computeRuleEvaluation(
     }
   }
 
+  // Compute health score breakdown from hard rule entries
+  const healthScoreBreakdown: HealthScoreBreakdownItem[] = safeRules
+    .filter((r: any) => (r.rule_enforcement ?? "hard").toLowerCase() === "hard")
+    .map((r: any) => {
+      const entry = entries.find((e: any) => e.rule_id === r.id || e.name === r.name);
+      const status = entry?.status ?? "within_range";
+      const current = entry?.current ?? 0;
+      const isBreach = status === "underweight" || status === "overweight";
+      let pointsDeducted = 0;
+      if (isBreach) {
+        const min = r.threshold_min ?? 0;
+        const max = r.threshold_max ?? 100;
+        const overshoot = status === "overweight" ? current - max : min - current;
+        pointsDeducted = overshoot > 5 ? 20 : 10;
+      }
+      return {
+        rule: r.name,
+        metric: r.metric || "",
+        current: parseFloat((current ?? 0).toFixed(1)),
+        target: r.threshold_min !== null && r.threshold_min !== undefined && r.threshold_max !== null && r.threshold_max !== undefined
+          ? `${r.threshold_min}–${r.threshold_max}%`
+          : r.threshold_max !== null && r.threshold_max !== undefined
+            ? `≤${r.threshold_max}%`
+            : `≥${r.threshold_min}%`,
+        status: isBreach ? "breach" as const : "ok" as const,
+        points_deducted: pointsDeducted,
+      };
+    });
+
   return {
     entries,
     main_allocation_issues: issues.slice(0, 3),
@@ -238,6 +277,7 @@ function computeRuleEvaluation(
       stocks_of_equities_percent: parseFloat(stocksOfEquitiesPercent.toFixed(2)),
       antifragile_percent: parseFloat(antifragilePercent.toFixed(2)),
     },
+    health_score_breakdown: healthScoreBreakdown,
   };
 }
 
@@ -456,6 +496,7 @@ serve(async (req) => {
       portfolio_strategy,
       north_star,
       book_principles,
+      etf_overlap,
     } = await req.json();
 
     // ── Deterministic Rule Evaluation ─────────────────────────────────
@@ -583,6 +624,14 @@ ANTI-FRAGILE RULE
 HARD CASH CONSTRAINT — NON-NEGOTIABLE
 Use RULE_EVALUATION.metrics.cash_percent as authoritative.
 
+If cash_percent > 10% AND bonds_percent < bonds_minimum_rule:
+- MANDATORY: recommend deploying cash into bonds FIRST before any equity sells.
+- Calculate: bond_gap_dollars = (bonds_target_pct - bonds_percent) / 100 * total_portfolio_value.
+- If cash covers the bond gap: fund the entire bond purchase from cash. Zero equity sells required for bond funding.
+- recommended_actions priority 1 MUST be: "Deploy $[X] from cash into [BOND_ETF] to establish bond allocation"
+- The primary_goal in rebalancing_summary MUST reference cash deployment, not equity sales.
+- NEVER recommend selling equities to fund bonds when sufficient cash exists to cover the gap.
+
 If cash_percent ≤ 0.1:
 - Portfolio is fully invested. total_buys_value MUST NOT exceed total_sells_value.
 - net_cash_impact MUST be ≥ 0.
@@ -590,7 +639,7 @@ If cash_percent ≤ 0.1:
 - Fund ALL equity buys by trimming bonds, commodities, or stocks.
 - Before finalizing: if total_buys > total_sells, reduce buy sizes until balanced.
 
-If cash_percent > 0.1:
+If 0.1 < cash_percent ≤ 10:
 - Buys may be funded partly by cash, but numeric totals MUST match.
 
 ALLOCATION CONSISTENCY RULE
@@ -657,6 +706,41 @@ INTELLIGENCE BRIEF INTEGRATION
 - Reflect in trade_recommendations and market_signals.
 - Do NOT contradict explicit data in the brief.
 
+INTELLIGENCE BRIEF FRESHNESS
+The brief was generated BRIEF_HOURS_OLD hours ago (see ETF_OVERLAP_ANALYSIS or user prompt context). If the brief is > 48 hours old, note in the summary that the brief may be stale and the user should regenerate it before next week's trades.
+
+ETF OVERLAP & GEOGRAPHIC TILTS
+The caller provides ETF_OVERLAP_ANALYSIS with:
+- broad_etfs: broad all-world/developed ETFs held and their portfolio weight
+- regional_etfs: single-region ETFs and their weight
+- effective_exposure: total effective geographic exposure after combining broad + regional
+- tilts: per regional ETF, shows direct_weight_pct, baseline_pct (what broad ETF already gives), effective_total_pct, has_thesis
+
+RULES FOR OVERLAPS:
+1. Use effective_exposure values to populate equity_by_geography — these are the TRUE exposures, not just position weights.
+2. For each regional ETF tilt: if has_thesis=true OR Intelligence Brief explicitly supports that region as overweight → mark as INTENTIONAL. Do NOT flag as an alert.
+3. If has_thesis=false AND Intelligence Brief does NOT support the region → flag in position_alerts as alert_type="rationale", severity="warning", issue="Overlap: [TICKER] adds [X]% [region] exposure on top of [Y]% already in [BROAD_ETF] — no stated rationale for this tilt."
+4. NEVER recommend selling a position solely because it overlaps with a broad ETF — only flag when the overlap is large (>8pp tilt) AND there is no thesis or brief support.
+5. If VWRA already gives the user Japan at 6% but they hold IJPA adding 17% more → that's clearly intentional tilting. Respect it if brief supports Japan or has_thesis=true.
+
+ALLOCATION_CHECK FIELDS — GEOGRAPHIC EXPOSURE
+- equity_by_geography: use ETF_OVERLAP_ANALYSIS.effective_exposure to show TRUE geographic exposures (not just direct ETF weights). Express each as percent of total portfolio.
+
+TRADE EXECUTION SEQUENCING & GUIDANCE
+For each non-HOLD trade recommendation:
+1. Assign execution_step (integer starting at 1) in this ORDER:
+   - Step 1: Cash-funded BUYs (no settlement wait — use available cash directly)
+   - Step 2: SELLs (submit; proceeds settle T+2)
+   - Step 3: Buys funded by sell proceeds (place after T+2 settlement)
+   - HOLDs: execution_step = null
+2. order_type:
+   - "limit" for any position with estimated_value > $10,000 — suggest limit 0.3% from mid to avoid slippage
+   - "market" for small positions (< $5,000) or highly liquid ETFs where spread is negligible
+3. execution_note: ≤ 15 words explaining timing/type, e.g.:
+   - "Use available cash — place immediately, market order fine"
+   - "Limit order 0.3% below ask — LSE ETF, T+2 settlement"
+   - "Place after EIMI sale settles (T+2 from sell date)"
+
 JSON OUTPUT SCHEMA — MATCH THIS EXACT SHAPE:
 {
   "allocation_check": {
@@ -705,14 +789,21 @@ JSON OUTPUT SCHEMA — MATCH THIS EXACT SHAPE:
     "target_weight": number,
     "reasoning": string,
     "urgency": "low" | "medium" | "high",
-    "rationale_aligned": boolean
+    "rationale_aligned": boolean,
+    "execution_step": number | null,
+    "order_type": "market" | "limit",
+    "execution_note": string
   }],
   "rebalancing_summary": {
     "total_sells": string,
     "total_buys": string,
     "net_cash_impact": string,
-    "primary_goal": string
+    "primary_goal": string,
+    "execution_sequence_summary": string
   },
+  "health_score_breakdown": [
+    { "rule": string, "current": number, "target": string, "status": "breach" | "ok", "points_deducted": number }
+  ],
   "bond_recommendations": {
     "current_bond_percent": number,
     "target_bond_percent": number,
@@ -783,7 +874,12 @@ ${portfolioInsights.map((i: any) => `- [${i.source_name ?? "Newsletter"}] Ticker
 RECENT DECISION LOG:
 ${JSON.stringify(decisions, null, 2)}
 
-${intelligence_brief ? `INTELLIGENCE BRIEF (${intelligence_brief.newsletters_analyzed ?? 0} newsletters, ${intelligence_brief.insights_analyzed ?? 0} insights):
+${etf_overlap ? `ETF_OVERLAP_ANALYSIS:
+${JSON.stringify(etf_overlap, null, 2)}
+
+` : "No ETF overlap data available."}
+
+${intelligence_brief ? `INTELLIGENCE BRIEF (${intelligence_brief.newsletters_analyzed ?? 0} newsletters, ${intelligence_brief.insights_analyzed ?? 0} insights, generated_at: ${intelligence_brief.generated_at ?? "unknown"}, age_hours: ${intelligence_brief.generated_at ? Math.round((Date.now() - new Date(intelligence_brief.generated_at).getTime()) / (1000 * 60 * 60)) : "unknown"}):
 Weekly Priority: ${intelligence_brief.weekly_priority || "N/A"}
 
 Temporal Shifts (view changes since last brief):

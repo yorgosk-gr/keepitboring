@@ -81,6 +81,9 @@ export interface TradeRecommendation {
   rationale_aligned: boolean | null;
   /** @deprecated Use rationale_aligned */
   thesis_aligned?: boolean | null;
+  execution_step?: number | null;
+  order_type?: "market" | "limit";
+  execution_note?: string;
 }
 
 export interface RebalancingSummary {
@@ -88,6 +91,15 @@ export interface RebalancingSummary {
   total_buys: string;
   net_cash_impact: string;
   primary_goal: string;
+  execution_sequence_summary?: string;
+}
+
+export interface HealthScoreBreakdownItem {
+  rule: string;
+  current: number;
+  target: string;
+  status: "breach" | "ok";
+  points_deducted: number;
 }
 
 export interface AnalysisMeta {
@@ -132,6 +144,7 @@ export interface AnalysisResult {
   summary: string;
   thesis_checks?: any[]; // always [] from v2, kept for compat
   analysis_meta?: AnalysisMeta;
+  health_score_breakdown?: HealthScoreBreakdownItem[];
 }
 
 export interface AnalysisHistory {
@@ -285,6 +298,68 @@ export function usePortfolioAnalysis() {
         }));
       }
 
+      // ── ETF Overlap & Effective Geographic Exposure ─────────────────────
+      // Common broad all-world / developed ETFs and their approximate underlying weights
+      const BROAD_ETF_WEIGHTS: Record<string, Record<string, number>> = {
+        VWRA: { us: 0.622, europe: 0.152, japan: 0.063, em: 0.107, uk: 0.040, other_dev: 0.016 },
+        VWRL: { us: 0.622, europe: 0.152, japan: 0.063, em: 0.107, uk: 0.040, other_dev: 0.016 },
+        VT:   { us: 0.620, europe: 0.145, japan: 0.065, em: 0.115, uk: 0.035, other_dev: 0.020 },
+        IWDA: { us: 0.695, europe: 0.175, japan: 0.065, uk: 0.040, other_dev: 0.025 },
+        SWRD: { us: 0.695, europe: 0.175, japan: 0.065, uk: 0.040, other_dev: 0.025 },
+      };
+
+      // Single-region equity ETFs: ticker → region key
+      const REGIONAL_ETF_MAP: Record<string, string> = {
+        CSPX: "us", VUSA: "us", SPXS: "us", IVV: "us", SPY: "us", VOO: "us",
+        IJPA: "japan", EWJ: "japan", JPNH: "japan",
+        EIMI: "em", EEM: "em", VWO: "em", AEEM: "em",
+        IMEU: "europe", VGK: "europe", IEUG: "europe", SMEA: "europe",
+        ISF:  "uk", VUKE: "uk",
+      };
+
+      // Compute effective geographic exposure across portfolio
+      const effectiveExposure: Record<string, number> = {};
+      const broadPositions: Array<{ ticker: string; weight: number }> = [];
+      const regionalPositions: Array<{ ticker: string; region: string; weight: number; hasThesis: boolean }> = [];
+
+      for (const p of nonCashPositions) {
+        if (!p.market_value || !totalPortfolioValue) continue;
+        const w = p.market_value / totalPortfolioValue;
+        const ticker = p.ticker.toUpperCase();
+
+        if (BROAD_ETF_WEIGHTS[ticker]) {
+          broadPositions.push({ ticker, weight: w });
+          for (const [region, share] of Object.entries(BROAD_ETF_WEIGHTS[ticker])) {
+            effectiveExposure[region] = (effectiveExposure[region] ?? 0) + w * share;
+          }
+        } else if (REGIONAL_ETF_MAP[ticker]) {
+          const region = REGIONAL_ETF_MAP[ticker];
+          const hasThesis = !!(p as any).thesis_notes && (p as any).thesis_notes.trim().length > 10;
+          regionalPositions.push({ ticker, region, weight: w, hasThesis });
+          effectiveExposure[region] = (effectiveExposure[region] ?? 0) + w;
+        }
+      }
+
+      // Compute VWRA-baseline exposure for each region (what you'd have with VWRA only at same total broad-ETF weight)
+      const totalBroadWeight = broadPositions.reduce((s, p) => s + p.weight, 0);
+      const primaryBroadETF = [...broadPositions].sort((a, b) => b.weight - a.weight)[0]?.ticker ?? "VWRA";
+      const baselineWeights = BROAD_ETF_WEIGHTS[primaryBroadETF] ?? BROAD_ETF_WEIGHTS.VWRA;
+
+      const etfOverlapData = {
+        broad_etfs: broadPositions,
+        regional_etfs: regionalPositions,
+        effective_exposure: effectiveExposure,
+        baseline_weights: baselineWeights,
+        tilts: regionalPositions.map(rp => ({
+          ticker: rp.ticker,
+          region: rp.region,
+          direct_weight_pct: parseFloat((rp.weight * 100).toFixed(1)),
+          baseline_pct: parseFloat(((baselineWeights[rp.region] ?? 0) * totalBroadWeight * 100).toFixed(1)),
+          effective_total_pct: parseFloat(((effectiveExposure[rp.region] ?? 0) * 100).toFixed(1)),
+          has_thesis: rp.hasThesis,
+        })),
+      };
+
       const { data, error } = await supabase.functions.invoke("analyze-portfolio", {
         body: {
           positions: nonCashPositions,
@@ -303,8 +378,12 @@ export function usePortfolioAnalysis() {
           etf_classifications: etfClassifications,
           cash_balance: cashBalance,
           total_portfolio_value: totalPortfolioValue,
-          intelligence_brief: intelligenceBrief,
+          intelligence_brief: intelligenceBrief ? {
+            ...intelligenceBrief,
+            generated_at: intelligenceBrief.generated_at ?? null,
+          } : null,
           stock_fundamentals: stockFundamentals,
+          etf_overlap: etfOverlapData,
           portfolio_mode: settings.portfolioMode ?? "balanced",
           risk_profile: activeProfile ? {
             profile: activeProfile.profile,

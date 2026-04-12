@@ -17,6 +17,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ArrowDownCircle, ArrowUpCircle, MinusCircle, TrendingUp, TrendingDown, AlertTriangle, CheckCircle } from "lucide-react";
 import type { TradeRecommendation, RebalancingSummary } from "@/hooks/usePortfolioAnalysis";
 
@@ -30,18 +36,23 @@ export function TradeRecommendationsCard({
   summary,
 }: TradeRecommendationsCardProps) {
   const [actionFilter, setActionFilter] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<"urgency" | "value">("urgency");
+  const [sortBy, setSortBy] = useState<"execution" | "urgency" | "value">("execution");
 
   const urgencyOrder = { high: 0, medium: 1, low: 2 };
 
   const filteredAndSorted = useMemo(() => {
     let filtered = recommendations;
-    
+
     if (actionFilter !== "all") {
       filtered = recommendations.filter((r) => r.action === actionFilter);
     }
 
     return [...filtered].sort((a, b) => {
+      if (sortBy === "execution") {
+        const sa = (a as any).execution_step ?? Infinity;
+        const sb = (b as any).execution_step ?? Infinity;
+        return sa - sb;
+      }
       if (sortBy === "urgency") {
         return urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
       }
@@ -122,11 +133,12 @@ export function TradeRecommendationsCard({
               <SelectItem value="HOLD">Holds Only</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={sortBy} onValueChange={(v) => setSortBy(v as "urgency" | "value")}>
-            <SelectTrigger className="w-[130px]">
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as "execution" | "urgency" | "value")}>
+            <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="execution">By Exec Order</SelectItem>
               <SelectItem value="urgency">By Urgency</SelectItem>
               <SelectItem value="value">By Value</SelectItem>
             </SelectContent>
@@ -139,6 +151,7 @@ export function TradeRecommendationsCard({
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
+              <TableHead className="w-[50px]">Exec</TableHead>
               <TableHead className="w-[80px]">Ticker</TableHead>
               <TableHead className="w-[90px]">Action</TableHead>
               <TableHead className="w-[120px] text-right">Shares</TableHead>
@@ -151,6 +164,26 @@ export function TradeRecommendationsCard({
           <TableBody>
             {filteredAndSorted.map((rec) => (
               <TableRow key={rec.ticker} className="hover:bg-muted/30">
+                <TableCell>
+                  {(rec as any).execution_step != null ? (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-semibold cursor-default">
+                            {(rec as any).execution_step}
+                          </span>
+                        </TooltipTrigger>
+                        {(rec as any).execution_note && (
+                          <TooltipContent side="right" className="max-w-[200px]">
+                            <p className="text-xs">{(rec as any).execution_note}</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  )}
+                </TableCell>
                 <TableCell className="font-mono font-medium">{rec.ticker}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className={cn("gap-1", getActionStyle(rec.action))}>
@@ -190,6 +223,11 @@ export function TradeRecommendationsCard({
       </div>
 
       {/* Rebalancing Summary */}
+      {summary && (summary as any).execution_sequence_summary && (
+        <p className="text-sm text-muted-foreground border-l-2 border-primary/30 pl-3 italic">
+          {(summary as any).execution_sequence_summary}
+        </p>
+      )}
       {summary && (
         <div className="grid gap-4 md:grid-cols-4">
           <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/20">
