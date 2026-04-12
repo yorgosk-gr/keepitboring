@@ -61,6 +61,7 @@ export function useDashboardData() {
       const { data, error } = await supabase
         .from("ib_positions")
         .select("*")
+        .eq("user_id", user!.id)
         .order("position_value", { ascending: false });
       if (error) throw error;
       return data;
@@ -74,7 +75,8 @@ export function useDashboardData() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("positions")
-        .select("ticker, thesis_notes, confidence_level, last_review_date, category, position_type, name, manually_classified");
+        .select("ticker, thesis_notes, confidence_level, last_review_date, category, position_type, name, manually_classified")
+        .eq("user_id", user!.id);
       if (error) throw error;
       const map: Record<string, typeof data[number]> = {};
       for (const row of data) map[row.ticker] = row;

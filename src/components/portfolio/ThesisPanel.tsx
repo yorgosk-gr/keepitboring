@@ -49,7 +49,7 @@ export function ThesisPanel({ open, onClose, position, onSave, isSaving }: Thesi
   useEffect(() => {
     if (position) {
       setThesisNotes(position.thesis_notes || "");
-      setInvalidationTrigger((position as any).invalidation_trigger || "");
+      setInvalidationTrigger(position.invalidation_trigger || "");
       setLastReviewDate(
         position.last_review_date ? new Date(position.last_review_date) : undefined
       );
@@ -60,8 +60,8 @@ export function ThesisPanel({ open, onClose, position, onSave, isSaving }: Thesi
     if (!position) return;
     await onSave({
       thesis_notes: thesisNotes,
-      confidence_level: 5,
-      bet_type: "active",
+      confidence_level: position.confidence_level ?? 5,
+      bet_type: position.bet_type ?? "active",
       invalidation_trigger: invalidationTrigger,
       last_review_date: lastReviewDate ? format(lastReviewDate, "yyyy-MM-dd") : "",
     });

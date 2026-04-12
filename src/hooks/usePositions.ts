@@ -148,11 +148,11 @@ export function usePositions() {
       market_value: ib.position_value,
       weight_percent: ib.percent_of_nav,
       thesis_notes: ann?.thesis_notes || null,
-      confidence_level: ann?.confidence_level || null,
-      last_review_date: ann?.last_review_date || null,
-      created_at: ib.created_at || new Date().toISOString(),
-      updated_at: ib.synced_at || new Date().toISOString(),
-      manually_classified: ann?.manually_classified || null,
+      confidence_level: ann?.confidence_level ?? null,
+      last_review_date: ann?.last_review_date ?? null,
+      created_at: ib.created_at ?? new Date().toISOString(),
+      updated_at: ib.synced_at ?? new Date().toISOString(),
+      manually_classified: ann?.manually_classified ?? null,
       unrealized_pnl: ib.unrealized_pnl,
       cost_basis_money: ib.cost_basis_money,
       bet_type: ann?.bet_type || null,
@@ -178,7 +178,7 @@ export function usePositions() {
       };
       // Only set fields that are explicitly provided
       if ('thesis_notes' in formData) annotationData.thesis_notes = formData.thesis_notes || null;
-      if ('confidence_level' in formData) annotationData.confidence_level = formData.confidence_level || null;
+      if ('confidence_level' in formData) annotationData.confidence_level = formData.confidence_level ?? null;
       if ('category' in formData) annotationData.category = formData.category || null;
       if ('position_type' in formData) annotationData.position_type = formData.position_type || null;
       if ('name' in formData) annotationData.name = formData.name || null;

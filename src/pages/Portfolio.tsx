@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Search, Briefcase, Trash2, Download, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ export default function Portfolio() {
     isUpdating,
   } = usePositions();
 
-  const { cashBalance, totalValue } = useDashboardData();
+  const { cashBalance, totalValue, dailyChange, dailyChangePercent } = useDashboardData();
   const { sync, isSyncing, isConnected, lastSynced } = useIBSync();
 
   // Fetch latest data date (most recent of: last sync, last snapshot)
@@ -199,7 +199,7 @@ export default function Portfolio() {
             size="sm"
             className="gap-2 border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
             onClick={() => {
-              const firstMissing = positions.find(p => !p.thesis_notes);
+              const firstMissing = positions.find(p => !p.thesis_notes || !p.confidence_level);
               if (firstMissing) setThesisPosition(firstMissing);
             }}
           >
@@ -213,6 +213,8 @@ export default function Portfolio() {
         totalValue={totalValue}
         positionsCount={positions.length}
         cashBalance={cashBalance}
+        dailyChange={dailyChange}
+        dailyChangePercent={dailyChangePercent}
         isLoading={isLoading}
       />
 

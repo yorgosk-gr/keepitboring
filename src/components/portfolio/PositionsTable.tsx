@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { ChevronDown, ChevronUp, Pencil, Trash2, FileText, Search, Loader2, Feather, AlertTriangle } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { ChevronDown, ChevronUp, Pencil, Trash2, FileText, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -312,9 +312,8 @@ export function PositionsTable({
               const currency = (position as any).currency || "USD";
               
               return (
-                <>
+                <React.Fragment key={position.id}>
                   <tr
-                    key={position.id}
                     className={`group hover:bg-secondary/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
                   >
                     {!hideDeleteActions && (
@@ -463,7 +462,7 @@ export function PositionsTable({
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               );
             })}
             {/* Cash row */}
