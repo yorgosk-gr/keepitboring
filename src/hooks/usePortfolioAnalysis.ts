@@ -268,7 +268,7 @@ export function usePortfolioAnalysis() {
       const totalPortfolioValue = livePositionsValue + cashBalance;
 
       console.log("[Analysis] Cash:", {
-        ibAccountCash: ibAccountData?.cash_balance,
+        ibAccountCash: ibAccountQuery.data?.cash_balance,
         cashBalance,
         livePositionsValue,
         totalPortfolioValue,
