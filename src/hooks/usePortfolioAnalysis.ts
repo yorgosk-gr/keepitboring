@@ -250,9 +250,14 @@ export function usePortfolioAnalysis() {
       const snapshotCash = snapshotData?.cash_balance ?? 0;
 
       // Separate cash positions (IB reports cash as a position with position_type "cash").
-      // If not separated, the cash market value would be counted as equity in computeRuleEvaluation.
-      const cashPositions = positions.filter((p) => p.position_type === "cash");
-      const nonCashPositions = positions.filter((p) => p.position_type !== "cash");
+      // Also check asset_class directly — existing DB records imported before the fix may still
+      // have position_type = "stock" for IB cash positions (asset_class = "CASH"/"FX"/"FXCONV").
+      const CASH_ASSET_CLASSES = new Set(["CASH", "FX", "FXCONV"]);
+      const isCashPosition = (p: any) =>
+        p.position_type === "cash" ||
+        CASH_ASSET_CLASSES.has((p.asset_class ?? "").toUpperCase());
+      const cashPositions = positions.filter(isCashPosition);
+      const nonCashPositions = positions.filter((p) => !isCashPosition(p));
       const cashFromPositions = cashPositions.reduce((s, p) => s + (p.market_value ?? 0), 0);
 
       // Combine snapshot cash with IB cash position value (avoid double-counting)

@@ -338,7 +338,7 @@ function enforceCashConstraint(analysisResult: any, cashBalance: number, totalPo
   analysisResult.rebalancing_summary = {
     ...analysisResult.rebalancing_summary,
     total_buys: `$${Math.round(newBuys).toLocaleString()}`,
-    net_cash_impact: `+$${Math.round(totalSells - newBuys).toLocaleString()}`,
+    net_cash_impact: (() => { const n = Math.round(totalSells - newBuys); return n === 0 ? "$0" : `+$${n.toLocaleString()}`; })(),
   };
   return analysisResult;
 }
@@ -429,7 +429,11 @@ function validateTradeConsistency(result: any, positions: any[]): any {
       ...result.rebalancing_summary,
       total_sells: `$${Math.round(totalSells).toLocaleString()}`,
       total_buys: `$${Math.round(totalBuys).toLocaleString()}`,
-      net_cash_impact: `${totalSells >= totalBuys ? "+" : "-"}$${Math.round(Math.abs(totalSells - totalBuys)).toLocaleString()}`,
+      net_cash_impact: (() => {
+        const net = Math.round(totalSells - totalBuys);
+        if (net === 0) return "$0";
+        return `${net > 0 ? "+" : "-"}$${Math.abs(net).toLocaleString()}`;
+      })(),
     };
   }
 
