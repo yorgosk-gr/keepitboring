@@ -497,6 +497,7 @@ serve(async (req) => {
       north_star,
       book_principles,
       etf_overlap,
+      sector_momentum,
     } = await req.json();
 
     // ── Deterministic Rule Evaluation ─────────────────────────────────
@@ -726,6 +727,29 @@ RULES FOR OVERLAPS:
 ALLOCATION_CHECK FIELDS — GEOGRAPHIC EXPOSURE
 - equity_by_geography: use ETF_OVERLAP_ANALYSIS.effective_exposure to show TRUE geographic exposures (not just direct ETF weights). Express each as percent of total portfolio.
 
+SECTOR MOMENTUM AWARENESS
+The caller provides SECTOR_MOMENTUM — a list of sectors with newsletter-derived net sentiment.
+Each entry has: sector, bullish, bearish, neutral (signal counts), net_ratio ((bullish-bearish)/total), signal.
+
+signal values and what they mean:
+- "hot" (net_ratio > +0.50, ≥ 3 signals): Recent newsletter coverage is strongly bullish. The rally may already be priced in. A "Hormuz spike" or similar event-driven surge falls here.
+  - Do NOT initiate new BUY positions in a "hot" sector unless driven by a HARD allocation rule breach.
+  - For existing positions in a "hot" sector: prefer HOLD over adding. Only trim if overweight by > 5pp.
+  - Add a position_alert (alert_type="sentiment", severity="warning"): "Newsletter consensus is strongly bullish on [sector] — recent momentum may already be priced in. Avoid chasing."
+  - In trade reasoning for any BUY in a "hot" sector, explicitly note: "Sector sentiment is extended (net_ratio X). Size conservatively."
+- "cold" (net_ratio < -0.50, ≥ 3 signals): Coverage is strongly bearish. Could be a dip or structural decline.
+  - Assess: is the bearish signal event-driven (temporary) or fundamental (structural)?
+  - If event-driven AND Intelligence Brief shows no structural deterioration → note as contrarian opportunity.
+  - If structural → respect the signal, do not add.
+  - Add a position_alert (alert_type="sentiment", severity="warning") for any existing portfolio position in a "cold" sector.
+- "mixed" / "insufficient_data": Normal analysis applies. No special constraint.
+
+IMPORTANT: Sector momentum modifies conviction, not rule enforcement.
+- It NEVER overrides HARD allocation rules.
+- "hot" signal = reduce/defer buys, never force a sell by itself.
+- "cold" signal = review existing position, never force a buy by itself.
+- Sector momentum must always be weighed against Intelligence Brief themes.
+
 TRADE EXECUTION SEQUENCING & GUIDANCE
 For each non-HOLD trade recommendation:
 1. Assign execution_step (integer starting at 1) in this ORDER:
@@ -878,6 +902,10 @@ ${etf_overlap ? `ETF_OVERLAP_ANALYSIS:
 ${JSON.stringify(etf_overlap, null, 2)}
 
 ` : "No ETF overlap data available."}
+
+${sector_momentum?.length > 0 ? `SECTOR_MOMENTUM (from newsletter insights, last ~30 days):
+${sector_momentum.map((s: any) => `- ${s.sector}: signal=${s.signal}, net_ratio=${s.net_ratio} (${s.bullish}↑ ${s.bearish}↓ ${s.neutral}→ from ${s.total} signals)`).join("\n")}
+` : "No sector momentum data available."}
 
 ${intelligence_brief ? `INTELLIGENCE BRIEF (${intelligence_brief.newsletters_analyzed ?? 0} newsletters, ${intelligence_brief.insights_analyzed ?? 0} insights, generated_at: ${intelligence_brief.generated_at ?? "unknown"}, age_hours: ${intelligence_brief.generated_at ? Math.round((Date.now() - new Date(intelligence_brief.generated_at).getTime()) / (1000 * 60 * 60)) : "unknown"}):
 Weekly Priority: ${intelligence_brief.weekly_priority || "N/A"}

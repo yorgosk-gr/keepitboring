@@ -360,6 +360,96 @@ export function usePortfolioAnalysis() {
         })),
       };
 
+      // ── Sector Momentum Analysis ──────────────────────────────────────
+      // Derive sector from tickers_mentioned in each insight, fallback to content keywords.
+      // Produces per-sector net bullish/bearish signal to temper buy conviction in "hot" sectors.
+      const TICKER_SECTOR_MAP: Record<string, string> = {
+        // Energy / Oil & Gas
+        XOM: "energy", CVX: "energy", BP: "energy", SHEL: "energy", TTE: "energy",
+        COP: "energy", OXY: "energy", SLB: "energy", HAL: "energy", MPC: "energy",
+        VLO: "energy", PSX: "energy", XLE: "energy", RDSB: "energy", ENB: "energy",
+        // Technology
+        AAPL: "technology", MSFT: "technology", GOOGL: "technology", GOOG: "technology",
+        META: "technology", NVDA: "technology", AMZN: "technology", TSLA: "technology",
+        INTC: "technology", AMD: "technology", QCOM: "technology", CRM: "technology",
+        ORCL: "technology", IBM: "technology", ADBE: "technology", QQQ: "technology",
+        SMH: "technology", XLK: "technology", SOXX: "technology", PLTR: "technology",
+        // Financials
+        JPM: "financials", BAC: "financials", GS: "financials", MS: "financials",
+        WFC: "financials", C: "financials", BRK: "financials", V: "financials",
+        MA: "financials", AXP: "financials", XLF: "financials", BX: "financials",
+        // Healthcare
+        JNJ: "healthcare", UNH: "healthcare", PFE: "healthcare", ABBV: "healthcare",
+        MRK: "healthcare", LLY: "healthcare", BMY: "healthcare", ABT: "healthcare",
+        XLV: "healthcare", ISRG: "healthcare",
+        // Consumer Discretionary
+        HD: "consumer_discretionary", MCD: "consumer_discretionary", NKE: "consumer_discretionary",
+        SBUX: "consumer_discretionary", TGT: "consumer_discretionary", XLY: "consumer_discretionary",
+        // Consumer Staples
+        WMT: "consumer_staples", PG: "consumer_staples", KO: "consumer_staples",
+        PEP: "consumer_staples", PM: "consumer_staples", XLP: "consumer_staples",
+        // Industrials / Defense
+        LMT: "defense", RTX: "defense", NOC: "defense", GD: "defense", BA: "defense",
+        CAT: "industrials", DE: "industrials", XLI: "industrials", GE: "industrials",
+        // Materials / Gold
+        GLD: "gold", IAU: "gold", SGOL: "gold", PHAU: "gold",
+        SLV: "silver", XLB: "materials", FCX: "materials",
+        // Utilities
+        NEE: "utilities", DUK: "utilities", XLU: "utilities",
+        // Real Estate
+        VNQ: "real_estate",
+      };
+
+      const SECTOR_KEYWORDS: Array<{ keywords: string[]; sector: string }> = [
+        { keywords: ["oil", "crude", "petroleum", "opec", "refin", "brent", "wti", "natural gas", "lng", "hormuz", "pipeline", "energy sector"], sector: "energy" },
+        { keywords: ["chip", "semiconductor", "artificial intelligence", "cloud computing", "software stock", "tech stock", "nvidia", "gpu"], sector: "technology" },
+        { keywords: ["bank", "banking sector", "financial stock", "interest rate", "yield curve", "credit market"], sector: "financials" },
+        { keywords: ["pharma", "biotech", "drug approval", "fda approval", "healthcare stock"], sector: "healthcare" },
+        { keywords: ["defense stock", "military spending", "lockheed", "raytheon", "pentagon budget", "nato spending"], sector: "defense" },
+        { keywords: ["gold price", "precious metals", "gold rally", "gold etf", "inflation hedge"], sector: "gold" },
+        { keywords: ["real estate", "reit", "housing market", "commercial property", "property market"], sector: "real_estate" },
+        { keywords: ["consumer spending", "retail sales", "discretionary spending"], sector: "consumer_discretionary" },
+      ];
+
+      const sectorBuckets: Record<string, { bullish: number; bearish: number; neutral: number }> = {};
+      const addToSector = (sector: string, sentiment: string) => {
+        if (!sectorBuckets[sector]) sectorBuckets[sector] = { bullish: 0, bearish: 0, neutral: 0 };
+        if (sentiment === "bullish") sectorBuckets[sector].bullish++;
+        else if (sentiment === "bearish") sectorBuckets[sector].bearish++;
+        else sectorBuckets[sector].neutral++;
+      };
+
+      for (const insight of selectedInsights) {
+        const sentiment = insight.sentiment ?? "neutral";
+        let assigned = false;
+        // 1. Map via tickers_mentioned
+        for (const ticker of (insight.tickers_mentioned ?? [])) {
+          const sector = TICKER_SECTOR_MAP[ticker.toUpperCase()];
+          if (sector) { addToSector(sector, sentiment); assigned = true; }
+        }
+        // 2. Fallback: keyword scan on content
+        if (!assigned) {
+          const contentLower = (insight.content ?? "").toLowerCase();
+          for (const { keywords, sector } of SECTOR_KEYWORDS) {
+            if (keywords.some(kw => contentLower.includes(kw))) {
+              addToSector(sector, sentiment);
+              break;
+            }
+          }
+        }
+      }
+
+      const sectorMomentum = Object.entries(sectorBuckets).map(([sector, counts]) => {
+        const total = counts.bullish + counts.bearish + counts.neutral;
+        const netRatio = total > 0 ? (counts.bullish - counts.bearish) / total : 0;
+        let signal: "hot" | "cold" | "mixed" | "insufficient_data" = "mixed";
+        if (total < 3) signal = "insufficient_data";
+        else if (netRatio > 0.50) signal = "hot";
+        else if (netRatio < -0.50) signal = "cold";
+        return { sector, bullish: counts.bullish, bearish: counts.bearish, neutral: counts.neutral,
+          total, net_ratio: parseFloat(netRatio.toFixed(2)), signal };
+      }).sort((a, b) => b.total - a.total);
+
       const { data, error } = await supabase.functions.invoke("analyze-portfolio", {
         body: {
           positions: nonCashPositions,
@@ -384,6 +474,7 @@ export function usePortfolioAnalysis() {
           } : null,
           stock_fundamentals: stockFundamentals,
           etf_overlap: etfOverlapData,
+          sector_momentum: sectorMomentum,
           portfolio_mode: settings.portfolioMode ?? "balanced",
           risk_profile: activeProfile ? {
             profile: activeProfile.profile,
