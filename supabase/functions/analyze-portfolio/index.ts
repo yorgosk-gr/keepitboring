@@ -89,23 +89,32 @@ function computeRuleEvaluation(
 
     if (posType === "cash" || cat === "cash") {
       // Cash positions: tracked via cashBalance, not equityValue
-    } else if (posType === "stock") {
-      equityValue += mv;
     } else if (cat === "bond") {
+      // Bond category wins over stale position_type annotation (e.g. bond ETF with old "stock" type)
       bondValue += mv;
     } else if (cat === "commodity" || cat === "gold") {
+      // Commodity/gold category wins over stale position_type annotation
       commodityGoldValue += mv;
       if (cat === "gold" || (p.name || "").toLowerCase().includes("gold")) {
         goldValue += mv;
       }
+    } else if (posType === "stock") {
+      equityValue += mv;
     } else {
       // Default: unclassified ETFs and equity ETFs both count as equity
       equityValue += mv;
     }
   }
 
+  // stocksValue: only count positions typed "stock" whose category is NOT bond/commodity/gold
+  // (prevents stale annotations from double-counting bond ETFs as stocks)
   const stocksValue = safePositions
-    .filter((p: any) => (p.position_type || "").toLowerCase() === "stock")
+    .filter((p: any) => {
+      if ((p.position_type || "").toLowerCase() !== "stock") return false;
+      const rawCat = (classMap[p.ticker] || p.category || "").toLowerCase().trim();
+      const pCat = rawCat === "fixed income" ? "bond" : rawCat.replace(/ies$/, "y").replace(/s$/, "");
+      return pCat !== "bond" && pCat !== "commodity" && pCat !== "gold" && pCat !== "cash";
+    })
     .reduce((s: number, p: any) => s + (p.market_value ?? 0), 0);
 
   const equityPercent = (equityValue / totalVal) * 100;

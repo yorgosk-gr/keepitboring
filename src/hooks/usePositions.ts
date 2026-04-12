@@ -120,10 +120,14 @@ export function usePositions() {
     const meta = lookupEtfMeta(ticker);
     const hasEtfMetadata = !!meta;
 
-    // Position type: manual override > etf_metadata > local reference > IB fields
-    const posType = ann?.manually_classified
-      ? (ann.position_type || derivePositionType(ib.asset_class, ib.sub_category, hasEtfMetadata, ticker))
-      : derivePositionType(ib.asset_class, ib.sub_category, hasEtfMetadata, ticker);
+    // Position type: always derive first; manual override is respected EXCEPT for cash —
+    // cash must always win regardless of stale annotations (asset_class=CASH/FX/FXCONV).
+    const derivedType = derivePositionType(ib.asset_class, ib.sub_category, hasEtfMetadata, ticker);
+    const posType = derivedType === "cash"
+      ? "cash"
+      : (ann?.manually_classified
+          ? (ann.position_type || derivedType)
+          : derivedType);
 
     // Category: manual override > etf_metadata > local reference > IB fields
     const cat = ann?.manually_classified
