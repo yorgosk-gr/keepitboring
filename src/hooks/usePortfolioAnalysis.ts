@@ -174,6 +174,22 @@ export function usePortfolioAnalysis() {
   const { principles: bookPrinciples } = useBookPrinciples();
   const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisResult | null>(null);
 
+  // Cash balance from ib_accounts — useQuery so it's cached and ready when mutation runs.
+  // This is the same pattern useDashboardData uses (which shows cash correctly on Portfolio page).
+  const ibAccountQuery = useQuery({
+    queryKey: ["ib-account", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ib_accounts")
+        .select("cash_balance")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   // Fetch analysis history
   const historyQuery = useQuery({
     queryKey: ["analysis_history", user?.id],
@@ -238,14 +254,8 @@ export function usePortfolioAnalysis() {
       // Get unique newsletter count
       const uniqueNewsletterIds = new Set(selectedInsights.map((i) => i.newsletter_id));
 
-      // Cash from ib_accounts — same source the Dashboard/Portfolio page uses successfully.
-      // IB cash is NOT stored in ib_positions; it's a separate field on ib_accounts.
-      const { data: ibAccountData } = await supabase
-        .from("ib_accounts")
-        .select("cash_balance")
-        .eq("user_id", user!.id)
-        .maybeSingle();
-      const cashBalance = Number(ibAccountData?.cash_balance ?? 0);
+      // Use cached ib_accounts.cash_balance (same query key as useDashboardData)
+      const cashBalance = Number(ibAccountQuery.data?.cash_balance ?? 0);
 
       // Filter out any cash-type positions (defensive — IB doesn't normally put cash here)
       const CASH_ASSET_CLASSES = new Set(["CASH", "FX", "FXCONV"]);
