@@ -88,12 +88,10 @@ function computeRuleEvaluation(
       : rawCat.replace(/ies$/, "y").replace(/s$/, "");
 
     if (posType === "cash" || cat === "cash") {
-      // Cash positions: tracked via cashBalance, not equityValue
+      // Defense-in-depth: cash tracked via cashBalance param, not position values
     } else if (cat === "bond") {
-      // Bond category wins over stale position_type annotation (e.g. bond ETF with old "stock" type)
       bondValue += mv;
     } else if (cat === "commodity" || cat === "gold") {
-      // Commodity/gold category wins over stale position_type annotation
       commodityGoldValue += mv;
       if (cat === "gold" || (p.name || "").toLowerCase().includes("gold")) {
         goldValue += mv;
@@ -101,13 +99,12 @@ function computeRuleEvaluation(
     } else if (posType === "stock") {
       equityValue += mv;
     } else {
-      // Default: unclassified ETFs and equity ETFs both count as equity
+      // Unclassified or equity ETFs default to equity
       equityValue += mv;
     }
   }
 
-  // stocksValue: only count positions typed "stock" whose category is NOT bond/commodity/gold
-  // (prevents stale annotations from double-counting bond ETFs as stocks)
+  // stocksValue: individual stocks only (excludes bond/commodity/gold ETFs that may carry posType "stock")
   const stocksValue = safePositions
     .filter((p: any) => {
       if ((p.position_type || "").toLowerCase() !== "stock") return false;

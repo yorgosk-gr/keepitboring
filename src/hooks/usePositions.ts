@@ -101,14 +101,14 @@ export function usePositions() {
     },
   });
 
-  // Helper: look up ETF metadata with 0/O fallback
+  // IB sometimes uses 0 vs O inconsistently in tickers (e.g. IB01 vs IBO1).
+  // Try exact match first, then swap digits/letters to find ETF metadata.
   function lookupEtfMeta(ticker: string) {
     if (etfMeta[ticker]) return etfMeta[ticker];
-    // Try swapping 0↔O for ticker mismatches (e.g. IB01 vs IBO1)
-    const variant = ticker.replace(/0/g, "O");
-    if (variant !== ticker && etfMeta[variant]) return etfMeta[variant];
-    const variant2 = ticker.replace(/O/g, "0");
-    if (variant2 !== ticker && etfMeta[variant2]) return etfMeta[variant2];
+    const withO = ticker.replace(/0/g, "O");
+    if (withO !== ticker && etfMeta[withO]) return etfMeta[withO];
+    const with0 = ticker.replace(/O/g, "0");
+    if (with0 !== ticker && etfMeta[with0]) return etfMeta[with0];
     return null;
   }
 
@@ -120,8 +120,7 @@ export function usePositions() {
     const meta = lookupEtfMeta(ticker);
     const hasEtfMetadata = !!meta;
 
-    // Position type: always derive first; manual override is respected EXCEPT for cash —
-    // cash must always win regardless of stale annotations (asset_class=CASH/FX/FXCONV).
+    // Derive position type from IB data; manual annotation overrides unless IB says cash
     const derivedType = derivePositionType(ib.asset_class, ib.sub_category, hasEtfMetadata, ticker);
     const posType = derivedType === "cash"
       ? "cash"
@@ -129,7 +128,7 @@ export function usePositions() {
           ? (ann.position_type || derivedType)
           : derivedType);
 
-    // Category: manual override > etf_metadata > local reference > IB fields
+    // Category priority: manual annotation > etf_metadata > local reference > IB fields
     const cat = ann?.manually_classified
       ? (ann.category || deriveCategory(ib.asset_class, meta?.category ?? null, ib.description, ticker))
       : deriveCategory(ib.asset_class, meta?.category ?? null, ib.description, ticker);

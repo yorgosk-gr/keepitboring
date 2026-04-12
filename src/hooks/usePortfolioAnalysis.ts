@@ -277,22 +277,13 @@ export function usePortfolioAnalysis() {
       const livePositionsValue = nonCashPositions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
       const totalPortfolioValue = livePositionsValue + cashBalance;
 
-      // Read the latest existing intelligence brief from DB (don't generate a new one —
-      // that's expensive and slow; the user generates briefs separately via the Newsletters page)
-      let intelligenceBrief = null;
-      try {
-        const { data: briefData, error: briefError } = await supabase
-          .from("intelligence_briefs")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (!briefError && briefData) {
-          intelligenceBrief = briefData;
-        }
-      } catch (e) {
-        console.warn("Could not fetch intelligence brief for analysis:", e);
-      }
+      // Read the latest intelligence brief (user generates these via the Newsletters page)
+      const { data: intelligenceBrief } = await supabase
+        .from("intelligence_briefs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       // Fetch fundamentals directly from DB for all stocks
       const stockTickers = nonCashPositions
