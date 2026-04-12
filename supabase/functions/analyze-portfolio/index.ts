@@ -77,7 +77,9 @@ function computeRuleEvaluation(
     const cat = rawCat === "fixed income" ? "bond"
       : rawCat.replace(/ies$/, "y").replace(/s$/, "");
 
-    if (posType === "stock") {
+    if (posType === "cash" || cat === "cash") {
+      // Cash positions: tracked via cashBalance, not equityValue
+    } else if (posType === "stock") {
       equityValue += mv;
     } else if (cat === "bond") {
       bondValue += mv;

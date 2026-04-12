@@ -20,6 +20,7 @@ export function derivePositionType(
   // 3. IB asset class fields
   const ac = (assetClass || "").toUpperCase();
   const sc = (subCategory || "").toUpperCase();
+  if (ac === "CASH" || ac === "FX" || ac === "FXCONV") return "cash";
   if (ac === "STK") {
     if (sc.includes("ETF") || sc.includes("ETC")) return "etf";
     return "stock";

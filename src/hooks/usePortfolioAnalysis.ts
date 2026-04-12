@@ -234,10 +234,19 @@ export function usePortfolioAnalysis() {
         .limit(1)
         .single();
 
-      const cashBalance = snapshotData?.cash_balance ?? 0;
+      const snapshotCash = snapshotData?.cash_balance ?? 0;
 
-      // Calculate live portfolio values
-      const livePositionsValue = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
+      // Separate cash positions (IB reports cash as a position with position_type "cash").
+      // If not separated, the cash market value would be counted as equity in computeRuleEvaluation.
+      const cashPositions = positions.filter((p) => p.position_type === "cash");
+      const nonCashPositions = positions.filter((p) => p.position_type !== "cash");
+      const cashFromPositions = cashPositions.reduce((s, p) => s + (p.market_value ?? 0), 0);
+
+      // Combine snapshot cash with IB cash position value (avoid double-counting)
+      const cashBalance = cashFromPositions > 0 ? cashFromPositions : snapshotCash;
+
+      // Calculate live portfolio values (excluding cash positions — cash tracked separately)
+      const livePositionsValue = nonCashPositions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
       const totalPortfolioValue = livePositionsValue + cashBalance;
 
       // Read the latest existing intelligence brief from DB (don't generate a new one —
@@ -258,7 +267,7 @@ export function usePortfolioAnalysis() {
       }
 
       // Fetch fundamentals directly from DB for all stocks
-      const stockTickers = positions
+      const stockTickers = nonCashPositions
         .filter(p => p.position_type === "stock")
         .map(p => p.ticker);
 
@@ -278,7 +287,7 @@ export function usePortfolioAnalysis() {
 
       const { data, error } = await supabase.functions.invoke("analyze-portfolio", {
         body: {
-          positions,
+          positions: nonCashPositions,
           rules: activeRules,
           insights: selectedInsights.map((i) => ({
             id: i.id,
