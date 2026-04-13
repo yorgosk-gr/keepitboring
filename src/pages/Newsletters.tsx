@@ -55,8 +55,10 @@ export default function Newsletters() {
   };
 
   const handleBulkReprocess = async () => {
+    // Only reprocess newsletters that explicitly failed — not ones that processed successfully
+    // but yielded 0 insights (those are likely junk/empty and will waste AI credits)
     const unprocessed = newsletters.filter(
-      n => !!n.processing_error || (n.processed && (n.insights_count ?? 0) === 0)
+      n => !!n.processing_error || !n.processed
     );
     if (unprocessed.length === 0) {
       toast.info("No newsletters need reprocessing");
@@ -166,7 +168,7 @@ export default function Newsletters() {
             <p className="text-lg font-medium text-foreground">Paste newsletter text</p>
             <p className="text-sm text-muted-foreground mt-1">Copy & paste content directly</p>
           </div>
-          <Button variant="outline" onClick={() => setShowPasteModal(true)}>
+          <Button variant="outline" onClick={(e) => e.stopPropagation()}>
             <ClipboardPaste className="w-4 h-4 mr-2" />
             Paste Text
           </Button>
@@ -200,14 +202,14 @@ export default function Newsletters() {
 
       {/* Newsletter List */}
       {/* Bulk reprocess button */}
-      {newsletters.some(n => !!n.processing_error || (n.processed && (n.insights_count ?? 0) === 0)) && (
+      {newsletters.some(n => !!n.processing_error || !n.processed) && (
         <div className="flex items-center justify-between p-3 rounded-lg border border-amber-500/20 bg-amber-500/5">
           <div>
             <p className="text-sm font-medium text-amber-500">
-              {newsletters.filter(n => !!n.processing_error || (n.processed && (n.insights_count ?? 0) === 0)).length} newsletters need attention
+              {newsletters.filter(n => !!n.processing_error || !n.processed).length} newsletters need attention
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {bulkProgress ? `Processing ${bulkProgress.done}/${bulkProgress.total}...` : "Some newsletters failed or produced 0 insights — click to retry"}
+              {bulkProgress ? `Processing ${bulkProgress.done}/${bulkProgress.total}...` : "Some newsletters failed or are pending — click to retry"}
             </p>
           </div>
           <Button

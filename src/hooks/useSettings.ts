@@ -79,7 +79,16 @@ export function useSettings() {
       const [positions, newsletters, insights, decisions, rules, alerts, reports] = await Promise.all([
         supabase.from("positions").select("*").eq("user_id", user.id),
         supabase.from("newsletters").select("*").eq("user_id", user.id),
-        supabase.from("insights").select("*"),
+        // Insights scoped via user's newsletters (no direct user_id column)
+        (async () => {
+          const { data: userNls } = await supabase
+            .from("newsletters")
+            .select("id")
+            .eq("user_id", user.id);
+          const nlIds = (userNls ?? []).map(n => n.id);
+          if (nlIds.length === 0) return { data: [], error: null };
+          return supabase.from("insights").select("*").in("newsletter_id", nlIds);
+        })(),
         supabase.from("decision_log").select("*").eq("user_id", user.id),
         supabase.from("philosophy_rules").select("*").eq("user_id", user.id),
         supabase.from("alerts").select("*").eq("user_id", user.id),

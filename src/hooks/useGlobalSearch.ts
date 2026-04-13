@@ -58,11 +58,21 @@ export function useGlobalSearch() {
             .eq("user_id", user.id)
             .or(`source_name.ilike.%${searchTerm}%,raw_text.ilike.%${searchTerm}%`)
             .limit(5),
-          supabase
-            .from("insights")
-            .select("id, content, insight_type, newsletter_id")
-            .ilike("content", `%${searchTerm}%`)
-            .limit(5),
+          // Insights don't have user_id directly — scope via user's newsletter IDs
+          (async () => {
+            const { data: userNls } = await supabase
+              .from("newsletters")
+              .select("id")
+              .eq("user_id", user.id);
+            const nlIds = (userNls ?? []).map(n => n.id);
+            if (nlIds.length === 0) return { data: [], error: null };
+            return supabase
+              .from("insights")
+              .select("id, content, insight_type, newsletter_id")
+              .in("newsletter_id", nlIds)
+              .ilike("content", `%${searchTerm}%`)
+              .limit(5);
+          })(),
           supabase
             .from("decision_log")
             .select("id, action_type, reasoning")

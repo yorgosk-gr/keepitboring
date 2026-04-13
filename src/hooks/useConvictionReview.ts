@@ -65,8 +65,9 @@ export function useConvictionReview() {
         }
 
         // Low conviction positions (legacy holds) not actioned
+        // Default to 0 when null — unknown conviction should be flagged for review
         if (
-          (pos.confidence_level ?? 10) <= 4 &&
+          (pos.confidence_level ?? 0) <= 4 &&
           pos.bet_type === "legacy_hold"
         ) {
           newReviews.push({

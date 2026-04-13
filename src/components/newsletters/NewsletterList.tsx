@@ -251,7 +251,7 @@ export function NewsletterList({
               return (
                 <TableRow
                   key={newsletter.id}
-                  className={isSelected ? "bg-primary/5 border-border" : "border-border"}
+                  className={`group ${isSelected ? "bg-primary/5 border-border" : "border-border"}`}
                 >
                   {/* Row checkbox */}
                   <TableCell className="w-10 pr-0">

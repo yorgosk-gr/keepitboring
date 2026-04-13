@@ -19,20 +19,34 @@ export function useInsightStats() {
   return useQuery({
     queryKey: ["insight-stats", user?.id],
     queryFn: async (): Promise<InsightStats> => {
-      // Get all newsletters
+      // Get all newsletters for this user
       const { data: newsletters, error: nlError } = await supabase
         .from("newsletters")
-        .select("id, is_archived, created_at");
+        .select("id, is_archived, created_at")
+        .eq("user_id", user!.id);
 
       if (nlError) throw nlError;
 
       const totalNewsletters = newsletters?.length ?? 0;
       const archivedNewsletters = newsletters?.filter((n) => n.is_archived).length ?? 0;
 
-      // Get all insights
+      // Get insights scoped to this user's newsletters
+      const newsletterIds = (newsletters ?? []).map(n => n.id);
+      if (newsletterIds.length === 0) {
+        return {
+          totalNewsletters,
+          totalInsights: 0,
+          activeInsights: 0,
+          archivedNewsletters,
+          insightsInLastAnalysis: 0,
+          healthStatus: "green" as const,
+        };
+      }
+
       const { data: allInsights, error: insError } = await supabase
         .from("insights")
-        .select("id, created_at, is_summarized");
+        .select("id, created_at, is_summarized")
+        .in("newsletter_id", newsletterIds);
 
       if (insError) throw insError;
 

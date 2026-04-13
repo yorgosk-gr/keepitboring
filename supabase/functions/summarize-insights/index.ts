@@ -81,10 +81,9 @@ serve(async (req) => {
 
     console.log(`Calling Anthropic for ${insights_count} insights from ${newsletters_count} newsletters...`);
 
-    // Call Anthropic — non-streaming, max_tokens=2500 to stay well within ~40s
-    // (Sonnet ~50-80 tok/s → 2500 tok ≈ 30-50s; 4096 was hitting the 55s abort timeout)
+    // Call Anthropic — non-streaming, max_tokens=1800 for ~25-35s generation
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 55000); // 55s — just under Supabase's 60s wall-clock limit
+    const timeout = setTimeout(() => controller.abort(), 55000);
 
     let response: Response;
     try {
@@ -141,10 +140,22 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Anthropic responded: ${fullText.length} chars, ${aiResult.usage?.output_tokens ?? "?"} tokens`);
+    const stopReason = aiResult.stop_reason ?? "unknown";
+    console.log(`Anthropic responded: ${fullText.length} chars, ${aiResult.usage?.output_tokens ?? "?"} tokens, stop_reason=${stopReason}`);
+
+    // Detect truncation — if the AI hit max_tokens, the JSON is likely incomplete
+    if (stopReason === "max_tokens") {
+      console.error("AI response was truncated (hit max_tokens). First 500 chars:", fullText.substring(0, 500));
+      return new Response(JSON.stringify({ error: "AI response was truncated. Please try again." }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const result = parseAIJson(fullText);
     if (!result) {
+      console.error("Failed to parse AI response. First 500 chars:", fullText.substring(0, 500));
+      console.error("Last 200 chars:", fullText.substring(fullText.length - 200));
       return new Response(JSON.stringify({ error: "Failed to parse AI response." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -224,31 +235,33 @@ serve(async (req) => {
   }
 });
 
-const SYSTEM_PROMPT = `You are a sharp, independent investment analyst writing a weekly intelligence letter. Synthesize signals from multiple newsletter sources into a clear, opinionated market view.
+const SYSTEM_PROMPT = `You are a market analyst writing a weekly intelligence letter. Synthesize signals, be opinionated and concise.
 
-RULES:
-- 3+ sources sharing a view → 'consensus' (crowded, lower edge)
-- Sources diverging → most valuable signal. Name disagreements
-- Weight by source_confidence: ≥0.8 + data_backed=true = 2x weight
-- Aggregate management_tone/earnings patterns by sector
-- Write as market analyst, not portfolio manager
-- Portfolio context only for flagging exposure intersections
-- Be CONCISE — every sentence must carry signal
+ROLE: Analyst ONLY — describe what's happening, never recommend actions. No "buy/sell/trim/add/deploy". Observations only.
+RULES: 3+ sources = consensus (crowded). Divergence = highest value. Weight data-backed high-confidence 2x. Every sentence must carry signal.
 
-LETTER FORMAT (only this goes in 'letter' field):
-
-═══ WHAT TO DO THIS WEEK ═══
-3–5 bullet points. Concrete, actionable. Start with verb. Grounded in signals.
-
+LETTER FORMAT (inside the "letter" field, use \\n for newlines):
+═══ KEY THEMES THIS WEEK ═══
+3-5 bullets. Signals/opportunities/risks as observations.
 ═══ ONE-LINE SUMMARY ═══
-Single sentence. Dominant signal. Judgment, not description.
-
+One sentence. Dominant signal.
 ═══ STATE OF THE MARKET ═══
-1–2 paragraphs. What's happening and why. End with signal quality: HIGH/MEDIUM/LOW + why.
-
+1-2 short paragraphs. End with: Signal quality: HIGH/MEDIUM/LOW.
 ═══ WHAT TO WATCH NEXT WEEK ═══
-2–3 sentences. One event. One price level. One surprise scenario.
+2-3 sentences.
 
-Return ONLY raw JSON. No markdown.
+CRITICAL: Respond with ONLY a valid JSON object. No markdown, no code fences, no explanation before or after.
+Keep the letter SHORT — max 800 words. Keep country_tilts to max 5 entries, sector_tilts to max 5.
 
-{"letter":"sections with headers","section_titles":{"market":"...","invest":"...","watch":"..."},"country_tilts":[{"region":"Japan","direction":"overweight|underweight|neutral","conviction":"high|medium|low","etf_proxy":"EWJ","in_portfolio":true,"reasoning":"one sentence","signal_type":"consensus|edge|divergent"}],"sector_tilts":[{"sector":"Energy","direction":"overweight|underweight|neutral","conviction":"high|medium|low","portfolio_tickers":["IGLN"],"reasoning":"one sentence","signal_type":"consensus|edge|divergent","earnings_pattern":"beats|misses|mixed|no_data"}],"weekly_priority":"single action item","signal_quality":"high|medium|low"}`;
+JSON schema:
+{
+  "letter": "full letter text with \\n for newlines",
+  "country_tilts": [
+    {"region": "...", "direction": "overweight|underweight|neutral", "conviction": "high|medium|low", "etf_proxy": "...", "in_portfolio": false, "reasoning": "one sentence", "signal_type": "consensus|edge|divergent"}
+  ],
+  "sector_tilts": [
+    {"sector": "...", "direction": "overweight|underweight|neutral", "conviction": "high|medium|low", "portfolio_tickers": [], "reasoning": "one sentence", "signal_type": "consensus|edge|divergent", "earnings_pattern": "beats|misses|mixed|no_data"}
+  ],
+  "weekly_priority": "one sentence — the top signal this week",
+  "signal_quality": "high|medium|low"
+}`;

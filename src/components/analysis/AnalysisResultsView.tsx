@@ -4,11 +4,8 @@ import { Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { HealthScoreGauge } from "./HealthScoreGauge";
 import { AllocationDisplay } from "./AllocationDisplay";
-import { PositionAlertCard } from "./PositionAlertCard";
-import { MarketSignalsCard } from "./MarketSignalsCard";
 import { RecommendedActionsCard } from "./RecommendedActionsCard";
 import { TradeRecommendationsCard } from "./TradeRecommendationsCard";
-import { BondRecommendationsCard } from "./BondRecommendationsCard";
 
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import type { AnalysisResult, RecommendedAction } from "@/hooks/usePortfolioAnalysis";
@@ -36,9 +33,6 @@ export function AnalysisResultsView({
     setShowDecisionModal(false);
     setSelectedRecommendation(null);
   };
-  const criticalAlerts = analysis.position_alerts.filter((a) => a.severity === "critical");
-  const warningAlerts = analysis.position_alerts.filter((a) => a.severity === "warning");
-
   // Format analysis meta info
   const meta = analysis.analysis_meta;
   const getMetaDescription = () => {
@@ -97,51 +91,6 @@ export function AnalysisResultsView({
         <HealthScoreGauge score={analysis.portfolio_health_score} />
         <AllocationDisplay allocation={analysis.allocation_check} />
       </div>
-
-      {/* Position Alerts */}
-      {analysis.position_alerts.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-foreground">
-            Position Alerts ({analysis.position_alerts.length})
-          </h3>
-          
-          {/* Critical first */}
-          {criticalAlerts.length > 0 && (
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-destructive">
-                Critical ({criticalAlerts.length})
-              </p>
-              <div className="grid gap-3 md:grid-cols-2">
-                {criticalAlerts.map((alert, i) => (
-                  <PositionAlertCard key={`critical-${i}`} alert={alert} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Then warnings */}
-          {warningAlerts.length > 0 && (
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-yellow-500">
-                Warnings ({warningAlerts.length})
-              </p>
-              <div className="grid gap-3 md:grid-cols-2">
-                {warningAlerts.map((alert, i) => (
-                  <PositionAlertCard key={`warning-${i}`} alert={alert} />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Market Signals */}
-      <MarketSignalsCard signals={analysis.market_signals} />
-
-      {/* Bond Allocation Strategy */}
-      {analysis.bond_recommendations && (
-        <BondRecommendationsCard bondRecs={analysis.bond_recommendations} />
-      )}
 
       {analysis.trade_recommendations && analysis.trade_recommendations.length > 0 && (
         <TradeRecommendationsCard

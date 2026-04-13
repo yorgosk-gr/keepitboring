@@ -63,7 +63,7 @@ export function useNewsletterCleanup() {
       const week = format(startOfWeek(new Date(insight.created_at)), "yyyy-ww");
 
       tickers.forEach((ticker) => {
-        const key = `${ticker}-${sentiment}-${week}`;
+        const key = `${ticker}\0${sentiment}\0${week}`;
         if (!groupMap.has(key)) {
           groupMap.set(key, []);
         }
@@ -73,7 +73,7 @@ export function useNewsletterCleanup() {
 
     groupMap.forEach((ids, key) => {
       if (ids.length > 1) {
-        const [ticker, sentiment, week] = key.split("-");
+        const [ticker, sentiment, week] = key.split("\0");
         duplicateGroups.push({
           ticker,
           sentiment,
@@ -120,9 +120,11 @@ export function useNewsletterCleanup() {
     mutationFn: async () => {
       const ninetyDaysAgo = subDays(new Date(), 90);
 
+      if (!user) throw new Error("Not authenticated");
       const { data, error } = await supabase
         .from("newsletters")
         .update({ is_archived: true })
+        .eq("user_id", user.id)
         .eq("is_archived", false)
         .lt("created_at", ninetyDaysAgo.toISOString())
         .select("id");
@@ -143,19 +145,37 @@ export function useNewsletterCleanup() {
   // Remove duplicate insights
   const removeDuplicates = useMutation({
     mutationFn: async (preview: CleanupPreview) => {
+      if (!user) throw new Error("Not authenticated");
       const idsToRemove = preview.duplicateInsights.groups.flatMap(
         (g) => g.removeIds
       );
 
       if (idsToRemove.length === 0) return 0;
 
+      // Verify ownership: only delete insights belonging to user's newsletters
+      const { data: ownedInsights } = await supabase
+        .from("insights")
+        .select("id, newsletter_id")
+        .in("id", idsToRemove);
+
+      const { data: userNls } = await supabase
+        .from("newsletters")
+        .select("id")
+        .eq("user_id", user.id);
+      const userNlIds = new Set((userNls ?? []).map(n => n.id));
+      const verifiedIds = (ownedInsights ?? [])
+        .filter(i => userNlIds.has(i.newsletter_id))
+        .map(i => i.id);
+
+      if (verifiedIds.length === 0) return 0;
+
       const { error } = await supabase
         .from("insights")
         .delete()
-        .in("id", idsToRemove);
+        .in("id", verifiedIds);
 
       if (error) throw error;
-      return idsToRemove.length;
+      return verifiedIds.length;
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ["newsletters"] });
@@ -171,15 +191,33 @@ export function useNewsletterCleanup() {
   // Clear old unstarred insights
   const clearOldUnstarred = useMutation({
     mutationFn: async (insightIds: string[]) => {
+      if (!user) throw new Error("Not authenticated");
       if (insightIds.length === 0) return 0;
+
+      // Verify ownership: only delete insights belonging to user's newsletters
+      const { data: ownedInsights } = await supabase
+        .from("insights")
+        .select("id, newsletter_id")
+        .in("id", insightIds);
+
+      const { data: userNls } = await supabase
+        .from("newsletters")
+        .select("id")
+        .eq("user_id", user.id);
+      const userNlIds = new Set((userNls ?? []).map(n => n.id));
+      const verifiedIds = (ownedInsights ?? [])
+        .filter(i => userNlIds.has(i.newsletter_id))
+        .map(i => i.id);
+
+      if (verifiedIds.length === 0) return 0;
 
       const { error } = await supabase
         .from("insights")
         .delete()
-        .in("id", insightIds);
+        .in("id", verifiedIds);
 
       if (error) throw error;
-      return insightIds.length;
+      return verifiedIds.length;
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ["newsletters"] });

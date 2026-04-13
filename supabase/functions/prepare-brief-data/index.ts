@@ -219,45 +219,47 @@ Return ONLY a JSON object, no markdown:
     }
 
     // ── Step 3: Build the prompt for Phase 2 (Sonnet) ───────────────────────
+    // Cap market context to 500 chars to save tokens
     const mktBlock = marketContext
-      ? `\n\nREAL-TIME MARKET CONTEXT (from Perplexity, cross-check newsletter claims):\n${marketContext}`
+      ? `\n\nMARKET CONTEXT:\n${marketContext.substring(0, 500)}`
       : "";
+
+    // Compact portfolio: just tickers + weights
+    const portfolioCompact = portfolioContext.map((p: any) => `${p.ticker}(${p.weight ?? "?"}%)`).join(", ");
 
     let userPrompt: string;
 
     if (processedSignals?.signals?.length) {
-      // Use the clean pre-processed digest — much smaller input for Sonnet
+      // Cap to top 40 signals by conviction (consensus first, then edge)
+      const cappedSignals = processedSignals.signals.slice(0, 40);
       const stats = processedSignals.stats ?? {};
-      userPrompt = `PORTFOLIO: ${JSON.stringify(portfolioContext)}
-TICKERS IN PORTFOLIO: ${JSON.stringify(portfolioTickers)}
-SOURCES THIS WEEK (${newsletters!.length}): ${newsletters!.map((n: any) => `"${n.source_name}" (${n.upload_date})`).join("; ")}
-PREV BRIEF — themes: ${JSON.stringify(prevThemes)}, tracked points: ${JSON.stringify(prevPoints)}
+      userPrompt = `PORTFOLIO: ${portfolioCompact}
+SOURCES (${newsletters!.length}): ${newsletters!.map((n: any) => n.source_name).join(", ")}
+PREV THEMES: ${prevThemes.join(", ") || "none"}
 
-PRE-PROCESSED SIGNAL DIGEST (${processedSignals.signals.length} signals consolidated from ${insightsList.length} raw insights; ${processedSignals.dropped_count ?? 0} dropped as duplicate/stale):
-Consensus: ${stats.consensus_signals ?? "?"} | Edge: ${stats.edge_signals ?? "?"} | Divergent: ${stats.divergent_signals ?? "?"} | Contradictions: ${stats.contradictions ?? "?"}
-
-${JSON.stringify(processedSignals.signals)}
+SIGNALS (${cappedSignals.length} of ${processedSignals.signals.length}, from ${insightsList.length} raw):
+C:${stats.consensus_signals ?? "?"} E:${stats.edge_signals ?? "?"} D:${stats.divergent_signals ?? "?"} X:${stats.contradictions ?? "?"}
+${JSON.stringify(cappedSignals)}
 
 Write the weekly intelligence letter.${mktBlock}`;
     } else {
-      // Fallback: use raw insights, prioritised and capped
+      // Fallback: use raw insights, prioritised and capped to 50
       const prioritised = [...insightsList].sort((a: any, b: any) => {
         const aConf = (a.metadata as any)?.source_confidence ?? 0.5;
         const bConf = (b.metadata as any)?.source_confidence ?? 0.5;
         const aStar = a.is_starred ? 1 : 0;
         const bStar = b.is_starred ? 1 : 0;
         return (bStar - aStar) || (bConf - aConf);
-      }).slice(0, 100);
+      }).slice(0, 50);
 
-      userPrompt = `PORTFOLIO: ${JSON.stringify(portfolioContext)}
-TICKERS IN PORTFOLIO: ${JSON.stringify(portfolioTickers)}
-SOURCES THIS WEEK (${newsletters!.length}): ${newsletters!.map((n: any) => `"${n.source_name}" (${n.upload_date})`).join("; ")}
-PREV BRIEF — themes: ${JSON.stringify(prevThemes)}, tracked points: ${JSON.stringify(prevPoints)}
+      userPrompt = `PORTFOLIO: ${portfolioCompact}
+SOURCES (${newsletters!.length}): ${newsletters!.map((n: any) => n.source_name).join(", ")}
+PREV THEMES: ${prevThemes.join(", ") || "none"}
 
-RAW INSIGHTS (${prioritised.length} of ${insightsList.length}, highest confidence):
+RAW INSIGHTS (${prioritised.length} of ${insightsList.length}):
 ${JSON.stringify(prioritised.map((i: any) => {
   const meta = i.metadata ?? {};
-  const obj: Record<string, any> = { t: i.insight_type, c: cap(i.content, 120), s: i.sentiment, src: i.newsletters?.source_name };
+  const obj: Record<string, any> = { t: i.insight_type, c: cap(i.content, 100), s: i.sentiment, src: i.newsletters?.source_name };
   if (i.tickers_mentioned?.length) obj.tk = i.tickers_mentioned;
   if (meta.data_backed) obj.data = true;
   if (meta.conviction_level && meta.conviction_level !== "low") obj.conv = meta.conviction_level;

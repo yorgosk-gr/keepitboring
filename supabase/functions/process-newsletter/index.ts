@@ -25,12 +25,23 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+
+    // Allow service-role calls (e.g. from ingest-email or cron-tasks) — trusted server-to-server
+    const isServiceRole = token === supabaseKey;
+    let userId: string | null = null;
+
+    if (isServiceRole) {
+      // Service role: userId will be read from the newsletter row itself
+      userId = null;
+    } else {
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      userId = user.id;
     }
 
     const { newsletterId, rawText } = await req.json();
@@ -53,6 +64,28 @@ serve(async (req) => {
 
     console.log(`Processing newsletter ${newsletterId}, text length: ${rawText.length}`);
 
+    // Verify newsletter ownership: for user-initiated calls, ensure the newsletter belongs to the caller.
+    // For service-role calls (ingest-email, cron), read the owner from the row.
+    const ownerQuery = await supabase
+      .from("newsletters")
+      .select("user_id")
+      .eq("id", newsletterId)
+      .maybeSingle();
+
+    if (!ownerQuery.data) {
+      return new Response(
+        JSON.stringify({ error: "Newsletter not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!isServiceRole && userId && ownerQuery.data.user_id !== userId) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden — you do not own this newsletter" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Acquire processing lock — prevents duplicate processing from concurrent calls
     // Also clears any previous error so the UI shows "Pending" during retry
     const lockCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
@@ -60,6 +93,7 @@ serve(async (req) => {
       .from("newsletters")
       .update({ processing_started_at: new Date().toISOString(), processing_error: null })
       .eq("id", newsletterId)
+      .eq("user_id", ownerQuery.data.user_id)
       .or(`processing_started_at.is.null,processing_started_at.lt.${lockCutoff}`)
       .select("id")
       .maybeSingle();

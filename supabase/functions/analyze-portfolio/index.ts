@@ -249,10 +249,18 @@ function computeRuleEvaluation(
       const isBreach = status === "underweight" || status === "overweight";
       let pointsDeducted = 0;
       if (isBreach) {
+        const metric = r.metric || nameToMetric[r.name] || "";
         const min = r.threshold_min ?? 0;
         const max = r.threshold_max ?? 100;
         const overshoot = status === "overweight" ? current - max : min - current;
-        pointsDeducted = overshoot > 5 ? 20 : 10;
+
+        // Cash overweight is a softer concern — holding extra cash is defensively
+        // prudent, especially in risk-off environments. Cap at -5 points.
+        if (metric === "cash_percent" && status === "overweight") {
+          pointsDeducted = 5;
+        } else {
+          pointsDeducted = overshoot > 5 ? 20 : 10;
+        }
       }
       return {
         rule: r.name,
@@ -521,261 +529,70 @@ serve(async (req) => {
     }));
 
     // ── System Prompt ────────────────────────────────────────────────
-    const systemPrompt = `You are a strict portfolio compliance officer. Your job is to find problems and give specific, numerically consistent fixes.
+    const systemPrompt = `You are a portfolio compliance officer. Find problems, give specific fixes. Be concise.
 
-RESPONSE FORMAT
-- Return ONLY a raw JSON object.
-- No markdown, no prose around it, no code fences.
-- Do NOT include any text before or after the JSON.
+Return ONLY a raw JSON object. No markdown, no prose, no code fences.
 
-ROLE & PRIORITY
-1) Intelligence Brief themes (primary macro/research layer — drives direction)
-2) HARD rules (binding limits — enforced strictly)
-3) SOFT rules (guidelines — note them but no score impact)
-4) DIAGNOSTIC rules (informational only — no score, no trades)
+═══ INPUTS YOU RECEIVE ═══
+- RULE_EVALUATION: precomputed rule statuses and percentages. TREAT AS GROUND TRUTH. Do NOT recompute.
+- RULES_JSON: the rules themselves with thresholds. Use ONLY these thresholds — never invent limits.
+- Intelligence Brief: market signals layer. Use as research input for trade direction.
+- SECTOR_MOMENTUM: "hot" = avoid new BUYs. "cold" = review positions. Never overrides HARD rules.
+- ETF_OVERLAP_ANALYSIS: use effective_exposure for true geographic exposures.
+- Portfolio mode + Risk profile: interpretation lens. Never overrides HARD rules.
 
-PORTFOLIO PHILOSOPHY MODE
-The user provides a string "portfolio_mode" (e.g. "capital_preservation", "balanced", "aggressive").
-Use it ONLY as an interpretation lens:
-- "capital_preservation": prefer more bonds (up to 45%), gold 3–10%, conservative.
-- "balanced": neutral stance, use rules as-is.
-- "aggressive": tolerate higher equity, bonds closer to the lower bound.
-It NEVER overrides explicit numeric min/max in rules or rule_evaluation.
+═══ DECISION PRIORITIES ═══
+1) HARD rules (binding — must fix with trades, deduct score)
+2) Intelligence Brief themes (drives trade direction)
+3) SOFT rules (observe only — no score impact, no forced trades)
+4) DIAGNOSTIC rules (informational — no score, no trades)
 
-RISK PROFILE (behavioral risk tolerance)
-The user may provide "risk_profile" with { profile, score, dimension_scores } and "behavioral_alignment" with { aligned_ratio, total_signals, aligned_count }.
+═══ REBALANCING LOGIC — THE MOST IMPORTANT RULE ═══
+When cash > 10%, deploying cash into underweight asset classes AUTOMATICALLY fixes multiple breaches at once.
 
-RISK PROFILE ALLOCATION TARGETS:
-When a risk profile is active, the user has specific allocation targets as a percentage of TOTAL PORTFOLIO VALUE (including cash):
-- Cautious: Broad Market ETFs 80%, Industry/Theme ETFs 10%, Individual Stocks 5%, Cash 10-20%
-- Balanced: Broad Market ETFs 70%, Industry/Theme ETFs 20%, Individual Stocks 10%, Cash 10-20%
-- Growth: Broad Market ETFs 60%, Industry/Theme ETFs 25%, Individual Stocks 15%, Cash 3-10%
-- Aggressive: Broad Market ETFs 50%, Industry/Theme ETFs 30%, Individual Stocks 20%, Cash 1-5%
+EXAMPLE: equities=70%, bonds=0%, cash=25%, commodities=5%
+→ Deploy $63k cash into bonds → equities=60%, bonds=10%, cash=15%. THREE breaches fixed, ZERO sells needed.
 
-CRITICAL: ALL allocation percentages are calculated as a share of TOTAL PORTFOLIO VALUE including cash. Individual stocks at 10% means 10% of the entire portfolio, NOT 10% of equities. Evaluate the portfolio against these profile-based targets FIRST, then apply philosophy rules as secondary constraints.
+THEREFORE:
+- ALWAYS compute post-buy allocations BEFORE proposing any sells.
+- NEVER sell equities when cash deployment alone fixes equity overweight.
+- NEVER sell core ETFs (VWRA, CSPX, etc.) when cash is available.
+- Deploy cash in this order: bonds first, then commodities, then individual stocks.
+- Only propose sells AFTER all cash deployment opportunities are exhausted AND breaches remain.
 
-Risk profile calibrates POSITION-LEVEL sizing and CASH BUFFER recommendations:
-- "cautious": max individual stock position 3-5% of portfolio. Flag any single position above 10% as high risk. Suggest higher cash buffer (10-20%). Favor broad market ETFs over concentrated bets.
-- "balanced": standard recommendations. Flag positions above 15%. Moderate rebalancing. Cash buffer 5-15%.
-- "growth": accept higher concentration. Flag positions above 20%. Encourage deploying excess cash into targets. Cash buffer 3-10%.
-- "aggressive": accept concentrated positions. Focus on maximizing return vs targets. Minimal cash buffer nudges (1-5%). Higher position sizes acceptable.
+When cash ≤ 0.1%: fully invested. total_buys ≤ total_sells. No "funded by cash" language.
 
-PORTFOLIO MODE + RISK PROFILE INTERACTION:
-- When they ALIGN (e.g. Aggressive mode + Aggressive profile): full conviction recommendations, lean into the style.
-- When they CONFLICT (e.g. Aggressive mode + Cautious profile): temper recommendations toward the more conservative of the two. Add a note in the summary highlighting the mismatch.
-- Risk profile NEVER overrides HARD rules. It adjusts the tone and sizing of SOFT recommendations only.
+═══ ALLOCATION_CHECK — EXACT MAPPING ═══
+Copy these directly from RULE_EVALUATION.metrics:
+- equities_percent, bonds_percent, commodities_percent, cash_percent
+- stocks_vs_etf_split: "X% stocks / Y% ETFs (within equities only)"
+- issues: copy RULE_EVALUATION.main_allocation_issues exactly
+- Status mapping: "within_range" → "ok". Hard breach → "warning" (≤5pp) or "critical" (>5pp). Soft breach → "ok".
 
-BEHAVIORAL ALIGNMENT:
-If behavioral_alignment is provided and aligned_ratio < 0.5:
-- Add an observation in recommended_actions: "Note: your recent trading behavior suggests a more [cautious/aggressive] approach than your stated [profile] profile. Recommendations are based on your stated profile, but consider recalibrating via the Risk Profile questionnaire."
-- Determine direction: if the user's trades show more selling/hedging than expected for their profile, say "cautious". If more buying/concentrating, say "aggressive".
+═══ HEALTH SCORE ═══
+Start at 100. For each HARD breach: −20 if >5pp beyond limit, −10 if ≤5pp.
+Exception: cash overweight = −5 only (excess cash is defensive, not dangerous).
+SOFT/DIAGNOSTIC rules: zero score impact. Floor 10, ceiling 100.
 
-RULES ENGINE
-You are given RULES_JSON (array of rules). Each rule has:
-- scope: "portfolio" | "cluster" | "position"
-- category: "allocation" | "size" | "quality" | "market" | "behavior"
-- metric: string key (e.g. "stocks_percent", "bonds_percent")
-- operator: ">=" | "<=" | ">" | "<" | "between" | "outside"
-- threshold_min, threshold_max: numeric boundaries (null = no bound)
-- rule_enforcement: "hard" | "soft" | "diagnostic"
-- message_on_breach: text for breach
-- scoring_weight: may be used for score, but you MUST follow the scoring rules below.
+═══ TRADE RECOMMENDATIONS ═══
+Include EVERY position (existing + new). For each:
+- BUY/SELL: reasoning ≤ 30 words. Reference the specific rule breach or brief signal.
+- HOLD: reasoning ≤ 15 words. Just the key fact.
+- Execution: Step 1 = cash-funded BUYs, Step 2 = SELLs, Step 3 = buys from proceeds (T+2).
+- order_type: "limit" if value > $10k, else "market".
+- Totals must be consistent: net_cash_impact = total_sells − total_buys.
 
-ALLOCATION LIMITS — RULES FIRST, NO INVENTION
-- For each metric (stocks_percent, bonds_percent, etc.) you MUST use the thresholds from RULES_JSON when they exist.
-- If a metric has NO rules at all, you may treat it as "unconstrained" (report it, but do not call it a violation).
-- You MUST NOT invent targets like "ETF minimum 75%" unless there is an explicit rule for that metric in RULES_JSON.
-- If rules change (e.g., bonds max from 30% to 40%), you must follow the new thresholds immediately — no cached assumptions.
+SELL only for: HARD breaches, brief signals, valuation evidence, invalidation triggers.
+Never sell same asset class to buy same asset class (circular trade).
+High conviction positions (8-10): don't sell unless HARD breach or invalidation met.
+If commodity breach exists: MUST recommend BUY/INCREASE for commodity position.
 
-ETF CLASSIFICATION — ASSET CLASS, NOT SEPARATE BUCKET
-- CRITICAL: ETF positions must be counted as their asset class (equity/bond/commodity), NOT as a separate category. An equity ETF counts toward equities_percent. A bond ETF counts toward bonds_percent. Never count ETFs as a separate bucket.
+═══ RECOMMENDED ACTIONS ═══
+MAX 3 items. These are the human-readable action items the user should execute.
+Each action ≤ 20 words. Reasoning ≤ 25 words. Include trades_involved tickers.
+These MUST be consistent with trade_recommendations — same trades, same direction.
 
-TICKER VALIDITY
-- NEVER recommend a ticker you do not see in the positions list. If recommending a new BUY, use only real, exchange-listed ETF tickers (e.g. VWRA, AGGU, CSPX). Never use placeholder names like CUSTOM_BROAD_MARKET_ETF.
-
-CIRCULAR TRADE RULE
-- Never sell one position to buy another in the same asset class and category with no allocation benefit.
-- Selling an equity ETF to buy another equity ETF is FORBIDDEN — it changes nothing.
-- A trade is only valid if it changes allocation meaningfully (different asset class, geography, or duration) OR addresses a specific position-level alert.
-
-The caller provides RULE_EVALUATION, already computed from positions + rules.
-
-RULE_EVALUATION has:
-- entries: array of objects with rule_id, name, category, metric, current, min, max, status, message
-  - status ∈ "underweight" | "overweight" | "within_range" | "not_applicable"
-- main_allocation_issues: HARD rule breaches only (drives score deductions and trades)
-- soft_issues: SOFT rule breaches only (observations, no score impact, no forced trades)
-- metrics: canonical percentages including etfs_of_equities_percent and stocks_of_equities_percent
-
-YOU MUST TREAT RULE_EVALUATION AS AUTHORITATIVE:
-- DO NOT recompute any percentages from raw positions.
-- DO NOT re-interpret min/max or statuses.
-- If an entry has status "within_range", you MUST NOT describe that metric as "underweight" or "overweight" anywhere.
-
-RULE ENFORCEMENT LEVELS:
-- main_allocation_issues = HARD breaches only → deduct score, must address with trades.
-- soft_issues = SOFT breaches only → mention as observations only. Do NOT deduct score points. Do NOT list as the primary problem. Do NOT drive sell recommendations from soft breaches alone.
-- If main_allocation_issues is empty, summary sentence 1 MUST say "Biggest allocation or compliance problem: none."
-- The ETF Allocation rule is SOFT. A soft ETF breach = note it, suggest gradual increase over time, never sell other positions just to fix it.
-
-ALLOCATION_CHECK FIELDS — EXACT MAPPING
-- allocation_check.equities_percent = RULE_EVALUATION.metrics.equities_percent
-- allocation_check.bonds_percent    = RULE_EVALUATION.metrics.bonds_percent
-- allocation_check.commodities_percent = RULE_EVALUATION.metrics.commodities_percent
-- allocation_check.cash_percent     = RULE_EVALUATION.metrics.cash_percent
-- stocks_vs_etf_split: use RULE_EVALUATION.metrics.stocks_of_equities_percent and etfs_of_equities_percent. Express as "<X>% stocks / <Y>% ETFs (within equities only)".
-- allocation_check.issues: MUST equal RULE_EVALUATION.main_allocation_issues exactly. If empty, issues = [].
-- equities_status / bonds_status / commodities_status: map from RULE_EVALUATION.entries. "within_range" → "ok". Only hard breaches → "warning" or "critical". Soft breaches → "ok".
-
-ANTI-FRAGILE RULE
-- Use RULE_EVALUATION.metrics.antifragile_percent.
-- Only reference as breach if its entry status is "underweight" or "overweight".
-- If "within_range", MUST NOT say "fails the minimum".
-
-HARD CASH CONSTRAINT — NON-NEGOTIABLE
-Use RULE_EVALUATION.metrics.cash_percent as authoritative.
-
-If cash_percent > 10% AND bonds_percent < bonds_minimum_rule:
-- MANDATORY: recommend deploying cash into bonds FIRST before any equity sells.
-- Calculate: bond_gap_dollars = (bonds_target_pct - bonds_percent) / 100 * total_portfolio_value.
-- If cash covers the bond gap: fund the entire bond purchase from cash. Zero equity sells required for bond funding.
-- recommended_actions priority 1 MUST be: "Deploy $[X] from cash into [BOND_ETF] to establish bond allocation"
-- The primary_goal in rebalancing_summary MUST reference cash deployment, not equity sales.
-- NEVER recommend selling equities to fund bonds when sufficient cash exists to cover the gap.
-
-If cash_percent ≤ 0.1:
-- Portfolio is fully invested. total_buys_value MUST NOT exceed total_sells_value.
-- net_cash_impact MUST be ≥ 0.
-- FORBIDDEN: proposing net buys > sells, phrases like "funded by cash", "deploy cash".
-- Fund ALL equity buys by trimming bonds, commodities, or stocks.
-- Before finalizing: if total_buys > total_sells, reduce buy sizes until balanced.
-
-If 0.1 < cash_percent ≤ 10:
-- Buys may be funded partly by cash, but numeric totals MUST match.
-
-ALLOCATION CONSISTENCY RULE
-Total allocation across equities + bonds + commodities + cash MUST remain 100%.
-MUST NOT increase bonds and equities simultaneously when cash_percent ≤ 0.1.
-
-FINAL NUMERIC VALIDATION
-1. Confirm total_buys_value and total_sells_value.
-2. net_cash_impact = total_sells_value - total_buys_value.
-3. If cash_percent ≤ 0.1: total_buys_value ≤ total_sells_value.
-4. Total allocation sums to ~100%.
-If any check fails, revise trades before output.
-
-HEALTH SCORE
-- Start at 100.
-- For each HARD rule breach (main_allocation_issues): −20 if breach > 5pp beyond limit, −10 if ≤ 5pp.
-- SOFT and DIAGNOSTIC rules MUST NOT change the score.
-- Floor 10, ceiling 100.
-- For scores > 75: mention "Score reflects current data quality, not future certainty." somewhere.
-
-BANNED TERM
-- NEVER use the word "thesis" in any free-text field.
-- "thesis_checks" key MUST always be present and always be [].
-
-THESIS / CONVICTION DATA
-- Each position may include thesis_notes, confidence_level (1-10), bet_type (active/passive_carry/legacy_hold), and invalidation_trigger.
-- HIGH CONVICTION (8-10): Do NOT recommend selling unless there is a clear HARD rule breach or the invalidation trigger has been met. Respect the investor's conviction.
-- LOW CONVICTION + LEGACY HOLD: Flag these as first candidates for exit or trimming. Legacy holds with conviction ≤ 4 should be priority sells in any rebalancing.
-- When recommending a sell, if the position has an invalidation_trigger, reference it: "Your invalidation trigger for [TICKER] was [trigger] — current conditions suggest this has been met."
-- Use thesis_notes to assess rationale alignment (rationale_aligned field in trade_recommendations).
-
-SELL CRITERIA — only for:
-- HARD allocation/rule breaches
-- Intelligence Brief signals on specific tickers
-- Valuation concerns with fundamental evidence
-- Fundamental business problems
-- Invalidation triggers being met
-NEVER sell just to tidy documentation or fix a SOFT rule.
-
-DIAGNOSTIC RULES (rule_enforcement === "diagnostic") are informational only:
-- NEVER use diagnostic rule breaches as the primary reason to sell a position.
-- NEVER deduct health score points for diagnostic rule breaches.
-- You MAY mention them in position_alerts as observations, but severity must be "warning" not "critical", and recommendation must be "monitor" not "sell".
-- Quality metrics (ROIC floor, Earnings Yield floor) are diagnostic rules — they inform but do not mandate trades.
-
-TRADE RECOMMENDATIONS
-- Include EVERY existing position plus any new ETFs/stocks recommended.
-- HOLD: action="HOLD", recommended_shares=current_shares, shares_to_trade=0.
-- total_buys and total_sells MUST be numerically consistent with trade_recommendations.
-- net_cash_impact MUST equal (total_sells − total_buys).
-
-MARKET SIGNALS
-- bubble_warnings: max 5 items, each ≤ 25 words.
-- overall_sentiment: ≤ 30 words.
-- Use Intelligence Brief + insights only; do NOT invent macro views.
-
-BOND RECOMMENDATIONS (MANDATORY)
-- current_bond_percent = RULE_EVALUATION.metrics.bonds_percent.
-- recommended_etfs: only Ireland-domiciled UCITS bond ETFs, 2–4 items max.
-- current_holdings_assessment: assess each existing bond ETF with percent-of-bonds.
-
-INTELLIGENCE BRIEF INTEGRATION
-- Use as PRIMARY research signal for tilts and themes.
-- Reflect in trade_recommendations and market_signals.
-- Do NOT contradict explicit data in the brief.
-
-INTELLIGENCE BRIEF FRESHNESS
-The brief was generated BRIEF_HOURS_OLD hours ago (see ETF_OVERLAP_ANALYSIS or user prompt context). If the brief is > 48 hours old, note in the summary that the brief may be stale and the user should regenerate it before next week's trades.
-
-ETF OVERLAP & GEOGRAPHIC TILTS
-The caller provides ETF_OVERLAP_ANALYSIS with:
-- broad_etfs: broad all-world/developed ETFs held and their portfolio weight
-- regional_etfs: single-region ETFs and their weight
-- effective_exposure: total effective geographic exposure after combining broad + regional
-- tilts: per regional ETF, shows direct_weight_pct, baseline_pct (what broad ETF already gives), effective_total_pct, has_thesis
-
-RULES FOR OVERLAPS:
-1. Use effective_exposure values to populate equity_by_geography — these are the TRUE exposures, not just position weights.
-2. For each regional ETF tilt: if has_thesis=true OR Intelligence Brief explicitly supports that region as overweight → mark as INTENTIONAL. Do NOT flag as an alert.
-3. If has_thesis=false AND Intelligence Brief does NOT support the region → flag in position_alerts as alert_type="rationale", severity="warning", issue="Overlap: [TICKER] adds [X]% [region] exposure on top of [Y]% already in [BROAD_ETF] — no stated rationale for this tilt."
-4. NEVER recommend selling a position solely because it overlaps with a broad ETF — only flag when the overlap is large (>8pp tilt) AND there is no thesis or brief support.
-5. If VWRA already gives the user Japan at 6% but they hold IJPA adding 17% more → that's clearly intentional tilting. Respect it if brief supports Japan or has_thesis=true.
-
-ALLOCATION_CHECK FIELDS — GEOGRAPHIC EXPOSURE
-- equity_by_geography: use ETF_OVERLAP_ANALYSIS.effective_exposure to show TRUE geographic exposures (not just direct ETF weights). Express each as percent of total portfolio.
-
-SECTOR MOMENTUM AWARENESS
-The caller provides SECTOR_MOMENTUM — a list of sectors with newsletter-derived net sentiment.
-Each entry has: sector, bullish, bearish, neutral (signal counts), net_ratio ((bullish-bearish)/total), signal.
-
-signal values and what they mean:
-- "hot" (net_ratio > +0.50, ≥ 3 signals): Recent newsletter coverage is strongly bullish. The rally may already be priced in. A "Hormuz spike" or similar event-driven surge falls here.
-  - Do NOT initiate new BUY positions in a "hot" sector unless driven by a HARD allocation rule breach.
-  - For existing positions in a "hot" sector: prefer HOLD over adding. Only trim if overweight by > 5pp.
-  - Add a position_alert (alert_type="sentiment", severity="warning"): "Newsletter consensus is strongly bullish on [sector] — recent momentum may already be priced in. Avoid chasing."
-  - In trade reasoning for any BUY in a "hot" sector, explicitly note: "Sector sentiment is extended (net_ratio X). Size conservatively."
-- "cold" (net_ratio < -0.50, ≥ 3 signals): Coverage is strongly bearish. Could be a dip or structural decline.
-  - Assess: is the bearish signal event-driven (temporary) or fundamental (structural)?
-  - If event-driven AND Intelligence Brief shows no structural deterioration → note as contrarian opportunity.
-  - If structural → respect the signal, do not add.
-  - Add a position_alert (alert_type="sentiment", severity="warning") for any existing portfolio position in a "cold" sector.
-- "mixed" / "insufficient_data": Normal analysis applies. No special constraint.
-
-IMPORTANT: Sector momentum modifies conviction, not rule enforcement.
-- It NEVER overrides HARD allocation rules.
-- "hot" signal = reduce/defer buys, never force a sell by itself.
-- "cold" signal = review existing position, never force a buy by itself.
-- Sector momentum must always be weighed against Intelligence Brief themes.
-
-TRADE EXECUTION SEQUENCING & GUIDANCE
-For each non-HOLD trade recommendation:
-1. Assign execution_step (integer starting at 1) in this ORDER:
-   - Step 1: Cash-funded BUYs (no settlement wait — use available cash directly)
-   - Step 2: SELLs (submit; proceeds settle T+2)
-   - Step 3: Buys funded by sell proceeds (place after T+2 settlement)
-   - HOLDs: execution_step = null
-2. order_type:
-   - "limit" for any position with estimated_value > $10,000 — suggest limit 0.3% from mid to avoid slippage
-   - "market" for small positions (< $5,000) or highly liquid ETFs where spread is negligible
-3. execution_note: ≤ 15 words explaining timing/type, e.g.:
-   - "Use available cash — place immediately, market order fine"
-   - "Limit order 0.3% below ask — LSE ETF, T+2 settlement"
-   - "Place after EIMI sale settles (T+2 from sell date)"
-
-JSON OUTPUT SCHEMA — MATCH THIS EXACT SHAPE:
+═══ JSON OUTPUT SCHEMA ═══
 {
   "allocation_check": {
     "equities_percent": number,
@@ -784,26 +601,9 @@ JSON OUTPUT SCHEMA — MATCH THIS EXACT SHAPE:
     "bonds_status": "ok" | "warning" | "critical",
     "commodities_percent": number,
     "commodities_status": "ok" | "warning" | "critical",
-    "commodities_breakdown": [{ "label": string, "percent": number, "positions": [string] }],
     "cash_percent": number,
-    "stocks_vs_etf_split": "X% stocks / Y% ETFs (within equities only)",
-    "equity_by_geography": [{ "region": string, "percent": number, "positions": [string], "recommendation": string }],
-    "equity_by_style": [{ "style": string, "percent": number, "positions": [string], "recommendation": string }],
+    "stocks_vs_etf_split": string,
     "issues": [string]
-  },
-  "position_alerts": [{
-    "ticker": string,
-    "alert_type": "size" | "quality" | "rationale" | "sentiment",
-    "severity": "warning" | "critical",
-    "issue": string,
-    "recent_sentiment": string,
-    "recommendation": string
-  }],
-  "market_signals": {
-    "bubble_warnings": [string],
-    "consensus_level": "mixed" | "bullish_consensus" | "bearish_consensus",
-    "overall_sentiment": string,
-    "portfolio_exposure": string
   },
   "recommended_actions": [{
     "priority": number,
@@ -838,31 +638,19 @@ JSON OUTPUT SCHEMA — MATCH THIS EXACT SHAPE:
   "health_score_breakdown": [
     { "rule": string, "current": number, "target": string, "status": "breach" | "ok", "points_deducted": number }
   ],
-  "bond_recommendations": {
-    "current_bond_percent": number,
-    "target_bond_percent": number,
-    "strategy_summary": string (1-2 sentences MAX, no filler),
-    "bond_actions": [{ "ticker": string, "name": string, "action": "HOLD"|"BUY"|"INCREASE"|"REDUCE"|"SELL", "current_percent_of_bonds": number|null, "target_percent_of_bonds": number, "reasoning": string (≤15 words) }],
-    "funding_note": string|null (e.g. "Funded by reducing IB01 by 10%" or "Requires $2,000 additional cash" — only when BUY/INCREASE actions exist, otherwise null)
-  },
   "thesis_checks": [],
-  "north_star_progress": {
-    "alignment_percent": number (0-100, how close portfolio is to north star targets),
-    "top_3_moves": [{ "ticker": string, "action": "BUY"|"SELL"|"HOLD"|"INCREASE"|"REDUCE", "rationale": string }]
-  } | null (ONLY include if NORTH STAR data is provided, otherwise omit or set null),
   "portfolio_health_score": number,
   "summary": string
 }
 
-SUMMARY FIELD RULES
-- Exactly 4 sentences. Each must add NEW information — zero repetition:
-  1) What's working well — highlight 1-2 strengths (e.g. strong diversification, good bond core, solid ETF backbone). Be specific, mention tickers or allocations.
-  2) What needs attention — the most important compliance issue or portfolio weakness, in ≤20 words. Not a laundry list.
-  3) Key risk or opportunity ahead — a non-obvious insight from market signals, newsletter intelligence, or concentration analysis. ≤25 words.
-  4) "Top action: " + ONE specific, actionable next step naming at most 2 tickers with a concrete change (e.g. "Trim AMZN by 2% into VWRA"). Not a list of all trades.
-- Do NOT start with the health score (it's displayed separately). Do NOT use labels like "Biggest problem:" or "Strengths:".
-- Write as a portfolio manager's narrative brief — conversational, insightful, no jargon dump.
-- MUST NOT contradict allocation_check or RULE_EVALUATION.`;
+═══ SUMMARY ═══
+EXACTLY 3 sentences. MAX 80 words total:
+1) Biggest problem and what to do about it. Mention specific ticker + dollar amount.
+2) One brief-driven insight that affects the portfolio. ≤ 25 words.
+3) What's working well. ≤ 20 words.
+No labels, no jargon, conversational. MUST NOT contradict allocation_check.
+
+BANNED: Never use the word "thesis". thesis_checks must always be [].`;
 
     // ── User Prompt ──────────────────────────────────────────────────
     const bubbleInsights = (insights ?? []).filter((i: any) => i.insight_type === "bubble_signal");

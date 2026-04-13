@@ -232,6 +232,17 @@ export function useNewsletters() {
         await supabase.storage.from("uploads").remove([newsletter.file_path]);
       }
 
+      // Verify ownership before deleting insights (insights table has no user_id column,
+      // so we rely on the newsletter_id foreign key + this ownership check)
+      const { data: owned } = await supabase
+        .from("newsletters")
+        .select("id")
+        .eq("id", newsletter.id)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+
+      if (!owned) throw new Error("Newsletter not found or not owned by you");
+
       // Delete insights first (foreign key)
       await supabase.from("insights").delete().eq("newsletter_id", newsletter.id);
 

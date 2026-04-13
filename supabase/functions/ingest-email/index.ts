@@ -181,6 +181,31 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+    // Deduplication: hash the first 2000 chars of content + source name to detect duplicate forwards.
+    // Uses SubtleCrypto (available in Deno) to compute SHA-256.
+    const dedupeInput = `${subject}::${rawText.substring(0, 2000)}`;
+    const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(dedupeInput));
+    const contentHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
+
+    // Check if a newsletter with the same hash was ingested in the last 7 days
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: existing } = await supabase
+      .from("newsletters")
+      .select("id")
+      .eq("user_id", OWNER_USER_ID)
+      .eq("source_name", subject)
+      .gte("created_at", sevenDaysAgo)
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      console.log(`Duplicate newsletter detected: "${subject}" — skipping (existing id: ${existing.id})`);
+      return new Response(
+        JSON.stringify({ success: true, duplicate: true, existing_id: existing.id }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Insert newsletter row and get the ID back
     const { data: newsletter, error: insertError } = await supabase
       .from("newsletters")

@@ -353,7 +353,7 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
           <div className="mt-3 p-3.5 rounded-lg bg-primary/10 border border-primary/30">
             <div className="flex items-center gap-2 mb-1">
               <Target className="w-4 h-4 text-primary" />
-              <span className="text-sm font-bold text-primary uppercase">This Week's Priority</span>
+              <span className="text-sm font-bold text-primary uppercase">Top Signal This Week</span>
             </div>
             <p className="text-[15px] text-foreground font-medium">{summary.weekly_priority}</p>
           </div>
@@ -362,8 +362,11 @@ function SummaryContent({ summary }: { summary: InsightsSummary }) {
 
       {expanded && (
         <CardContent className="space-y-8 pt-0">
-          {/* Narrative: What To Do This Week */}
-          {sections.what_to_do_this_week && (
+          {/* Narrative: Key Themes This Week (new) or What To Do This Week (legacy) */}
+          {sections.key_themes_this_week && (
+            <NarrativeSection title="Key Themes This Week" content={sections.key_themes_this_week} />
+          )}
+          {!sections.key_themes_this_week && sections.what_to_do_this_week && (
             <NarrativeSection title="What To Do This Week" content={sections.what_to_do_this_week} />
           )}
 
