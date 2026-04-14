@@ -578,9 +578,18 @@ SOFT/DIAGNOSTIC rules: zero score impact. Floor 10, ceiling 100.
 Include EVERY position (existing + new). For each:
 - BUY/SELL: reasoning ≤ 30 words. Reference the specific rule breach or brief signal.
 - HOLD: reasoning ≤ 15 words. Just the key fact.
+- current_weight: the ticker's CURRENT weight BEFORE any trades.
+- target_weight: the ticker's weight AFTER ALL proposed trades execute (recalculate based on new total portfolio value).
+  For BUYs: target_weight = (current_value + buy_value) / new_total_portfolio_value * 100.
+  For HOLDs: target_weight = current_weight (unchanged if no trades affect it), or recalculate if total portfolio value changes due to other trades.
 - Execution: Step 1 = cash-funded BUYs, Step 2 = SELLs, Step 3 = buys from proceeds (T+2).
 - order_type: "limit" if value > $10k, else "market".
 - Totals must be consistent: net_cash_impact = total_sells − total_buys.
+
+NEW BUY TICKER RULES:
+- The user is a UAE tax resident. For any NEW position (not already held), prefer Ireland-domiciled UCITS ETFs (15% US dividend treaty rate vs 30%).
+- Use AGGU not AGG, IGLA not IAGG, EIMI not EEM, VWRA not VT, CSPX not SPY, etc.
+- Only recommend real, exchange-listed tickers. Never use placeholder names.
 
 SELL only for: HARD breaches, brief signals, valuation evidence, invalidation triggers.
 Never sell same asset class to buy same asset class (circular trade).
@@ -589,7 +598,8 @@ If commodity breach exists: MUST recommend BUY/INCREASE for commodity position.
 
 ═══ RECOMMENDED ACTIONS ═══
 MAX 3 items. These are the human-readable action items the user should execute.
-Each action ≤ 20 words. Reasoning ≤ 25 words. Include trades_involved tickers.
+Each action ≤ 20 words. Reasoning ≤ 25 words.
+trades_involved: list ONLY the tickers that this action trades (BUY or SELL). NEVER include HOLD tickers.
 These MUST be consistent with trade_recommendations — same trades, same direction.
 
 ═══ JSON OUTPUT SCHEMA ═══
@@ -644,11 +654,11 @@ These MUST be consistent with trade_recommendations — same trades, same direct
 }
 
 ═══ SUMMARY ═══
-EXACTLY 3 sentences. MAX 80 words total:
-1) Biggest problem and what to do about it. Mention specific ticker + dollar amount.
-2) One brief-driven insight that affects the portfolio. ≤ 25 words.
-3) What's working well. ≤ 20 words.
-No labels, no jargon, conversational. MUST NOT contradict allocation_check.
+HARD LIMIT: EXACTLY 3 sentences. MAXIMUM 60 words. If you exceed 60 words, delete words until you are under.
+1) Deploy $X into [TICKER] to fix [breach]. One sentence, ≤ 25 words.
+2) Brief insight affecting portfolio. One sentence, ≤ 20 words.
+3) What's working. One sentence, ≤ 15 words.
+No labels, no preamble. Start directly with the action. MUST NOT contradict allocation_check.
 
 BANNED: Never use the word "thesis". thesis_checks must always be [].`;
 

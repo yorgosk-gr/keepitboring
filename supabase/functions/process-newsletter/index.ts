@@ -114,15 +114,27 @@ serve(async (req) => {
         .eq("id", newsletterId);
     };
 
-    // Write error to DB and release lock in one update
+    // Write error to DB and release lock in one update.
+    // Also clears `processed` so the UI shows "Failed" instead of "Processed: 0".
     const writeError = async (errorMessage: string) => {
       await supabase
         .from("newsletters")
-        .update({ processing_error: errorMessage, processing_started_at: null })
+        .update({ processing_error: errorMessage, processing_started_at: null, processed: false })
         .eq("id", newsletterId);
     };
 
     try {
+
+    // Reject inputs that are too short to contain useful financial commentary.
+    // Newsletters this short are usually empty forwards, "click to read more" stubs,
+    // or HTML that got over-stripped — AI extraction will yield nothing useful.
+    if (rawText.trim().length < 400) {
+      await writeError(`Content too short to extract insights (${rawText.trim().length} chars). The email body may be missing, contain only a link, or have been over-stripped.`);
+      return new Response(
+        JSON.stringify({ error: "Newsletter content too short", chars: rawText.trim().length }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const truncatedText = rawText.length > 50000 ? rawText.substring(0, 50000) + "\n\n[Text truncated...]" : rawText;
 
@@ -549,6 +561,16 @@ EXTRACTION RULES:
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+    } else {
+      // AI returned valid JSON but every category was empty — content was likely
+      // non-financial, too brief, or an over-stripped email body. Surface this as
+      // an error rather than silently marking the newsletter as "Processed: 0".
+      console.warn(`Newsletter ${newsletterId}: AI extracted 0 insights from ${truncatedText.length} chars`);
+      await writeError(`AI extracted no insights from ${truncatedText.length} chars of content. The newsletter may be non-financial, an article stub, or the email body may be missing context (links, images, tables stripped out).`);
+      return new Response(
+        JSON.stringify({ error: "No insights extracted", chars: truncatedText.length }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Run newsletter update and reputation update in parallel (both non-blocking)

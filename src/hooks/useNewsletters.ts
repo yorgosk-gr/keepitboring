@@ -49,12 +49,24 @@ export function useNewsletters() {
 
       if (newsletters.length === 0) return newsletters as Newsletter[];
 
-      // Single query: get newsletter_id + metadata for counts AND confidence in one pass
+      // Get newsletter_id + metadata for counts AND confidence.
+      // PostgREST caps responses at 1000 rows, so paginate explicitly — otherwise
+      // newsletters past the cap get partial counts and the list disagrees with
+      // the per-newsletter modal query.
       const newsletterIds = newsletters.map((n) => n.id);
-      const { data: insightRows } = await supabase
-        .from("insights")
-        .select("newsletter_id, metadata")
-        .in("newsletter_id", newsletterIds);
+      const PAGE = 1000;
+      const insightRows: { newsletter_id: string; metadata: unknown }[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error: pageError } = await supabase
+          .from("insights")
+          .select("newsletter_id, metadata")
+          .in("newsletter_id", newsletterIds)
+          .range(from, from + PAGE - 1);
+        if (pageError) throw pageError;
+        if (!data || data.length === 0) break;
+        insightRows.push(...data);
+        if (data.length < PAGE) break;
+      }
 
       const countsMap: Record<string, number> = {};
       const confidenceMap: Record<string, number[]> = {};
