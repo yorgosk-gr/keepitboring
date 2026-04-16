@@ -113,12 +113,14 @@ export function JournalDetail({
     : null;
 
   const handleSaveThesis = () => {
+    // Only use position_id if it resolves to a current position (guards against
+    // FK violations when a position has been removed from the portfolio).
     const pos = positions.find(p => p.id === thesisForm.position_id);
     onUpdate({
       id: entry.id,
       action_type: thesisForm.action_type,
-      position_id: thesisForm.position_id || null,
-      ticker: pos?.ticker ?? null,
+      position_id: pos?.id ?? null,
+      ticker: pos?.ticker ?? entry.ticker ?? null,
       reasoning: thesisForm.reasoning,
       invalidation_triggers: thesisForm.invalidation_triggers,
       confidence_level: thesisForm.confidence_level,
