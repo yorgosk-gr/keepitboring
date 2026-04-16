@@ -1,25 +1,20 @@
 import { useState, useMemo, useEffect } from "react";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import {
-  BookOpen, Filter, Search, Plus, ChevronDown, ChevronUp,
-  ShoppingCart, Trash2, Scissors, Minus, RefreshCw, CheckCircle,
-  XCircle, Clock, AlertCircle, Star, Tag, TrendingUp, TrendingDown,
+  BookOpen, Search, Plus, ShoppingCart, Trash2, CheckCircle,
+  XCircle, Clock, AlertCircle, Tag, TrendingUp,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useDecisionJournal, type JournalEntry, type Assumption } from "@/hooks/useDecisionJournal";
+import { useDecisionJournal, type JournalEntry } from "@/hooks/useDecisionJournal";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import { JournalAnalytics } from "@/components/journal/JournalAnalytics";
 import { JournalDetail } from "@/components/journal/JournalDetail";
@@ -27,19 +22,11 @@ import { JournalDetail } from "@/components/journal/JournalDetail";
 const actionIcons: Record<string, React.ReactNode> = {
   buy: <ShoppingCart className="w-3.5 h-3.5 text-emerald-500" />,
   sell: <Trash2 className="w-3.5 h-3.5 text-red-500" />,
-  trim: <Scissors className="w-3.5 h-3.5 text-amber-500" />,
-  add: <Plus className="w-3.5 h-3.5 text-blue-500" />,
-  hold: <Minus className="w-3.5 h-3.5 text-muted-foreground" />,
-  rebalance: <RefreshCw className="w-3.5 h-3.5 text-purple-500" />,
 };
 
 const actionColors: Record<string, string> = {
   buy: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
   sell: "bg-red-500/10 text-red-500 border-red-500/20",
-  trim: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  add: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-  hold: "bg-muted text-muted-foreground border-border",
-  rebalance: "bg-purple-500/10 text-purple-500 border-purple-500/20",
 };
 
 const outcomeConfig: Record<string, { label: string; color: string; icon: typeof CheckCircle }> = {
@@ -83,13 +70,15 @@ function EntryCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          {actionIcons[entry.action_type ?? "hold"]}
+          {entry.action_type && actionIcons[entry.action_type]}
           <span className="font-mono font-bold text-sm truncate">
-            {entry.position_ticker ?? entry.ticker ?? "Portfolio"}
+            {entry.position_ticker ?? entry.ticker ?? "—"}
           </span>
-          <Badge variant="outline" className={cn("text-xs capitalize shrink-0", actionColors[entry.action_type ?? "hold"])}>
-            {entry.action_type ?? "hold"}
-          </Badge>
+          {entry.action_type && (
+            <Badge variant="outline" className={cn("text-xs capitalize shrink-0", actionColors[entry.action_type])}>
+              {entry.action_type}
+            </Badge>
+          )}
         </div>
         <Badge variant="outline" className={cn("text-xs shrink-0", outcome.color)}>
           <OutcomeIcon className="w-3 h-3 mr-1" />
@@ -139,6 +128,8 @@ export default function Journal() {
     isLoading,
     updateEntry,
     isUpdating,
+    deleteEntry,
+    isDeleting,
     createLesson,
     useLesson,
     analytics,
@@ -147,6 +138,11 @@ export default function Journal() {
     outcome_status: filters.outcome_status,
     ticker: filters.ticker || undefined,
   });
+
+  const handleDelete = (id: string) => {
+    deleteEntry(id);
+    if (selectedId === id) setSelectedId(null);
+  };
 
   const selectedEntry = useMemo(
     () => entries.find(e => e.id === selectedId) ?? null,
@@ -218,10 +214,6 @@ export default function Journal() {
                 <SelectItem value="all">All Actions</SelectItem>
                 <SelectItem value="buy">Buy</SelectItem>
                 <SelectItem value="sell">Sell</SelectItem>
-                <SelectItem value="trim">Trim</SelectItem>
-                <SelectItem value="add">Add</SelectItem>
-                <SelectItem value="hold">Hold</SelectItem>
-                <SelectItem value="rebalance">Rebalance</SelectItem>
               </SelectContent>
             </Select>
             <Select
@@ -281,7 +273,9 @@ export default function Journal() {
               entry={selectedEntry}
               lessons={lessons}
               onUpdate={updateEntry}
+              onDelete={handleDelete}
               isUpdating={isUpdating}
+              isDeleting={isDeleting}
               onCreateLesson={createLesson}
               onUseLesson={useLesson}
             />

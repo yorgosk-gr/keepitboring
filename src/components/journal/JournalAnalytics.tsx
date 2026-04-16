@@ -8,6 +8,7 @@ import type { Lesson } from "@/hooks/useDecisionJournal";
 interface AnalyticsData {
   totalDecisions: number;
   reviewed: number;
+  verdicts: number;
   pending: number;
   winRate: number | null;
   right: number;
@@ -64,7 +65,7 @@ const categoryColors: Record<string, string> = {
 
 export function JournalAnalytics({ analytics, topLessons }: Props) {
   const {
-    totalDecisions, reviewed, pending, winRate, right, wrong,
+    totalDecisions, verdicts, pending, winRate, right, wrong,
     avgHoldingDays, bestDecision, worstDecision,
   } = analytics;
 
@@ -76,7 +77,7 @@ export function JournalAnalytics({ analytics, topLessons }: Props) {
           icon={Target}
           label="Win Rate"
           value={winRate !== null ? `${winRate.toFixed(0)}%` : "—"}
-          subtext={reviewed > 0 ? `${right}W / ${wrong}L of ${reviewed} reviewed` : "No reviews yet"}
+          subtext={verdicts > 0 ? `${right}W / ${wrong}L of ${verdicts} verdicts` : "No verdicts yet"}
           color="bg-emerald-500/10 text-emerald-500"
         />
         <StatCard

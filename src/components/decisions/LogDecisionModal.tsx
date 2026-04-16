@@ -29,12 +29,6 @@ import {
   FormMessage,
   FormDescription,
 } from "@/components/ui/form";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,18 +38,13 @@ import { toast } from "sonner";
 import { usePositions, type Position } from "@/hooks/usePositions";
 import { PreTradeChecklist } from "@/components/decisions/PreTradeChecklist";
 import type { RecommendedAction } from "@/hooks/usePortfolioAnalysis";
+
 const formSchema = z.object({
-  action_type: z.enum(["buy", "sell", "trim", "add", "hold", "rebalance"]),
+  action_type: z.enum(["buy", "sell"]),
   position_id: z.string().min(1, "Select a position"),
   reasoning: z.string().min(50, "Please provide at least 50 characters of reasoning"),
-  confidence_level: z.number().min(1).max(10),
-  probability_estimate: z.string().optional(),
-  alternative_scenarios: z.string().optional(),
-  information_set: z.string().min(1, "Required: What information did you have?"),
   invalidation_triggers: z.string().min(1, "Required: What would make this decision wrong?"),
-  reversal_information: z.string().optional(),
-  newsletter_insight_ids: z.array(z.string()).optional(),
-  tags: z.string().optional(),
+  confidence_level: z.number().min(1).max(10),
   entry_price: z.string().optional(),
   entry_date: z.string().optional(),
 });
@@ -87,53 +76,36 @@ export function LogDecisionModal({
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      action_type: (defaultAction as FormValues["action_type"]) || "hold",
-      position_id: position?.id || "portfolio-wide",
+      action_type: (defaultAction as FormValues["action_type"]) || "buy",
+      position_id: position?.id || "",
       reasoning: "",
-      confidence_level: 5,
-      probability_estimate: "",
-      alternative_scenarios: "",
-      information_set: "",
       invalidation_triggers: "",
-      reversal_information: "",
-      newsletter_insight_ids: [],
-      tags: "",
+      confidence_level: 5,
       entry_price: "",
       entry_date: new Date().toISOString().split("T")[0],
     },
   });
 
-  // Show checklist when modal opens for trade actions
+  // Always show pre-trade checklist — every log is a buy or sell.
   useEffect(() => {
     if (open && !checklistPassed) {
-      // Use the actual form value, not just the prop (form may have been pre-filled)
-      const action = form.getValues("action_type") || (defaultAction as FormValues["action_type"]) || "hold";
-      if (action !== "hold" && action !== "rebalance") {
-        setShowChecklist(true);
-      } else {
-        setChecklistPassed(true);
-      }
+      setShowChecklist(true);
     }
     if (!open) {
       setChecklistPassed(false);
       setShowChecklist(false);
     }
-  }, [open]);
+  }, [open, checklistPassed]);
 
-  // Helper to extract action type from recommendation action text
+  // Helper to extract action type from recommendation action text (buy/sell only)
   const extractActionType = (actionText: string): FormValues["action_type"] => {
     const lower = actionText.toLowerCase();
-    if (lower.includes("trim") || lower.includes("reduce")) return "trim";
-    if (lower.includes("sell") || lower.includes("exit")) return "sell";
-    if (lower.includes("buy") || lower.includes("purchase")) return "buy";
-    if (lower.includes("add") || lower.includes("increase")) return "add";
-    if (lower.includes("rebalance")) return "rebalance";
-    return "hold";
+    if (lower.includes("sell") || lower.includes("exit") || lower.includes("trim") || lower.includes("reduce")) return "sell";
+    return "buy";
   };
 
   // Helper to extract ticker from recommendation action text
   const extractTicker = (actionText: string): string | null => {
-    // Look for common patterns like "Review TSLA", "Trim NVDA position", etc.
     const tickerMatch = actionText.match(/\b([A-Z]{1,5})\b/);
     return tickerMatch ? tickerMatch[1] : null;
   };
@@ -146,14 +118,10 @@ export function LogDecisionModal({
     if (defaultAction) {
       form.setValue("action_type", defaultAction as FormValues["action_type"]);
     }
-    
-    // Pre-fill from recommendation
+
     if (recommendation) {
-      // Extract action type from recommendation text
-      const actionType = extractActionType(recommendation.action);
-      form.setValue("action_type", actionType);
-      
-      // Try to find matching position from ticker in action text
+      form.setValue("action_type", extractActionType(recommendation.action));
+
       const ticker = extractTicker(recommendation.action);
       if (ticker) {
         const matchingPosition = positions.find(
@@ -163,12 +131,10 @@ export function LogDecisionModal({
           form.setValue("position_id", matchingPosition.id);
         }
       }
-      
-      // Pre-fill reasoning with the recommendation action and reasoning
+
       const prefillReasoning = `Based on analysis recommendation:\n\nAction: ${recommendation.action}\n\nReasoning: ${recommendation.reasoning}`;
       form.setValue("reasoning", prefillReasoning);
-      
-      // Set confidence based on recommendation confidence
+
       const confidenceMap = { high: 8, medium: 6, low: 4 };
       form.setValue("confidence_level", confidenceMap[recommendation.confidence] || 5);
     }
@@ -181,16 +147,12 @@ export function LogDecisionModal({
     try {
       const { error } = await supabase.from("decision_log").insert({
         user_id: user.id,
-        position_id: values.position_id === "portfolio-wide" ? null : values.position_id,
+        position_id: values.position_id,
         action_type: values.action_type,
         reasoning: values.reasoning,
-        confidence_level: values.confidence_level,
-        probability_estimate: values.probability_estimate || null,
-        information_set: `${values.information_set}\n\n**Alternative Scenarios:**\n${values.alternative_scenarios || "N/A"}\n\n**Reversal Triggers:**\n${values.reversal_information || "N/A"}`,
         invalidation_triggers: values.invalidation_triggers,
-        ticker: values.position_id !== "portfolio-wide"
-          ? positions.find(p => p.id === values.position_id)?.ticker ?? null
-          : null,
+        confidence_level: values.confidence_level,
+        ticker: positions.find(p => p.id === values.position_id)?.ticker ?? null,
         entry_price: values.entry_price ? parseFloat(values.entry_price) : null,
         entry_date: values.entry_date || null,
       });
@@ -199,6 +161,7 @@ export function LogDecisionModal({
 
       toast.success("Decision logged successfully");
       queryClient.invalidateQueries({ queryKey: ["decision_logs"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       form.reset();
       onClose();
@@ -212,10 +175,6 @@ export function LogDecisionModal({
   const actionTypes = [
     { value: "buy", label: "Buy", color: "text-emerald-500" },
     { value: "sell", label: "Sell", color: "text-red-500" },
-    { value: "trim", label: "Trim", color: "text-amber-500" },
-    { value: "add", label: "Add", color: "text-blue-500" },
-    { value: "hold", label: "Hold", color: "text-muted-foreground" },
-    { value: "rebalance", label: "Rebalance", color: "text-purple-500" },
   ];
 
   const watchedPositionId = useWatch({ control: form.control, name: "position_id" });
@@ -228,7 +187,7 @@ export function LogDecisionModal({
       <PreTradeChecklist
         open={open}
         ticker={selectedTicker}
-        actionType={watchedActionType || (defaultAction ?? "hold")}
+        actionType={watchedActionType || (defaultAction ?? "buy")}
         positionId={selectedPosition?.id ?? null}
         onProceed={() => {
           setShowChecklist(false);
@@ -259,15 +218,14 @@ export function LogDecisionModal({
 
         <ScrollArea className="max-h-[calc(90vh-100px)]">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="p-6 pt-4 space-y-6">
-              {/* Core Fields */}
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="p-6 pt-4 space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="action_type"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Action Type *</FormLabel>
+                      <FormLabel>Action *</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
@@ -300,7 +258,6 @@ export function LogDecisionModal({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="portfolio-wide">📊 Portfolio-wide</SelectItem>
                           {positions.map((pos) => (
                             <SelectItem key={pos.id} value={pos.id}>
                               {pos.ticker} - {pos.name || "Unknown"}
@@ -319,12 +276,12 @@ export function LogDecisionModal({
                 name="reasoning"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Reasoning * (min 50 chars)</FormLabel>
+                    <FormLabel>Thesis *</FormLabel>
                     <FormControl>
                       <Textarea
                         {...field}
-                        placeholder="Why are you making this decision? Be specific about your thesis..."
-                        rows={4}
+                        placeholder="Why are you making this decision? What's the thesis?"
+                        rows={5}
                         className="resize-none"
                       />
                     </FormControl>
@@ -336,205 +293,83 @@ export function LogDecisionModal({
                 )}
               />
 
-              {/* Probabilistic Fields */}
-              <Accordion type="single" collapsible defaultValue="probabilistic">
-                <AccordionItem value="probabilistic" className="border-border">
-                  <AccordionTrigger className="text-sm font-medium">
-                    Probabilistic Thinking
-                  </AccordionTrigger>
-                  <AccordionContent className="space-y-4 pt-4">
-                    <FormField
-                      control={form.control}
-                      name="confidence_level"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>
-                            Confidence Level: {field.value}/10
-                          </FormLabel>
-                          <FormControl>
-                            <Slider
-                              value={[field.value]}
-                              onValueChange={([v]) => field.onChange(v)}
-                              min={1}
-                              max={10}
-                              step={1}
-                              className="py-4"
-                            />
-                          </FormControl>
-                          <FormDescription className="text-xs">
-                            1 = pure speculation, 10 = near certainty
-                          </FormDescription>
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="probability_estimate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Probability Estimate</FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              placeholder="e.g., 60% chance of 20% return over 2 years"
-                            />
-                          </FormControl>
-                          <FormDescription className="text-xs">
-                            X% chance of Y outcome over Z timeframe
-                          </FormDescription>
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="alternative_scenarios"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Alternative Scenarios Considered</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              {...field}
-                              placeholder="What other outcomes did you consider? What are the bear/bull cases?"
-                              rows={2}
-                              className="resize-none"
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                  </AccordionContent>
-                </AccordionItem>
-
-                {/* Anti-Resulting Fields */}
-                <AccordionItem value="anti-resulting" className="border-border">
-                  <AccordionTrigger className="text-sm font-medium">
-                    Anti-Resulting (Process Quality)
-                  </AccordionTrigger>
-                  <AccordionContent className="space-y-4 pt-4">
-                    <FormField
-                      control={form.control}
-                      name="information_set"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Information Available at Decision Time *</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              {...field}
-                              placeholder="What did you know when making this decision? List key data points, reports, analysis..."
-                              rows={3}
-                              className="resize-none"
-                            />
-                          </FormControl>
-                          <FormDescription className="text-xs">
-                            This helps evaluate process vs outcome later
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="invalidation_triggers"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>What Would Make This Decision Wrong? *</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              {...field}
-                              placeholder="Define specific conditions that would prove your thesis wrong..."
-                              rows={2}
-                              className="resize-none"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="reversal_information"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>What New Information Would Cause Reversal?</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              {...field}
-                              placeholder="What would you need to see to change your mind?"
-                              rows={2}
-                              className="resize-none"
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                  </AccordionContent>
-                </AccordionItem>
-
-                {/* Optional Fields */}
-                <AccordionItem value="optional" className="border-border">
-                  <AccordionTrigger className="text-sm font-medium">
-                    Optional: Tags & Links
-                  </AccordionTrigger>
-                  <AccordionContent className="space-y-4 pt-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="entry_price"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Entry Price (for outcome tracking)</FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                placeholder="e.g. 142.50"
-                                type="number"
-                                step="0.01"
-                              />
-                            </FormControl>
-                            <FormDescription className="text-xs">
-                              Used to track 30/90/180 day returns
-                            </FormDescription>
-                          </FormItem>
-                        )}
+              <FormField
+                control={form.control}
+                name="invalidation_triggers"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>What Would Prove Me Wrong? *</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        placeholder="Specific conditions that would invalidate the thesis..."
+                        rows={2}
+                        className="resize-none"
                       />
-                      <FormField
-                        control={form.control}
-                        name="entry_date"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Decision Date</FormLabel>
-                            <FormControl>
-                              <Input {...field} type="date" />
-                            </FormControl>
-                          </FormItem>
-                        )}
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="confidence_level"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confidence: {field.value}/10</FormLabel>
+                    <FormControl>
+                      <Slider
+                        value={[field.value]}
+                        onValueChange={([v]) => field.onChange(v)}
+                        min={1}
+                        max={10}
+                        step={1}
+                        className="py-3"
                       />
-                    </div>
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      1 = pure speculation, 10 = near certainty
+                    </FormDescription>
+                  </FormItem>
+                )}
+              />
 
-                    <FormField
-                      control={form.control}
-                      name="tags"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Tags</FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              placeholder="e.g., earnings, macro, valuation (comma separated)"
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="entry_price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Entry Price</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="e.g. 142.50"
+                          type="number"
+                          step="0.01"
+                        />
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        Used to track return
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="entry_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Decision Date</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="date" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-              {/* Submit */}
               <div className="flex justify-end gap-3 pt-4 border-t border-border">
                 <Button type="button" variant="outline" onClick={onClose}>
                   Cancel

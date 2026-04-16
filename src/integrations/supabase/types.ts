@@ -212,6 +212,7 @@ export type Database = {
       decision_log: {
         Row: {
           action_type: string | null
+          alternative_scenarios: string | null
           assumptions: any[] | null
           confidence_level: number | null
           created_at: string
@@ -234,6 +235,7 @@ export type Database = {
           price_at_review: number | null
           probability_estimate: string | null
           reasoning: string | null
+          reversal_information: string | null
           review_prompted_at: string | null
           reviewed_at: string | null
           surprise_notes: string | null
@@ -243,6 +245,7 @@ export type Database = {
         }
         Insert: {
           action_type?: string | null
+          alternative_scenarios?: string | null
           assumptions?: any[] | null
           confidence_level?: number | null
           created_at?: string
@@ -259,12 +262,14 @@ export type Database = {
           position_id?: string | null
           probability_estimate?: string | null
           reasoning?: string | null
+          reversal_information?: string | null
           surprise_notes?: string | null
           ticker?: string | null
           user_id: string
         }
         Update: {
           action_type?: string | null
+          alternative_scenarios?: string | null
           assumptions?: any[] | null
           confidence_level?: number | null
           created_at?: string
@@ -287,6 +292,7 @@ export type Database = {
           price_at_review?: number | null
           probability_estimate?: string | null
           reasoning?: string | null
+          reversal_information?: string | null
           review_prompted_at?: string | null
           reviewed_at?: string | null
           surprise_notes?: string | null

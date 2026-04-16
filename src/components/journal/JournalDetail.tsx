@@ -1,28 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import {
-  CheckCircle, XCircle, Clock, AlertCircle, Star, Tag, Plus,
-  Lock, TrendingUp, TrendingDown, Check, X,
+  CheckCircle, XCircle, Clock, AlertCircle, Tag, Plus,
+  TrendingUp, TrendingDown, Pencil, Trash2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import type { JournalEntry, Assumption, Lesson } from "@/hooks/useDecisionJournal";
+import { usePositions } from "@/hooks/usePositions";
+import type { JournalEntry, Lesson } from "@/hooks/useDecisionJournal";
 
 const actionColors: Record<string, string> = {
   buy: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
   sell: "bg-red-500/10 text-red-500 border-red-500/20",
-  trim: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  add: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-  hold: "bg-muted text-muted-foreground border-border",
-  rebalance: "bg-purple-500/10 text-purple-500 border-purple-500/20",
 };
 
 const outcomeOptions = [
@@ -47,7 +49,9 @@ interface Props {
   entry: JournalEntry;
   lessons: Lesson[];
   onUpdate: (params: any) => void;
+  onDelete: (id: string) => void;
   isUpdating: boolean;
+  isDeleting: boolean;
   onCreateLesson: (params: { label: string; category: string; description?: string }) => Promise<Lesson>;
   onUseLesson: (lessonId: string) => void;
 }
@@ -56,29 +60,73 @@ export function JournalDetail({
   entry,
   lessons,
   onUpdate,
+  onDelete,
   isUpdating,
+  isDeleting,
   onCreateLesson,
   onUseLesson,
 }: Props) {
+  const { positions } = usePositions();
+  const [editingThesis, setEditingThesis] = useState(false);
   const [editingOutcome, setEditingOutcome] = useState(false);
-  const [outcomeForm, setOutcomeForm] = useState({
-    outcome_status: entry.outcome_status ?? "pending",
-    outcome_notes: entry.outcome_notes ?? "",
-    surprise_notes: entry.surprise_notes ?? "",
-    different_notes: entry.different_notes ?? "",
-  });
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [showNewLesson, setShowNewLesson] = useState(false);
   const [newLesson, setNewLesson] = useState({ label: "", category: "other" });
 
-  const isLocked = !!entry.locked_at;
-  const daysSinceDecision = Math.floor(
-    (Date.now() - new Date(entry.created_at).getTime()) / 86_400_000
-  );
+  const [thesisForm, setThesisForm] = useState({
+    action_type: entry.action_type ?? "buy",
+    position_id: entry.position_id ?? "",
+    reasoning: entry.reasoning ?? "",
+    invalidation_triggers: entry.invalidation_triggers ?? "",
+    confidence_level: entry.confidence_level ?? 5,
+    entry_price: entry.entry_price?.toString() ?? "",
+    entry_date: entry.entry_date ?? "",
+  });
+
+  const [outcomeForm, setOutcomeForm] = useState({
+    outcome_status: entry.outcome_status ?? "pending",
+    outcome_notes: entry.outcome_notes ?? "",
+  });
+
+  // Reset forms when switching entries
+  useEffect(() => {
+    setEditingThesis(false);
+    setEditingOutcome(false);
+    setThesisForm({
+      action_type: entry.action_type ?? "buy",
+      position_id: entry.position_id ?? "",
+      reasoning: entry.reasoning ?? "",
+      invalidation_triggers: entry.invalidation_triggers ?? "",
+      confidence_level: entry.confidence_level ?? 5,
+      entry_price: entry.entry_price?.toString() ?? "",
+      entry_date: entry.entry_date ?? "",
+    });
+    setOutcomeForm({
+      outcome_status: entry.outcome_status ?? "pending",
+      outcome_notes: entry.outcome_notes ?? "",
+    });
+  }, [entry.id]);
 
   const comparePrice = entry.reviewed_at ? entry.price_at_review : entry.current_price;
   const priceReturn = entry.entry_price && comparePrice
     ? ((comparePrice - entry.entry_price) / entry.entry_price) * 100
     : null;
+
+  const handleSaveThesis = () => {
+    const pos = positions.find(p => p.id === thesisForm.position_id);
+    onUpdate({
+      id: entry.id,
+      action_type: thesisForm.action_type,
+      position_id: thesisForm.position_id || null,
+      ticker: pos?.ticker ?? null,
+      reasoning: thesisForm.reasoning,
+      invalidation_triggers: thesisForm.invalidation_triggers,
+      confidence_level: thesisForm.confidence_level,
+      entry_price: thesisForm.entry_price ? parseFloat(thesisForm.entry_price) : null,
+      entry_date: thesisForm.entry_date || null,
+    });
+    setEditingThesis(false);
+  };
 
   const handleSaveOutcome = () => {
     onUpdate({
@@ -89,19 +137,12 @@ export function JournalDetail({
     setEditingOutcome(false);
   };
 
-  const toggleAssumption = (idx: number) => {
-    const updated = [...(entry.assumptions ?? [])];
-    updated[idx] = { ...updated[idx], invalidated: !updated[idx].invalidated };
-    onUpdate({ id: entry.id, assumptions: updated });
-  };
-
   const handleAddLesson = async () => {
     if (!newLesson.label.trim()) return;
     const created = await onCreateLesson({
       label: newLesson.label.trim(),
       category: newLesson.category,
     });
-    // Add lesson to this entry
     const currentIds = entry.lesson_ids ?? [];
     onUpdate({ id: entry.id, lesson_ids: [...currentIds, created.id] });
     onUseLesson(created.id);
@@ -129,18 +170,15 @@ export function JournalDetail({
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-mono font-bold text-lg">
-                    {entry.position_ticker ?? entry.ticker ?? "Portfolio-wide"}
+                    {entry.position_ticker ?? entry.ticker ?? "—"}
                   </span>
-                  <Badge variant="outline" className={cn("capitalize", actionColors[entry.action_type ?? "hold"])}>
-                    {entry.action_type ?? "hold"}
+                  <Badge variant="outline" className={cn("capitalize", actionColors[entry.action_type ?? ""] ?? "bg-muted text-muted-foreground")}>
+                    {entry.action_type ?? "—"}
                   </Badge>
                   {entry.confidence_level && (
                     <span className="text-sm text-muted-foreground">
                       Confidence: {entry.confidence_level}/10
                     </span>
-                  )}
-                  {isLocked && (
-                    <Lock className="w-3.5 h-3.5 text-muted-foreground" />
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -150,118 +188,189 @@ export function JournalDetail({
                 </p>
               </div>
 
-              {/* Price Change */}
-              {priceReturn !== null && (
-                <div className="text-right">
-                  <div className="flex items-center gap-1.5">
-                    {priceReturn >= 0 ? (
-                      <TrendingUp className="w-4 h-4 text-emerald-500" />
-                    ) : (
-                      <TrendingDown className="w-4 h-4 text-destructive" />
-                    )}
-                    <span className={cn("text-lg font-bold", priceReturn >= 0 ? "text-emerald-500" : "text-destructive")}>
-                      {priceReturn >= 0 ? "+" : ""}{priceReturn.toFixed(1)}%
-                    </span>
+              <div className="flex items-start gap-3">
+                {/* Price Change */}
+                {priceReturn !== null && (
+                  <div className="text-right">
+                    <div className="flex items-center gap-1.5">
+                      {priceReturn >= 0 ? (
+                        <TrendingUp className="w-4 h-4 text-emerald-500" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4 text-destructive" />
+                      )}
+                      <span className={cn("text-lg font-bold", priceReturn >= 0 ? "text-emerald-500" : "text-destructive")}>
+                        {priceReturn >= 0 ? "+" : ""}{priceReturn.toFixed(1)}%
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      ${entry.entry_price?.toFixed(2)} → ${comparePrice?.toFixed(2)}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    ${entry.entry_price?.toFixed(2)} → ${entry.current_price?.toFixed(2)}
-                  </p>
-                </div>
-              )}
-            </div>
+                )}
 
-            {entry.expected_timeframe && (
-              <div className="mt-2">
-                <Badge variant="secondary" className="text-xs">
-                  <Clock className="w-3 h-3 mr-1" />
-                  Expected: {entry.expected_timeframe}
-                  {daysSinceDecision > 0 && ` · ${daysSinceDecision}d elapsed`}
-                </Badge>
+                {/* Actions */}
+                <div className="flex gap-1">
+                  {!editingThesis && (
+                    <Button size="sm" variant="ghost" onClick={() => setEditingThesis(true)} title="Edit">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(true)} title="Delete" className="text-destructive hover:text-destructive">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
               </div>
-            )}
+            </div>
           </CardContent>
         </Card>
 
-        {/* What I Thought */}
+        {/* Thesis (editable) */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              What I Thought
+              Thesis
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {entry.reasoning && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">Thesis</p>
-                <p className="text-sm text-foreground whitespace-pre-wrap">{entry.reasoning}</p>
-              </div>
-            )}
-
-            {entry.information_set && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">Information at Decision Time</p>
-                <p className="text-sm text-foreground whitespace-pre-wrap">{entry.information_set}</p>
-              </div>
-            )}
-
-            {entry.invalidation_triggers && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">What Would Make Me Wrong</p>
-                <p className="text-sm text-foreground">{entry.invalidation_triggers}</p>
-              </div>
-            )}
-
-            {entry.probability_estimate && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">Probability Estimate</p>
-                <p className="text-sm text-foreground">{entry.probability_estimate}</p>
-              </div>
-            )}
-
-            {/* Assumptions Checklist */}
-            {entry.assumptions && entry.assumptions.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2">Key Assumptions</p>
-                <div className="space-y-1.5">
-                  {entry.assumptions.map((a: Assumption, idx: number) => (
-                    <button
-                      key={idx}
-                      onClick={() => toggleAssumption(idx)}
-                      className={cn(
-                        "flex items-center gap-2 w-full text-left p-2 rounded text-sm transition-colors",
-                        a.invalidated
-                          ? "bg-red-500/5 line-through text-muted-foreground"
-                          : "bg-secondary/30 text-foreground hover:bg-secondary/50"
-                      )}
+          <CardContent className="space-y-4">
+            {editingThesis ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Action</p>
+                    <Select
+                      value={thesisForm.action_type}
+                      onValueChange={v => setThesisForm({ ...thesisForm, action_type: v })}
                     >
-                      {a.invalidated ? (
-                        <X className="w-3.5 h-3.5 text-destructive flex-shrink-0" />
-                      ) : (
-                        <Check className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                      )}
-                      {a.text}
-                    </button>
-                  ))}
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="buy">Buy</SelectItem>
+                        <SelectItem value="sell">Sell</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Position</p>
+                    <Select
+                      value={thesisForm.position_id}
+                      onValueChange={v => setThesisForm({ ...thesisForm, position_id: v })}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select position" /></SelectTrigger>
+                      <SelectContent>
+                        {positions.map(p => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.ticker} — {p.name ?? "Unknown"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
+
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Thesis</p>
+                  <Textarea
+                    value={thesisForm.reasoning}
+                    onChange={e => setThesisForm({ ...thesisForm, reasoning: e.target.value })}
+                    rows={5}
+                    className="resize-none"
+                  />
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">What Would Prove Me Wrong</p>
+                  <Textarea
+                    value={thesisForm.invalidation_triggers}
+                    onChange={e => setThesisForm({ ...thesisForm, invalidation_triggers: e.target.value })}
+                    rows={2}
+                    className="resize-none"
+                  />
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">
+                    Confidence: {thesisForm.confidence_level}/10
+                  </p>
+                  <Slider
+                    value={[thesisForm.confidence_level]}
+                    onValueChange={([v]) => setThesisForm({ ...thesisForm, confidence_level: v })}
+                    min={1}
+                    max={10}
+                    step={1}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Entry Price</p>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={thesisForm.entry_price}
+                      onChange={e => setThesisForm({ ...thesisForm, entry_price: e.target.value })}
+                      placeholder="e.g. 142.50"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Decision Date</p>
+                    <Input
+                      type="date"
+                      value={thesisForm.entry_date}
+                      onChange={e => setThesisForm({ ...thesisForm, entry_date: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleSaveThesis} disabled={isUpdating}>
+                    Save
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditingThesis(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                {entry.reasoning ? (
+                  <p className="text-sm text-foreground whitespace-pre-wrap">{entry.reasoning}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No thesis recorded</p>
+                )}
+
+                {entry.invalidation_triggers && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">What Would Prove Me Wrong</p>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{entry.invalidation_triggers}</p>
+                  </div>
+                )}
+
+                {(entry.entry_price || entry.entry_date) && (
+                  <div className="flex gap-4 text-xs text-muted-foreground pt-2 border-t border-border">
+                    {entry.entry_price != null && (
+                      <span>Entry: ${entry.entry_price.toFixed(2)}</span>
+                    )}
+                    {entry.entry_date && (
+                      <span>Date: {format(new Date(entry.entry_date), "MMM d, yyyy")}</span>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
 
-        {/* What Actually Happened */}
+        {/* Review */}
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                What Actually Happened
+                Review
               </CardTitle>
               {!editingOutcome && (
                 <Button size="sm" variant="outline" onClick={() => {
                   setOutcomeForm({
                     outcome_status: entry.outcome_status ?? "pending",
                     outcome_notes: entry.outcome_notes ?? "",
-                    surprise_notes: entry.surprise_notes ?? "",
-                    different_notes: entry.different_notes ?? "",
                   });
                   setEditingOutcome(true);
                 }}>
@@ -299,34 +408,12 @@ export function JournalDetail({
                 </div>
 
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Outcome Notes</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Reflection</p>
                   <Textarea
                     value={outcomeForm.outcome_notes}
                     onChange={e => setOutcomeForm({ ...outcomeForm, outcome_notes: e.target.value })}
-                    placeholder="What was the result? Was the process sound?"
-                    rows={3}
-                    className="resize-none"
-                  />
-                </div>
-
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">What Surprised Me</p>
-                  <Textarea
-                    value={outcomeForm.surprise_notes}
-                    onChange={e => setOutcomeForm({ ...outcomeForm, surprise_notes: e.target.value })}
-                    placeholder="What happened that you didn't expect?"
-                    rows={2}
-                    className="resize-none"
-                  />
-                </div>
-
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">What I'd Do Differently</p>
-                  <Textarea
-                    value={outcomeForm.different_notes}
-                    onChange={e => setOutcomeForm({ ...outcomeForm, different_notes: e.target.value })}
-                    placeholder="With hindsight, what would you change about the process?"
-                    rows={2}
+                    placeholder="What happened? What did you learn?"
+                    rows={4}
                     className="resize-none"
                   />
                 </div>
@@ -358,22 +445,7 @@ export function JournalDetail({
                   </span>
                 </div>
                 {entry.outcome_notes && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Outcome</p>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{entry.outcome_notes}</p>
-                  </div>
-                )}
-                {entry.surprise_notes && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">What Surprised Me</p>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{entry.surprise_notes}</p>
-                  </div>
-                )}
-                {entry.different_notes && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">What I'd Do Differently</p>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{entry.different_notes}</p>
-                  </div>
+                  <p className="text-sm text-foreground whitespace-pre-wrap">{entry.outcome_notes}</p>
                 )}
               </div>
             ) : (
@@ -398,7 +470,6 @@ export function JournalDetail({
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {/* Tagged lessons */}
             {entryLessons.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {entryLessons.map(l => (
@@ -410,7 +481,6 @@ export function JournalDetail({
               </div>
             )}
 
-            {/* New lesson form */}
             {showNewLesson && (
               <div className="flex gap-2 items-end">
                 <div className="flex-1">
@@ -441,7 +511,6 @@ export function JournalDetail({
               </div>
             )}
 
-            {/* Existing lessons to tag */}
             {availableLessons.length > 0 && (
               <div>
                 <p className="text-xs text-muted-foreground mb-2">Tag an existing pattern:</p>
@@ -467,6 +536,30 @@ export function JournalDetail({
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this decision?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the journal entry, including the thesis, review, and tagged lessons. Cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                onDelete(entry.id);
+                setConfirmDelete(false);
+              }}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ScrollArea>
   );
 }

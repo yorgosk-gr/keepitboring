@@ -11,6 +11,8 @@ export interface JournalEntry {
   action_type: string | null;
   reasoning: string | null;
   information_set: string | null;
+  alternative_scenarios: string | null;
+  reversal_information: string | null;
   confidence_level: number | null;
   probability_estimate: string | null;
   invalidation_triggers: string | null;
@@ -62,7 +64,7 @@ export function useDecisionJournal(filters?: {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch all journal entries
+  // Fetch all journal entries (joined with IB positions for live mark_price)
   const entriesQuery = useQuery({
     queryKey: ["journal-entries", user?.id, filters],
     queryFn: async () => {
@@ -70,7 +72,7 @@ export function useDecisionJournal(filters?: {
         .from("decision_log")
         .select(`
           *,
-          positions (ticker, name, current_price)
+          positions (ticker, name)
         `)
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
@@ -85,16 +87,30 @@ export function useDecisionJournal(filters?: {
         query = query.ilike("ticker", `%${filters.ticker}%`);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      const [entriesRes, ibRes] = await Promise.all([
+        query,
+        supabase
+          .from("ib_positions")
+          .select("symbol, mark_price")
+          .eq("user_id", user!.id),
+      ]);
+      if (entriesRes.error) throw entriesRes.error;
 
-      return (data ?? []).map((d: any) => ({
-        ...d,
-        position_ticker: d.positions?.ticker ?? d.ticker,
-        position_name: d.positions?.name,
-        current_price: d.positions?.current_price,
-        assumptions: Array.isArray(d.assumptions) ? d.assumptions : [],
-      })) as JournalEntry[];
+      const markBySymbol = new Map<string, number>();
+      for (const p of ibRes.data ?? []) {
+        if (p.symbol && p.mark_price != null) markBySymbol.set(p.symbol, p.mark_price);
+      }
+
+      return (entriesRes.data ?? []).map((d: any) => {
+        const ticker = d.positions?.ticker ?? d.ticker;
+        return {
+          ...d,
+          position_ticker: ticker,
+          position_name: d.positions?.name,
+          current_price: ticker ? markBySymbol.get(ticker) ?? null : null,
+          assumptions: Array.isArray(d.assumptions) ? d.assumptions : [],
+        };
+      }) as JournalEntry[];
     },
     enabled: !!user,
   });
@@ -114,26 +130,38 @@ export function useDecisionJournal(filters?: {
     enabled: !!user,
   });
 
-  // Update outcome/review for a journal entry
+  // Update a journal entry (thesis fields + outcome/review)
   const updateEntry = useMutation({
     mutationFn: async (params: {
       id: string;
+      // Thesis fields (editable)
+      action_type?: string;
+      position_id?: string | null;
+      ticker?: string | null;
+      reasoning?: string;
+      invalidation_triggers?: string;
+      confidence_level?: number;
+      entry_price?: number | null;
+      entry_date?: string | null;
+      // Review fields
       outcome_status?: string;
       outcome_notes?: string;
-      surprise_notes?: string;
-      different_notes?: string;
       lesson_ids?: string[];
-      assumptions?: Assumption[];
       price_at_review?: number;
     }) => {
       const update: any = {};
+      if (params.action_type !== undefined) update.action_type = params.action_type;
+      if (params.position_id !== undefined) update.position_id = params.position_id;
+      if (params.ticker !== undefined) update.ticker = params.ticker;
+      if (params.reasoning !== undefined) update.reasoning = params.reasoning;
+      if (params.invalidation_triggers !== undefined) update.invalidation_triggers = params.invalidation_triggers;
+      if (params.confidence_level !== undefined) update.confidence_level = params.confidence_level;
+      if (params.entry_price !== undefined) update.entry_price = params.entry_price;
+      if (params.entry_date !== undefined) update.entry_date = params.entry_date;
       if (params.outcome_status) update.outcome_status = params.outcome_status;
       if (params.outcome_notes !== undefined) update.outcome_notes = params.outcome_notes;
-      if (params.surprise_notes !== undefined) update.surprise_notes = params.surprise_notes;
-      if (params.different_notes !== undefined) update.different_notes = params.different_notes;
       if (params.lesson_ids) update.lesson_ids = params.lesson_ids;
-      if (params.assumptions) update.assumptions = params.assumptions;
-      if (params.price_at_review) update.price_at_review = params.price_at_review;
+      if (params.price_at_review != null) update.price_at_review = params.price_at_review;
       if (params.outcome_status && params.outcome_status !== "pending" && params.outcome_status !== "reviewing") {
         update.reviewed_at = new Date().toISOString();
       }
@@ -151,6 +179,24 @@ export function useDecisionJournal(filters?: {
       toast.success("Journal entry updated");
     },
     onError: (e) => toast.error("Failed to update: " + e.message),
+  });
+
+  // Delete a journal entry
+  const deleteEntry = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("decision_log")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["decision_logs"] });
+      toast.success("Journal entry deleted");
+    },
+    onError: (e) => toast.error("Failed to delete: " + e.message),
   });
 
   // Create a lesson
@@ -195,7 +241,8 @@ export function useDecisionJournal(filters?: {
   const reviewed = entries.filter(e => e.reviewed_at);
   const right = reviewed.filter(e => e.outcome_status === "right").length;
   const wrong = reviewed.filter(e => e.outcome_status === "wrong").length;
-  const winRate = reviewed.length > 0 ? (right / reviewed.length) * 100 : null;
+  const verdicts = right + wrong;
+  const winRate = verdicts > 0 ? (right / verdicts) * 100 : null;
 
   // Average holding period
   const holdingPeriods = reviewed
@@ -227,11 +274,14 @@ export function useDecisionJournal(filters?: {
     isLessonsLoading: lessonsQuery.isLoading,
     updateEntry: updateEntry.mutate,
     isUpdating: updateEntry.isPending,
+    deleteEntry: deleteEntry.mutate,
+    isDeleting: deleteEntry.isPending,
     createLesson: createLesson.mutateAsync,
     useLesson: useLesson.mutate,
     analytics: {
       totalDecisions: entries.length,
       reviewed: reviewed.length,
+      verdicts,
       pending: entries.filter(e => !e.reviewed_at && e.outcome_status === "pending").length,
       winRate,
       right,
