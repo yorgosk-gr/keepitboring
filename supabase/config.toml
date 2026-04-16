@@ -38,6 +38,3 @@ verify_jwt = false
 
 [functions.summarize-insights]
 verify_jwt = false
-
-[functions.cron-tasks]
-verify_jwt = false

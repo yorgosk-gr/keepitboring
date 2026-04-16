@@ -26,7 +26,7 @@ serve(async (req) => {
 
     const token = authHeader.replace("Bearer ", "");
 
-    // Allow service-role calls (e.g. from ingest-email or cron-tasks) — trusted server-to-server
+    // Allow service-role calls (e.g. from ingest-email) — trusted server-to-server
     const isServiceRole = token === supabaseKey;
     let userId: string | null = null;
 
