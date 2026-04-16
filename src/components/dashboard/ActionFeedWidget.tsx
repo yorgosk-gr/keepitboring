@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, AlertCircle, Info, Newspaper, Target, Shield, Clock, TrendingDown, X, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertTriangle, AlertCircle, Info, Newspaper, Shield, Clock, TrendingDown, X, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,7 +17,6 @@ const sourceIcon: Record<ActionSource, typeof AlertTriangle> = {
   conviction_review: TrendingDown,
   thesis_missing: Info,
   newsletter_bearish: Newspaper,
-  north_star: Target,
   stale_data: Clock,
 };
 

@@ -232,38 +232,6 @@ export function usePreTradeChecklist() {
         }
       }
 
-      // 5. North Star alignment check
-      if (ticker) {
-        const { data: nsPos } = await supabase
-          .from("north_star_positions" as any)
-          .select("status, target_weight_ideal")
-          .eq("user_id", user.id)
-          .eq("ticker", ticker)
-          .maybeSingle();
-
-        if (nsPos) {
-          const status = (nsPos as any).status;
-          if ((actionType === "sell" || actionType === "trim") && status === "build") {
-            items.push({
-              id: "northstar-conflict",
-              category: "rule",
-              severity: "warn",
-              title: `Conflicts with North Star — ${ticker} is marked "Build"`,
-              detail: `Your target portfolio has ${ticker} as a position to build toward ${(nsPos as any).target_weight_ideal}% ideal weight. Selling moves you away from your target.`,
-            });
-          }
-          if ((actionType === "buy" || actionType === "add") && status === "exit") {
-            items.push({
-              id: "northstar-exit",
-              category: "rule",
-              severity: "block",
-              title: `Blocked by North Star — ${ticker} is marked "Exit"`,
-              detail: `Your target portfolio has ${ticker} marked for exit. Adding to it directly contradicts your strategy.`,
-            });
-          }
-        }
-      }
-
       // If no items at all, add a pass
       if (items.length === 0) {
         items.push({

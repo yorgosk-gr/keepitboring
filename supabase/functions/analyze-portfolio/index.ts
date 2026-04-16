@@ -512,7 +512,6 @@ serve(async (req) => {
       risk_profile,
       behavioral_alignment,
       portfolio_strategy,
-      north_star,
       book_principles,
       etf_overlap,
       sector_momentum,
@@ -782,16 +781,6 @@ STRATEGY ALIGNMENT RULES:
 - Flag any recommendation that conflicts with the stated strategy.
 - Never recommend buying a ticker listed in positions_to_exit.
 - Never recommend selling a ticker listed in positions_to_build (unless a HARD rule breach).` : "No portfolio strategy brief set."}
-
-${north_star && north_star.length > 0 ? `NORTH STAR TARGET PORTFOLIO:
-The user has defined their ideal target portfolio. Every recommendation must move the portfolio closer to this target.
-${north_star.map((ns: any) => `• ${ns.ticker} (${ns.name || ""}): ideal ${ns.target_weight_ideal}% [${ns.target_weight_min}%-${ns.target_weight_max}%], status=${ns.status}, priority=${ns.priority}`).join("\n")}
-
-NORTH STAR RULES:
-- Prioritize buying positions with status="build" and highest priority.
-- Prioritize exiting positions with status="exit".
-- For "reduce" positions, recommend trimming toward target weight.
-- Include a "north_star_progress" section in your response with: alignment_percent (0-100), top_3_moves (array of {ticker, action, rationale}).` : "No north star target portfolio set."}
 
 ${(() => {
   const bp = book_principles ?? [];

@@ -86,9 +86,6 @@ Newsletter ingestion and insight extraction. Uses `useNewsletters`, `useInsights
 ### Philosophy (`/philosophy`)
 Investment rules manager. Uses `usePhilosophyRules`, `useBookPrinciples`, `usePortfolioStrategy`. Rules organized by author (Graham, Malkiel, Siegel, etc.) with HARD/SOFT classification and threshold ranges. Three tabs: rules editor, book wisdom browser, portfolio strategy editor. Auto-seeds default rules on first load.
 
-### North Star (`/north-star`)
-Target portfolio allocation tracker. Uses `useNorthStar`, `useIBCurrentWeights`, `usePhilosophyRules`. Manages ideal positions with status (build/hold/reduce/exit), calculates rebalancing deltas vs current IB weights, detects philosophy-rule conflicts. Features cash target editor and import-from-current.
-
 ### Journal (`/journal`)
 Decision journal with two-panel layout. Uses `useDecisionJournal`. Left panel: searchable/filterable entry list (by action type, outcome, ticker). Right panel: detailed view with assumptions, lessons, outcomes, and price return calculations.
 

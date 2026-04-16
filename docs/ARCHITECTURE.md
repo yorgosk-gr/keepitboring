@@ -57,7 +57,6 @@ body: JSON.stringify({
 - `ib_accounts` — IBKR account connection + cash balance
 - `ib_trades` — historical trades from IBKR
 - `decision_log` — logged investment decisions (with entry_price for outcome tracking)
-- `north_star_positions` — target portfolio positions
 - `philosophy_rules` — codified investment rules
 - `portfolio_snapshots` — historical portfolio value snapshots
 
@@ -103,7 +102,7 @@ User clicks Sync → sync-ib-data edge function → IBKR Flex API
 ### Analysis flow
 ```
 User clicks Analyze → analyze-portfolio edge function 
-  → reads positions + insights + north_star + philosophy_rules 
+  → reads positions + insights + philosophy_rules 
   → Anthropic API → returns recommendations
 ```
 
@@ -112,9 +111,9 @@ User clicks Analyze → analyze-portfolio edge function
 ## Frontend Structure
 ```
 src/
-  pages/          — Dashboard, Portfolio, Newsletters, Analysis, NorthStar, Philosophy, Settings, Watchlist
+  pages/          — Dashboard, Portfolio, Newsletters, Analysis, Philosophy, Journal, Settings
   components/
-    dashboard/    — PortfolioValue, NorthStarWidget, ConvictionReviewWidget, PerformanceChart
+    dashboard/    — PortfolioValue, ConvictionReviewWidget, PerformanceChart
     decisions/    — LogDecisionModal, PreTradeChecklist
     newsletters/  — NewsletterList, SourceReputationPanel, SourceQualityBadge, InsightsSummaryCard
     portfolio/    — VolatilityAlertModal, RefreshPricesModal, IBConnectionSection

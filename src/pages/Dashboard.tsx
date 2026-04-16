@@ -11,7 +11,6 @@ import { useAllETFMetadata } from "@/hooks/useAllETFMetadata";
 
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { RiskProfileCard } from "@/components/dashboard/RiskProfileCard";
-import { NorthStarWidget } from "@/components/dashboard/NorthStarWidget";
 import { ActionFeedWidget } from "@/components/dashboard/ActionFeedWidget";
 import { usePhilosophyRules } from "@/hooks/usePhilosophyRules";
 import { useMemo } from "react";
@@ -219,9 +218,6 @@ export default function Dashboard() {
         <TopHoldings positions={topPositions} isLoading={isLoading} />
         <RecentActivity decisionLogs={decisionLogs} positions={positions} isLoading={isLoading} />
       </div>
-
-      {/* North Star Widget */}
-      <NorthStarWidget />
 
       {/* Risk Profile */}
       <RiskProfileCard

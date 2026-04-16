@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Menu, X, TrendingUp, Compass, PenLine } from "lucide-react";
+import { Menu, X, TrendingUp, PenLine } from "lucide-react";
 import {
   Home,
   Briefcase,
@@ -23,7 +23,6 @@ const navItems = [
   { title: "Newsletters", path: "/newsletters", icon: Newspaper },
   { title: "Philosophy", path: "/philosophy", icon: BookOpen },
   { title: "Analysis", path: "/analysis", icon: BarChart3 },
-  { title: "North Star", path: "/north-star", icon: Compass },
   { title: "Journal", path: "/journal", icon: PenLine },
   { title: "Settings", path: "/settings", icon: Settings },
 ];

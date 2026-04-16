@@ -9,7 +9,6 @@ export type ActionSource =
   | "conviction_review"
   | "thesis_missing"
   | "newsletter_bearish"
-  | "north_star"
   | "stale_data";
 
 export type ActionSeverity = "critical" | "warning" | "info";
@@ -49,34 +48,7 @@ export function useActionFeed() {
     staleTime: 60_000,
   });
 
-  // 2. North Star positions needing action
-  const nsQuery = useQuery({
-    queryKey: ["action-feed-northstar", user?.id],
-    queryFn: async () => {
-      const { data: portfolio } = await supabase
-        .from("north_star_portfolio" as any)
-        .select("id")
-        .eq("user_id", user!.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!portfolio) return [];
-
-      const { data, error } = await supabase
-        .from("north_star_positions" as any)
-        .select("id, ticker, status, target_weight_ideal")
-        .eq("portfolio_id", (portfolio as any).id)
-        .in("status", ["build", "reduce", "exit"])
-        .order("priority", { ascending: true })
-        .limit(10);
-      if (error) throw error;
-      return (data ?? []) as any[];
-    },
-    enabled: !!user,
-    staleTime: 60_000,
-  });
-
-  // 3. Bearish newsletter mentions (last 14 days)
+  // 2. Bearish newsletter mentions (last 14 days)
   const mentionsQuery = useQuery({
     queryKey: ["action-feed-mentions", user?.id, [...heldTickers].sort().join(",")],
     queryFn: async () => {
@@ -205,42 +177,6 @@ export function useActionFeed() {
       }
     }
 
-    // North Star — concrete rebalancing actions
-    const nsPositions = nsQuery.data ?? [];
-    const exits = nsPositions.filter((n: any) => n.status === "exit");
-    const reduces = nsPositions.filter((n: any) => n.status === "reduce");
-    const builds = nsPositions.filter((n: any) => n.status === "build");
-
-    if (exits.length > 0) {
-      items.push({
-        id: "ns-exits",
-        source: "north_star",
-        title: `Exit: ${exits.map((n: any) => n.ticker).join(", ")}`,
-        severity: "critical",
-        link: "/north-star",
-      });
-    }
-
-    if (reduces.length > 0) {
-      items.push({
-        id: "ns-reduces",
-        source: "north_star",
-        title: `Trim: ${reduces.map((n: any) => n.ticker).join(", ")} — above target weight`,
-        severity: "warning",
-        link: "/north-star",
-      });
-    }
-
-    if (builds.length > 0) {
-      items.push({
-        id: "ns-builds",
-        source: "north_star",
-        title: `Build: ${builds.map((n: any) => n.ticker).join(", ")} — below target weight`,
-        severity: "info",
-        link: "/north-star",
-      });
-    }
-
     // Bearish newsletter mentions — "heads up" on held positions
     const bearishMentions = mentionsQuery.data ?? [];
     if (bearishMentions.length > 0) {
@@ -293,9 +229,9 @@ export function useActionFeed() {
     items.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 
     return items;
-  }, [reviewsQuery.data, nsQuery.data, mentionsQuery.data, positionsQuery.data, stalenessQuery.data, heldTickers]);
+  }, [reviewsQuery.data, mentionsQuery.data, positionsQuery.data, stalenessQuery.data, heldTickers]);
 
-  const isLoading = reviewsQuery.isLoading || nsQuery.isLoading;
+  const isLoading = reviewsQuery.isLoading;
 
   return { actions, isLoading, dismiss };
 }
