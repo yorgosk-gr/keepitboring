@@ -13,12 +13,15 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2, X, BookOpen } from "lucide-react";
 import type { RecommendedAction } from "@/hooks/usePortfolioAnalysis";
+import type { DiffInfo } from "@/lib/analysisDiff";
 
 interface RecommendedActionsCardProps {
   actions: RecommendedAction[];
   onMarkCompleted: (index: number) => void;
   onDismiss: (index: number, reason: string) => void;
-  onLogDecision: (recommendation?: RecommendedAction) => void;
+  onLogDecision: (recommendation?: RecommendedAction, index?: number) => void;
+  diffMap?: Map<number, DiffInfo>;
+  droppedActions?: RecommendedAction[];
 }
 
 export function RecommendedActionsCard({
@@ -26,6 +29,8 @@ export function RecommendedActionsCard({
   onMarkCompleted,
   onDismiss,
   onLogDecision,
+  diffMap,
+  droppedActions,
 }: RecommendedActionsCardProps) {
   const [dismissingIndex, setDismissingIndex] = useState<number | null>(null);
   const [dismissReason, setDismissReason] = useState("");
@@ -76,9 +81,26 @@ export function RecommendedActionsCard({
                 <div className="flex-1 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-medium text-foreground">{action.action}</p>
-                    <Badge variant="outline" className={getConfidenceBadge(action.confidence)}>
-                      {action.confidence}
-                    </Badge>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {diffMap?.get(index) && (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-xs",
+                            diffMap.get(index)!.status === "new"
+                              ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
+                              : "bg-amber-500/10 text-amber-600 border-amber-500/20",
+                          )}
+                        >
+                          {diffMap.get(index)!.status === "new"
+                            ? "NEW"
+                            : `REITERATED ×${diffMap.get(index)!.streak}`}
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className={getConfidenceBadge(action.confidence)}>
+                        {action.confidence}
+                      </Badge>
+                    </div>
                   </div>
                   <p className="text-sm text-muted-foreground">{action.reasoning}</p>
                   {action.trades_involved && action.trades_involved.length > 0 && (
@@ -116,7 +138,7 @@ export function RecommendedActionsCard({
                       variant="ghost"
                       size="sm"
                       className="text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
-                      onClick={() => onLogDecision(action)}
+                      onClick={() => onLogDecision(action, index)}
                     >
                       <BookOpen className="w-4 h-4 mr-1" />
                       Log Decision
@@ -168,6 +190,28 @@ export function RecommendedActionsCard({
                 {action.dismissed && action.dismiss_reason && (
                   <p className="mt-1 ml-6 text-xs">Reason: {action.dismiss_reason}</p>
                 )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Dropped since last analysis */}
+      {droppedActions && droppedActions.length > 0 && (
+        <div className="pt-4 border-t border-border">
+          <p className="text-sm text-muted-foreground mb-2">
+            Dropped since last analysis ({droppedActions.length})
+          </p>
+          <div className="space-y-1.5">
+            {droppedActions.map((a, i) => (
+              <div
+                key={i}
+                className="p-2 rounded-md bg-muted/50 text-sm text-muted-foreground flex items-center gap-2"
+              >
+                <Badge variant="outline" className="text-xs bg-muted">
+                  DROPPED
+                </Badge>
+                <span>{a.action}</span>
               </div>
             ))}
           </div>

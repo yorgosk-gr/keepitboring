@@ -12,6 +12,8 @@ import { useInsightsSummary } from "@/hooks/useInsightsSummary";
 import { ThesisHealthSection } from "@/components/analysis/ThesisHealthSection";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import { RecommendedActionsCard } from "@/components/analysis/RecommendedActionsCard";
+import { TrackRecordCard } from "@/components/analysis/TrackRecordCard";
+import { diffRecommendations, findDroppedRecommendations, type DiffInfo } from "@/lib/analysisDiff";
 import { format, formatDistanceToNow } from "date-fns";
 
 export default function Analysis() {
@@ -30,7 +32,10 @@ export default function Analysis() {
   const { result: idealAllocation, generate: generateIdealAllocation, isGenerating: isGeneratingIdeal } = useIdealAllocation();
   const { totalValue: portfolioTotalValue } = useDashboardData();
   const { summary: latestBrief } = useInsightsSummary();
-  const [logDecisionRec, setLogDecisionRec] = useState<RecommendedAction | null>(null);
+  const [logDecisionRec, setLogDecisionRec] = useState<{
+    recommendation: RecommendedAction;
+    sourceActionIndex: number | null;
+  } | null>(null);
 
   // Brief freshness
   const briefAge = latestBrief?.generated_at
@@ -230,23 +235,43 @@ export default function Analysis() {
             </div>
           )}
 
+          {/* Track record */}
+          {currentAnalysis && (
+            <div className="mb-6">
+              <TrackRecordCard />
+            </div>
+          )}
+
           {/* Analysis as readable text */}
           {currentAnalysis && (
             <AnalysisTextView
               analysis={currentAnalysis}
               positions={positions}
+              diffMap={diffRecommendations(
+                currentAnalysis.recommended_actions,
+                history.filter((h) => h.id !== currentAnalysis.id).map((h) => ({ recommended_actions: h.recommended_actions })),
+              )}
+              droppedActions={findDroppedRecommendations(
+                currentAnalysis.recommended_actions,
+                history.find((h) => h.id !== currentAnalysis.id)?.recommended_actions ?? null,
+              )}
               onLogDecision={(trade) => {
                 setLogDecisionRec({
-                  priority: 1,
-                  action: `${trade.action} ${trade.ticker}`,
-                  reasoning: trade.reasoning,
-                  confidence: trade.urgency === "high" ? "high" : trade.urgency === "medium" ? "medium" : "low",
-                  trades_involved: [trade.ticker],
+                  recommendation: {
+                    priority: 1,
+                    action: `${trade.action} ${trade.ticker}`,
+                    reasoning: trade.reasoning,
+                    confidence: trade.urgency === "high" ? "high" : trade.urgency === "medium" ? "medium" : "low",
+                    trades_involved: [trade.ticker],
+                  },
+                  sourceActionIndex: null,
                 });
               }}
               onMarkCompleted={markActionCompleted}
               onDismiss={dismissAction}
-              onLogDecisionAction={(recommendation) => setLogDecisionRec(recommendation ?? null)}
+              onLogDecisionAction={(recommendation, index) =>
+                setLogDecisionRec(recommendation ? { recommendation, sourceActionIndex: index ?? null } : null)
+              }
             />
           )}
 
@@ -326,13 +351,15 @@ export default function Analysis() {
       <LogDecisionModal
         open={logDecisionRec !== null}
         onClose={() => setLogDecisionRec(null)}
-        recommendation={logDecisionRec}
+        recommendation={logDecisionRec?.recommendation ?? null}
+        sourceAnalysisId={currentAnalysis?.id ?? null}
+        sourceActionIndex={logDecisionRec?.sourceActionIndex ?? null}
       />
     </div>
   );
 }
 
-function AnalysisTextView({ analysis, positions = [], onLogDecision, onMarkCompleted, onDismiss, onLogDecisionAction }: { analysis: AnalysisResult; positions?: Position[]; onLogDecision?: (trade: TradeRecommendation) => void; onMarkCompleted?: (index: number) => void; onDismiss?: (index: number, reason: string) => void; onLogDecisionAction?: (recommendation?: RecommendedAction) => void }) {
+function AnalysisTextView({ analysis, positions = [], onLogDecision, onMarkCompleted, onDismiss, onLogDecisionAction, diffMap, droppedActions }: { analysis: AnalysisResult; positions?: Position[]; onLogDecision?: (trade: TradeRecommendation) => void; onMarkCompleted?: (index: number) => void; onDismiss?: (index: number, reason: string) => void; onLogDecisionAction?: (recommendation?: RecommendedAction, index?: number) => void; diffMap?: Map<number, DiffInfo>; droppedActions?: RecommendedAction[] }) {
   const alloc = analysis.allocation_check;
   return (
     <article className="max-w-3xl space-y-8 text-foreground">
@@ -501,6 +528,8 @@ function AnalysisTextView({ analysis, positions = [], onLogDecision, onMarkCompl
             onMarkCompleted={onMarkCompleted}
             onDismiss={onDismiss}
             onLogDecision={onLogDecisionAction ?? (() => {})}
+            diffMap={diffMap}
+            droppedActions={droppedActions}
           />
         </section>
       )}

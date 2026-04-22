@@ -47,6 +47,7 @@ const formSchema = z.object({
   confidence_level: z.number().min(1).max(10),
   entry_price: z.string().optional(),
   entry_date: z.string().optional(),
+  executed_shares: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -57,6 +58,8 @@ interface LogDecisionModalProps {
   position?: Position | null;
   defaultAction?: string;
   recommendation?: RecommendedAction | null;
+  sourceAnalysisId?: string | null;
+  sourceActionIndex?: number | null;
 }
 
 export function LogDecisionModal({
@@ -65,6 +68,8 @@ export function LogDecisionModal({
   position,
   defaultAction,
   recommendation,
+  sourceAnalysisId,
+  sourceActionIndex,
 }: LogDecisionModalProps) {
   const { user } = useAuth();
   const { positions } = usePositions();
@@ -83,6 +88,7 @@ export function LogDecisionModal({
       confidence_level: 5,
       entry_price: "",
       entry_date: new Date().toISOString().split("T")[0],
+      executed_shares: "",
     },
   });
 
@@ -123,12 +129,15 @@ export function LogDecisionModal({
       form.setValue("action_type", extractActionType(recommendation.action));
 
       const ticker = extractTicker(recommendation.action);
-      if (ticker) {
-        const matchingPosition = positions.find(
-          p => p.ticker.toUpperCase() === ticker.toUpperCase()
-        );
-        if (matchingPosition) {
-          form.setValue("position_id", matchingPosition.id);
+      const matchingPosition = ticker
+        ? positions.find(p => p.ticker.toUpperCase() === ticker.toUpperCase())
+        : null;
+      if (matchingPosition) {
+        form.setValue("position_id", matchingPosition.id);
+        // Prefill entry_price with the current market price — most of the time that's
+        // what you'll execute at. One fewer field to type for the one-click path.
+        if (matchingPosition.current_price && !form.getValues("entry_price")) {
+          form.setValue("entry_price", matchingPosition.current_price.toFixed(2));
         }
       }
 
@@ -137,6 +146,11 @@ export function LogDecisionModal({
 
       const confidenceMap = { high: 8, medium: 6, low: 4 };
       form.setValue("confidence_level", confidenceMap[recommendation.confidence] || 5);
+
+      // Default invalidation trigger if blank — better to have something than reject submit.
+      if (!form.getValues("invalidation_triggers")) {
+        form.setValue("invalidation_triggers", "Thesis-level signal contradicts the recommendation reasoning, or underlying allocation breach is resolved by other means.");
+      }
     }
   }, [position, defaultAction, recommendation, positions]);
 
@@ -155,7 +169,11 @@ export function LogDecisionModal({
         ticker: positions.find(p => p.id === values.position_id)?.ticker ?? null,
         entry_price: values.entry_price ? parseFloat(values.entry_price) : null,
         entry_date: values.entry_date || null,
-      });
+        executed_shares: values.executed_shares ? parseFloat(values.executed_shares) : null,
+        executed_price: values.entry_price ? parseFloat(values.entry_price) : null,
+        source_analysis_id: sourceAnalysisId ?? null,
+        source_action_index: sourceActionIndex ?? null,
+      } as any);
 
       if (error) throw error;
 
@@ -335,13 +353,13 @@ export function LogDecisionModal({
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="entry_price"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Entry Price</FormLabel>
+                      <FormLabel>Executed Price</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -351,7 +369,27 @@ export function LogDecisionModal({
                         />
                       </FormControl>
                       <FormDescription className="text-xs">
-                        Used to track return
+                        Pre-filled from market
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="executed_shares"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Shares</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="e.g. 25"
+                          type="number"
+                          step="0.0001"
+                        />
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        Optional, for track record
                       </FormDescription>
                     </FormItem>
                   )}
