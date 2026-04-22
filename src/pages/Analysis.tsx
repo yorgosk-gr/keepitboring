@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePortfolioAnalysis, type AnalysisResult, type TradeRecommendation, type RecommendedAction } from "@/hooks/usePortfolioAnalysis";
 import { usePositions, type Position } from "@/hooks/usePositions";
 import { useIdealAllocation, type IdealETF } from "@/hooks/useIdealAllocation";
+import { useDashboardData } from "@/hooks/useDashboardData";
 import { useInsightsSummary } from "@/hooks/useInsightsSummary";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import { RecommendedActionsCard } from "@/components/analysis/RecommendedActionsCard";
@@ -26,6 +27,7 @@ export default function Analysis() {
   } = usePortfolioAnalysis();
   const { positions } = usePositions();
   const { result: idealAllocation, generate: generateIdealAllocation, isGenerating: isGeneratingIdeal } = useIdealAllocation();
+  const { totalValue: portfolioTotalValue } = useDashboardData();
   const { summary: latestBrief } = useInsightsSummary();
   const [logDecisionRec, setLogDecisionRec] = useState<RecommendedAction | null>(null);
 
@@ -277,7 +279,7 @@ export default function Analysis() {
                   </Button>
                 )}
               </div>
-              <IdealAllocationView data={(currentAnalysis?.ideal_allocation || idealAllocation)!} />
+              <IdealAllocationView data={(currentAnalysis?.ideal_allocation || idealAllocation)!} portfolioTotalValue={portfolioTotalValue} />
             </section>
           )}
           {/* If no ideal allocation yet (no analysis run, no standalone), show generate button */}
@@ -527,7 +529,11 @@ function AllocationLine({
   );
 }
 
-function IdealAllocationView({ data }: { data: { etfs: IdealETF[]; strategy_summary: string; tax_note: string } }) {
+function IdealAllocationView({ data, portfolioTotalValue }: { data: { etfs: IdealETF[]; strategy_summary: string; tax_note: string }; portfolioTotalValue: number }) {
+  const etfTotalAmount = data.etfs.reduce((s, e) => s + e.amount_usd, 0);
+  const etfTotalPercent = data.etfs.reduce((s, e) => s + e.percent, 0);
+  const reservedAmount = Math.max(0, portfolioTotalValue - etfTotalAmount);
+  const reservedPercent = Math.max(0, 100 - etfTotalPercent);
   const assetClassColors: Record<string, string> = {
     Equity: "text-emerald-500",
     Bond: "text-blue-500",
@@ -580,13 +586,25 @@ function IdealAllocationView({ data }: { data: { etfs: IdealETF[]; strategy_summ
             ))}
           </tbody>
           <tfoot>
+            {reservedPercent > 0.5 && (
+              <tr className="text-muted-foreground italic">
+                <td className="py-2" colSpan={3}>Reserved (individual stocks + cash)</td>
+                <td className="py-2 text-right font-mono">
+                  ${reservedAmount.toLocaleString()}
+                </td>
+                <td className="py-2 text-right">
+                  {reservedPercent.toFixed(1)}%
+                </td>
+                <td className="py-2 text-right">—</td>
+              </tr>
+            )}
             <tr className="border-t border-border font-medium">
               <td className="py-2" colSpan={3}>Total</td>
               <td className="py-2 text-right font-mono">
-                ${data.etfs.reduce((s, e) => s + e.amount_usd, 0).toLocaleString()}
+                ${(etfTotalAmount + (reservedPercent > 0.5 ? reservedAmount : 0)).toLocaleString()}
               </td>
               <td className="py-2 text-right">
-                {data.etfs.reduce((s, e) => s + e.percent, 0).toFixed(1)}%
+                {(etfTotalPercent + (reservedPercent > 0.5 ? reservedPercent : 0)).toFixed(1)}%
               </td>
               <td className="py-2 text-right text-muted-foreground">
                 {(data.etfs.reduce((s, e) => s + e.expense_ratio * e.percent, 0) / 100).toFixed(3)}%
