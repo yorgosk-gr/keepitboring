@@ -22,7 +22,7 @@ export default function Newsletters() {
     isLoading,
     uploadNewsletter,
     isUploading,
-    updateSourceName,
+    updateTitle,
     processNewsletter,
     isProcessing,
     deleteNewsletter,
@@ -46,12 +46,12 @@ export default function Newsletters() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleUpload = async (file: File, rawText: string, sourceName: string) => {
-    await uploadNewsletter({ file, rawText, sourceName });
+  const handleUpload = async (file: File, rawText: string, title: string) => {
+    await uploadNewsletter({ file, rawText, title });
   };
 
-  const handlePasteText = async (text: string, sourceName: string) => {
-    await uploadNewsletter({ rawText: text, sourceName });
+  const handlePasteText = async (text: string, title: string) => {
+    await uploadNewsletter({ rawText: text, title });
   };
 
   const handleBulkReprocess = async () => {
@@ -75,7 +75,7 @@ export default function Newsletters() {
         delay = 1500; // Reset delay on success
       } catch (e: any) {
         failures++;
-        console.error("Failed to process", newsletter.source_name, e);
+        console.error("Failed to process", newsletter.title, e);
         // Back off on rate limits
         if (e?.message?.includes("Rate limit")) {
           delay = Math.min(delay * 2, 15000);
@@ -238,7 +238,7 @@ export default function Newsletters() {
             onProcess={handleProcess}
             onView={setViewingNewsletter}
             onDelete={handleDelete}
-            onUpdateSourceName={(id, name) => updateSourceName({ id, sourceName: name })}
+            onUpdateTitle={(id, name) => updateTitle({ id, title: name })}
             processingId={processingId}
           />
         </TabsContent>
@@ -255,7 +255,7 @@ export default function Newsletters() {
         open={!!viewingNewsletter}
         onClose={() => setViewingNewsletter(null)}
         newsletterId={viewingNewsletter?.id ?? null}
-        newsletterName={viewingNewsletter?.source_name ?? ""}
+        newsletterName={viewingNewsletter?.title ?? ""}
       />
 
       {/* Paste Text Modal */}

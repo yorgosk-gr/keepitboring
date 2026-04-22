@@ -6,7 +6,8 @@ import { toast } from "sonner";
 export interface Newsletter {
   id: string;
   user_id: string;
-  source_name: string;
+  title: string | null;
+  source_name: string | null;
   upload_date: string;
   processed: boolean;
   processing_error?: string | null;
@@ -41,7 +42,7 @@ export function useNewsletters() {
     queryFn: async () => {
       const { data: newsletters, error } = await supabase
         .from("newsletters")
-        .select("id, user_id, source_name, upload_date, processed, processing_error, file_path, created_at, is_archived, author, publication_date")
+        .select("id, user_id, title, source_name, upload_date, processed, processing_error, file_path, created_at, is_archived, author, publication_date")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
 
@@ -101,11 +102,11 @@ export function useNewsletters() {
     mutationFn: async ({
       file,
       rawText,
-      sourceName,
+      title,
     }: {
       file?: File;
       rawText: string;
-      sourceName: string;
+      title: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
 
@@ -128,7 +129,7 @@ export function useNewsletters() {
         .from("newsletters")
         .insert({
           user_id: user.id,
-          source_name: sourceName,
+          title,
           file_path: filePath,
           raw_text: rawText,
           processed: false,
@@ -156,11 +157,11 @@ export function useNewsletters() {
     },
   });
 
-  const updateSourceNameMutation = useMutation({
-    mutationFn: async ({ id, sourceName }: { id: string; sourceName: string }) => {
+  const updateTitleMutation = useMutation({
+    mutationFn: async ({ id, title }: { id: string; title: string }) => {
       const { error } = await supabase
         .from("newsletters")
-        .update({ source_name: sourceName })
+        .update({ title })
         .eq("id", id)
         .eq("user_id", user!.id);
 
@@ -284,7 +285,7 @@ export function useNewsletters() {
     isRefetching: newslettersQuery.isRefetching,
     uploadNewsletter: uploadNewsletterMutation.mutateAsync,
     isUploading: uploadNewsletterMutation.isPending,
-    updateSourceName: updateSourceNameMutation.mutate,
+    updateTitle: updateTitleMutation.mutate,
     processNewsletter: processNewsletterMutation.mutateAsync,
     isProcessing: processNewsletterMutation.isPending,
     deleteNewsletter: deleteNewsletterMutation.mutateAsync,

@@ -54,9 +54,9 @@ export function useGlobalSearch() {
             .limit(5),
           supabase
             .from("newsletters")
-            .select("id, source_name, raw_text")
+            .select("id, title, source_name, raw_text")
             .eq("user_id", user.id)
-            .or(`source_name.ilike.%${searchTerm}%,raw_text.ilike.%${searchTerm}%`)
+            .or(`title.ilike.%${searchTerm}%,source_name.ilike.%${searchTerm}%,raw_text.ilike.%${searchTerm}%`)
             .limit(5),
           // Insights don't have user_id directly — scope via user's newsletter IDs
           (async () => {
@@ -97,7 +97,7 @@ export function useGlobalSearch() {
           searchResults.push({
             id: n.id,
             type: "newsletter",
-            title: n.source_name,
+            title: n.title ?? n.source_name ?? "(untitled)",
             subtitle: "Newsletter",
             url: "/newsletters",
           });

@@ -36,7 +36,7 @@ export function useTickerMentions(heldTickers: string[]) {
           sentiment,
           insight_type,
           created_at,
-          newsletters!inner(source_name)
+          newsletters!inner(title, source_name)
         `)
         .overlaps("tickers_mentioned", heldTickers)
         .gte("created_at", cutoff.toISOString())
@@ -48,7 +48,8 @@ export function useTickerMentions(heldTickers: string[]) {
       const map: TickerMentionsMap = {};
       for (const row of data ?? []) {
         const tickers = (row.tickers_mentioned as string[]) ?? [];
-        const newsletterName = (row.newsletters as any)?.source_name ?? null;
+        const nl = (row.newsletters as any);
+        const newsletterName = nl?.title ?? nl?.source_name ?? null;
 
         for (const ticker of tickers) {
           if (!heldTickers.includes(ticker)) continue;

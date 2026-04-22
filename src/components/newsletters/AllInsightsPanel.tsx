@@ -158,7 +158,7 @@ function InsightRow({
           </p>
           <div className="flex items-center gap-2 flex-wrap">
             {showSource && (
-              <span className="text-xs text-muted-foreground font-medium">{insight.source_name}</span>
+              <span className="text-xs text-muted-foreground font-medium">{insight.title ?? insight.source_name ?? "(untitled)"}</span>
             )}
             {(insight.tickers_mentioned || []).map((ticker) => (
               <Badge
@@ -415,7 +415,7 @@ export function AllInsightsPanel() {
         (i) =>
           i.content?.toLowerCase().includes(q) ||
           i.tickers_mentioned?.some((t) => t.toLowerCase().includes(q)) ||
-          i.source_name.toLowerCase().includes(q)
+          (i.title ?? i.source_name ?? "").toLowerCase().includes(q)
       );
     }
     return result;
@@ -429,7 +429,7 @@ export function AllInsightsPanel() {
       if (groupBy === "type") {
         key = insight.insight_type || "other";
       } else if (groupBy === "source") {
-        key = insight.source_name;
+        key = insight.title ?? insight.source_name ?? "(untitled)";
       } else {
         key = insight.sentiment || "neutral";
       }

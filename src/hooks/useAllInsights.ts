@@ -14,7 +14,8 @@ export interface InsightWithSource {
   quality_score: number | null;
   excluded_from_brief: boolean;
   created_at: string;
-  source_name: string;
+  title: string | null;
+  source_name: string | null;
   upload_date: string;
 }
 
@@ -41,7 +42,7 @@ export function useAllInsights() {
 
       const { data, error } = await supabase
         .from("insights")
-        .select("id, newsletter_id, insight_type, content, sentiment, tickers_mentioned, confidence_words, is_starred, quality_score, excluded_from_brief, created_at, newsletters(source_name, upload_date)")
+        .select("id, newsletter_id, insight_type, content, sentiment, tickers_mentioned, confidence_words, is_starred, quality_score, excluded_from_brief, created_at, newsletters(title, source_name, upload_date)")
         .in("newsletter_id", newsletterIds)
         .order("quality_score", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
@@ -61,7 +62,8 @@ export function useAllInsights() {
         quality_score: row.quality_score,
         excluded_from_brief: row.excluded_from_brief,
         created_at: row.created_at,
-        source_name: row.newsletters?.source_name ?? "Unknown",
+        title: row.newsletters?.title ?? null,
+        source_name: row.newsletters?.source_name ?? null,
         upload_date: row.newsletters?.upload_date ?? "",
       })) as InsightWithSource[];
     },

@@ -109,7 +109,7 @@ export function usePreTradeChecklist() {
         const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
         const { data: signals } = await supabase
           .from("insights")
-          .select("*, newsletters(source_name, created_at)")
+          .select("*, newsletters(title, source_name, created_at)")
           .contains("tickers_mentioned", [ticker])
           .gte("created_at", thirtyDaysAgo)
           .order("created_at", { ascending: false })
@@ -127,7 +127,7 @@ export function usePreTradeChecklist() {
                 severity: "warn",
                 title: `${bearish.length} bearish signal${bearish.length > 1 ? "s" : ""} on ${ticker} in last 30 days`,
                 detail: bearish.slice(0, 2).map(s =>
-                  `[${(s.newsletters as any)?.source_name ?? "Newsletter"}] ${s.content?.substring(0, 100)}...`
+                  `[${(s.newsletters as any)?.title ?? (s.newsletters as any)?.source_name ?? "Newsletter"}] ${s.content?.substring(0, 100)}...`
                 ).join(" | "),
               });
             } else if (bullish.length > 0) {
@@ -137,7 +137,7 @@ export function usePreTradeChecklist() {
                 severity: "pass",
                 title: `${bullish.length} bullish signal${bullish.length > 1 ? "s" : ""} on ${ticker} in last 30 days`,
                 detail: bullish.slice(0, 1).map(s =>
-                  `[${(s.newsletters as any)?.source_name ?? "Newsletter"}] ${s.content?.substring(0, 120)}...`
+                  `[${(s.newsletters as any)?.title ?? (s.newsletters as any)?.source_name ?? "Newsletter"}] ${s.content?.substring(0, 120)}...`
                 ).join(""),
               });
             }
@@ -149,7 +149,7 @@ export function usePreTradeChecklist() {
                 severity: "warn",
                 title: `${bullish.length} bullish signal${bullish.length > 1 ? "s" : ""} on ${ticker} conflict with sell intent`,
                 detail: bullish.slice(0, 2).map(s =>
-                  `[${(s.newsletters as any)?.source_name ?? "Newsletter"}] ${s.content?.substring(0, 100)}...`
+                  `[${(s.newsletters as any)?.title ?? (s.newsletters as any)?.source_name ?? "Newsletter"}] ${s.content?.substring(0, 100)}...`
                 ).join(" | "),
               });
             }

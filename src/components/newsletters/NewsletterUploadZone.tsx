@@ -29,7 +29,7 @@ interface UploadingFile {
 }
 
 interface NewsletterUploadZoneProps {
-  onUpload: (file: File, rawText: string, sourceName: string) => Promise<void>;
+  onUpload: (file: File, rawText: string, title: string) => Promise<void>;
   compact?: boolean;
 }
 
@@ -124,11 +124,11 @@ export function NewsletterUploadZone({ onUpload, compact }: NewsletterUploadZone
         )
       );
 
-      // Generate source name from filename
-      const sourceName = file.name.replace(/\.(pdf|docx|txt|md|csv)$/i, "").replace(/[-_]/g, " ");
+      // Generate title from filename
+      const title = file.name.replace(/\.(pdf|docx|txt|md|csv)$/i, "").replace(/[-_]/g, " ");
 
       // Upload to backend
-      await onUpload(file, rawText, sourceName);
+      await onUpload(file, rawText, title);
 
       setUploadingFiles((prev) =>
         prev.map((f) =>

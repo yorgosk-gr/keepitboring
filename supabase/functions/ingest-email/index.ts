@@ -125,25 +125,58 @@ Deno.serve(async (req) => {
     // Extract fields from Cloudmailin payload
     const rawSubject =
       body.subject || body.headers?.subject || "Unknown Newsletter";
+    const rawFrom: string =
+      body.from || body.headers?.from || body.envelope?.from || "";
     const plain = body.plain || "";
     const html = body.html || "";
 
-    // Normalize source name: strip forwarding prefixes and trailing dates
-    // so "Fwd: Fwd: Re: Morning Briefing — Mar 28" → "Morning Briefing"
-    function normalizeSourceName(s: string): string {
+    // Normalize the subject: strip forwarding prefixes and trailing dates
+    // so "Fwd: Fwd: Re: Morning Briefing — Mar 28" → "Morning Briefing".
+    // This is the per-issue title, not the publisher.
+    function normalizeTitle(s: string): string {
       let name = s;
-      // Repeatedly strip Fwd:/Re:/Fw: prefixes
       let prev = "";
       while (prev !== name) {
         prev = name;
         name = name.replace(/^\s*(Fwd|Fw|Re)\s*:\s*/i, "");
       }
-      // Strip trailing date patterns: "— Mar 28", "- 03/28/2026", "– March 28, 2026"
       name = name.replace(/\s*[—–-]\s*\w+\.?\s+\d{1,2}(,?\s*\d{4})?\s*$/, "");
       name = name.replace(/\s*[—–-]\s*\d{1,2}\/\d{1,2}(\/\d{2,4})?\s*$/, "");
       return name.trim() || s.trim();
     }
-    const subject = normalizeSourceName(rawSubject);
+    const title = normalizeTitle(rawSubject);
+
+    // Extract publisher/source from the From header.
+    // "Name <email@domain.com>" → "Name"
+    // "email@domain.com" → "domain.com" (stripped of common email-service prefixes)
+    function extractSourceFromFrom(from: string): string | null {
+      if (!from) return null;
+      const f = from.trim();
+      if (!f) return null;
+
+      // "Display Name <addr@domain.com>" → prefer display name
+      const displayMatch = f.match(/^\s*"?([^"<]+?)"?\s*<[^>]+>\s*$/);
+      if (displayMatch) {
+        const name = displayMatch[1].trim().replace(/^['"]|['"]$/g, "");
+        if (name && !name.includes("@")) return name;
+      }
+
+      // Fall back to the domain of the email address
+      const addrMatch = f.match(/<?([^<\s]+@[^>\s]+)>?/);
+      if (addrMatch) {
+        const domain = addrMatch[1].split("@")[1]?.toLowerCase();
+        if (!domain) return null;
+        // Strip common forwarder/relay subdomains so "mail.substack.com" → "substack.com"
+        const parts = domain.split(".");
+        if (parts.length > 2 && ["mail", "email", "send", "newsletter", "news", "ne", "mg", "list"].includes(parts[0])) {
+          return parts.slice(1).join(".");
+        }
+        return domain;
+      }
+
+      return null;
+    }
+    const sourceName = extractSourceFromFrom(rawFrom);
 
     // Prefer HTML — plain text versions of rich newsletters are often garbage
     // (no structure, stripped tables, mangled formatting)
@@ -183,7 +216,7 @@ Deno.serve(async (req) => {
 
     // Deduplication: hash the first 2000 chars of content + source name to detect duplicate forwards.
     // Uses SubtleCrypto (available in Deno) to compute SHA-256.
-    const dedupeInput = `${subject}::${rawText.substring(0, 2000)}`;
+    const dedupeInput = `${title}::${rawText.substring(0, 2000)}`;
     const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(dedupeInput));
     const contentHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
 
@@ -193,13 +226,13 @@ Deno.serve(async (req) => {
       .from("newsletters")
       .select("id")
       .eq("user_id", OWNER_USER_ID)
-      .eq("source_name", subject)
+      .eq("title", title)
       .gte("created_at", sevenDaysAgo)
       .limit(1)
       .maybeSingle();
 
     if (existing) {
-      console.log(`Duplicate newsletter detected: "${subject}" — skipping (existing id: ${existing.id})`);
+      console.log(`Duplicate newsletter detected: "${title}" — skipping (existing id: ${existing.id})`);
       return new Response(
         JSON.stringify({ success: true, duplicate: true, existing_id: existing.id }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -211,7 +244,8 @@ Deno.serve(async (req) => {
       .from("newsletters")
       .insert({
         user_id: OWNER_USER_ID,
-        source_name: subject,
+        source_name: sourceName,
+        title,
         raw_text: rawText,
         upload_date: new Date().toISOString().split("T")[0],
         processed: false,
@@ -227,7 +261,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`Newsletter ingested: "${subject}" (${newsletter.id})`);
+    console.log(`Newsletter ingested: "${title}" from "${sourceName ?? "unknown"}" (${newsletter.id})`);
 
     // Auto-process: fire-and-forget to avoid edge function timeout
     // The newsletter is already saved; if processing fails, user can retry manually
@@ -255,7 +289,7 @@ Deno.serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ success: true, source_name: subject, id: newsletter.id }),
+      JSON.stringify({ success: true, title, source_name: sourceName, id: newsletter.id }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

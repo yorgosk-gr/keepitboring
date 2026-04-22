@@ -16,13 +16,13 @@ import { Textarea } from "@/components/ui/textarea";
 interface PasteTextModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: (text: string, sourceName: string) => Promise<void>;
+  onSave: (text: string, title: string) => Promise<void>;
   isLoading?: boolean;
 }
 
 export function PasteTextModal({ open, onClose, onSave, isLoading }: PasteTextModalProps) {
   const [text, setText] = useState("");
-  const [sourceName, setSourceName] = useState("");
+  const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const handleSave = async () => {
@@ -38,16 +38,16 @@ export function PasteTextModal({ open, onClose, onSave, isLoading }: PasteTextMo
       return;
     }
 
-    if (!sourceName.trim()) {
-      setError("Please enter a source name");
+    if (!title.trim()) {
+      setError("Please enter a title");
       return;
     }
 
     try {
-      await onSave(text.trim(), sourceName.trim());
+      await onSave(text.trim(), title.trim());
       // Reset form
       setText("");
-      setSourceName("");
+      setTitle("");
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
@@ -56,7 +56,7 @@ export function PasteTextModal({ open, onClose, onSave, isLoading }: PasteTextMo
 
   const handleClose = () => {
     setText("");
-    setSourceName("");
+    setTitle("");
     setError(null);
     onClose();
   };
@@ -76,12 +76,12 @@ export function PasteTextModal({ open, onClose, onSave, isLoading }: PasteTextMo
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="source-name">Source Name</Label>
+            <Label htmlFor="newsletter-title">Title</Label>
             <Input
-              id="source-name"
-              placeholder="e.g., Stratechery Weekly, Matt Levine's Newsletter"
-              value={sourceName}
-              onChange={(e) => setSourceName(e.target.value)}
+              id="newsletter-title"
+              placeholder="e.g., Stratechery — Weekly Update, Matt Levine Money Stuff"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               className="bg-secondary"
             />
           </div>
@@ -109,7 +109,7 @@ export function PasteTextModal({ open, onClose, onSave, isLoading }: PasteTextMo
           <Button variant="outline" onClick={handleClose} disabled={isLoading}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={isLoading || !text.trim() || !sourceName.trim()}>
+          <Button onClick={handleSave} disabled={isLoading || !text.trim() || !title.trim()}>
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

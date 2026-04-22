@@ -108,7 +108,10 @@ export function NewsletterArchiveTab({
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <FileText className="w-4 h-4 text-muted-foreground" />
-                      <span className="font-medium">{newsletter.source_name}</span>
+                      <span className="font-medium">{newsletter.title ?? "(untitled)"}</span>
+                      {newsletter.source_name && (
+                        <span className="text-xs text-muted-foreground">via {newsletter.source_name}</span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
@@ -171,7 +174,7 @@ export function NewsletterArchiveTab({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Newsletter</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deleteConfirm?.source_name}"? This will
+              Are you sure you want to delete "{deleteConfirm?.title ?? "this newsletter"}"? This will
               also delete all extracted insights. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

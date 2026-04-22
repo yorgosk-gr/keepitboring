@@ -13,7 +13,8 @@ interface Insight {
   is_summarized: boolean;
   created_at: string;
   newsletters: {
-    source_name: string;
+    title: string | null;
+    source_name: string | null;
     upload_date: string;
     is_archived: boolean;
   } | null;
@@ -49,6 +50,7 @@ export async function selectSmartInsights(
     .select(`
       *,
       newsletters (
+        title,
         source_name,
         upload_date,
         is_archived

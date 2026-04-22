@@ -86,6 +86,7 @@ export function useSourceReputation() {
 
       for (const newsletter of newsletters) {
         const name = newsletter.source_name;
+        if (!name) continue;
         if (!sourceMap[name]) {
           sourceMap[name] = {
             source_name: name,
@@ -109,6 +110,7 @@ export function useSourceReputation() {
         if (!newsletter) continue;
 
         const name = newsletter.source_name;
+        if (!name) continue;
         const src = sourceMap[name];
         const meta = insight.metadata as any;
 

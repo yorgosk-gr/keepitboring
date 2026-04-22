@@ -890,7 +890,8 @@ export type Database = {
           processing_started_at: string | null
           publication_date: string | null
           raw_text: string | null
-          source_name: string
+          source_name: string | null
+          title: string | null
           upload_date: string
           user_id: string
         }
@@ -905,7 +906,8 @@ export type Database = {
           processing_started_at?: string | null
           publication_date?: string | null
           raw_text?: string | null
-          source_name: string
+          source_name?: string | null
+          title?: string | null
           upload_date?: string
           user_id: string
         }
@@ -920,7 +922,8 @@ export type Database = {
           processing_started_at?: string | null
           publication_date?: string | null
           raw_text?: string | null
-          source_name?: string
+          source_name?: string | null
+          title?: string | null
           upload_date?: string
           user_id?: string
         }

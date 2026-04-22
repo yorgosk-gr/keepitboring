@@ -48,7 +48,7 @@ interface NewsletterListProps {
   onProcess: (newsletter: Newsletter) => Promise<void>;
   onView: (newsletter: Newsletter) => void;
   onDelete: (newsletter: Newsletter) => Promise<void>;
-  onUpdateSourceName: (id: string, sourceName: string) => void;
+  onUpdateTitle: (id: string, title: string) => void;
   processingId: string | null;
 }
 
@@ -58,7 +58,7 @@ export function NewsletterList({
   onProcess,
   onView,
   onDelete,
-  onUpdateSourceName,
+  onUpdateTitle,
   processingId,
 }: NewsletterListProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -130,11 +130,11 @@ export function NewsletterList({
   // ── Edit helpers ──────────────────────────────────────────────────────────
   const startEditing = (newsletter: Newsletter) => {
     setEditingId(newsletter.id);
-    setEditValue(newsletter.source_name);
+    setEditValue(newsletter.title ?? "");
   };
 
   const saveEdit = (id: string) => {
-    if (editValue.trim()) onUpdateSourceName(id, editValue.trim());
+    if (editValue.trim()) onUpdateTitle(id, editValue.trim());
     setEditingId(null);
   };
 
@@ -258,7 +258,7 @@ export function NewsletterList({
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={() => toggleSelect(newsletter.id)}
-                      aria-label={`Select ${newsletter.source_name}`}
+                      aria-label={`Select ${newsletter.title ?? "(untitled)"}`}
                     />
                   </TableCell>
 
@@ -286,7 +286,10 @@ export function NewsletterList({
                       <div className="flex items-center gap-2">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">{newsletter.source_name}</span>
+                            <span className="font-medium">{newsletter.title ?? "(untitled)"}</span>
+                            {newsletter.source_name && (
+                              <span className="text-xs text-muted-foreground">via {newsletter.source_name}</span>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
@@ -433,7 +436,7 @@ export function NewsletterList({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Newsletter</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deleteConfirm?.source_name}"? This will also delete
+              Are you sure you want to delete "{deleteConfirm?.title ?? "this newsletter"}"? This will also delete
               all extracted insights. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -7,7 +7,7 @@ import { subDays, subMonths, startOfWeek, format } from "date-fns";
 export interface CleanupPreview {
   archiveOld: {
     count: number;
-    newsletters: { id: string; source_name: string; upload_date: string }[];
+    newsletters: { id: string; title: string | null; source_name: string | null; upload_date: string }[];
   };
   duplicateInsights: {
     count: number;
@@ -33,7 +33,7 @@ export function useNewsletterCleanup() {
     // 1. Newsletters older than 90 days that aren't archived
     const { data: oldNewsletters } = await supabase
       .from("newsletters")
-      .select("id, source_name, upload_date")
+      .select("id, title, source_name, upload_date")
       .eq("user_id", user.id)
       .eq("is_archived", false)
       .lt("created_at", ninetyDaysAgo.toISOString());

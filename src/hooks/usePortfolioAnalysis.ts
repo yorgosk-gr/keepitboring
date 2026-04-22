@@ -473,7 +473,7 @@ export function usePortfolioAnalysis() {
             tickers_mentioned: i.tickers_mentioned,
             confidence_words: i.confidence_words,
             created_at: i.created_at,
-            source_name: i.newsletters?.source_name,
+            source_name: i.newsletters?.title ?? i.newsletters?.source_name,
           })),
           decisions: recentDecisions,
           etf_classifications: etfClassifications,
