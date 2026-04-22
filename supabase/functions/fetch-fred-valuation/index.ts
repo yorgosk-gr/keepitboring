@@ -85,6 +85,9 @@ function percentile(sorted: number[], p: number): number {
 function computeStats(values: number[], current: number): SeriesStats {
   const sorted = [...values].sort((a, b) => a - b);
   const n = sorted.length;
+  if (n < 30) {
+    throw new Error(`computeStats requires >=30 observations, got ${n}`);
+  }
   const mean = sorted.reduce((s, v) => s + v, 0) / n;
   const variance = sorted.reduce((s, v) => s + (v - mean) ** 2, 0) / n;
   const stdev = Math.sqrt(variance);

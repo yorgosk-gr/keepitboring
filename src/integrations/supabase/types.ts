@@ -1251,21 +1251,18 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          portfolio_mode: string
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
-          portfolio_mode?: string
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
-          portfolio_mode?: string
           updated_at?: string
           user_id?: string
         }

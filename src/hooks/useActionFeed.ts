@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -130,10 +130,32 @@ export function useActionFeed() {
     },
   });
 
+  const dismissKey = user?.id ? `action-feed-dismissed-v1:${user.id}` : null;
+  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!dismissKey) return;
+    try {
+      const raw = localStorage.getItem(dismissKey);
+      setDismissedKeys(new Set(raw ? JSON.parse(raw) : []));
+    } catch {
+      setDismissedKeys(new Set());
+    }
+  }, [dismissKey]);
+
+  useEffect(() => {
+    if (!dismissKey) return;
+    try {
+      localStorage.setItem(dismissKey, JSON.stringify([...dismissedKeys]));
+    } catch {}
+  }, [dismissKey, dismissedKeys]);
+
   const dismiss = (item: ActionItem) => {
     if (item._reviewIds) {
       dismissReview.mutate(item._reviewIds);
+      return;
     }
+    setDismissedKeys((prev) => new Set(prev).add(item.id));
   };
 
   const actions = useMemo(() => {
@@ -187,12 +209,14 @@ export function useActionFeed() {
         }
       }
       if (mentionedTickers.size > 0) {
+        const tickerList = [...mentionedTickers].sort();
         items.push({
-          id: "bearish-mentions",
+          id: `bearish-mentions:${tickerList.join(",")}`,
           source: "newsletter_bearish",
-          title: `Bearish signals on ${[...mentionedTickers].join(", ")} in recent newsletters`,
+          title: `Bearish signals on ${tickerList.join(", ")} in recent newsletters`,
           severity: "warning",
           link: "/newsletters",
+          dismissible: true,
         });
       }
     }
@@ -215,11 +239,14 @@ export function useActionFeed() {
         (Date.now() - new Date(stalenessQuery.data.created_at).getTime()) / 86_400_000
       );
       if (daysSince >= 7) {
+        const bucket = daysSince >= 30 ? "30+" : daysSince >= 14 ? "14+" : "7+";
         items.push({
-          id: "stale-prices",
+          id: `stale-prices:${bucket}`,
           source: "stale_data",
           title: `Prices are ${daysSince} days old — refresh needed`,
           severity: daysSince >= 14 ? "critical" : "warning",
+          link: "/portfolio",
+          dismissible: true,
         });
       }
     }
@@ -228,8 +255,8 @@ export function useActionFeed() {
     const severityOrder: Record<ActionSeverity, number> = { critical: 0, warning: 1, info: 2 };
     items.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 
-    return items;
-  }, [reviewsQuery.data, mentionsQuery.data, positionsQuery.data, stalenessQuery.data, heldTickers]);
+    return items.filter((i) => !dismissedKeys.has(i.id));
+  }, [reviewsQuery.data, mentionsQuery.data, positionsQuery.data, stalenessQuery.data, heldTickers, dismissedKeys]);
 
   const isLoading = reviewsQuery.isLoading;
 
