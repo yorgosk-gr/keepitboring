@@ -9,6 +9,7 @@ import { usePositions, type Position } from "@/hooks/usePositions";
 import { useIdealAllocation, type IdealETF } from "@/hooks/useIdealAllocation";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useInsightsSummary } from "@/hooks/useInsightsSummary";
+import { ThesisHealthSection } from "@/components/analysis/ThesisHealthSection";
 import { LogDecisionModal } from "@/components/decisions/LogDecisionModal";
 import { RecommendedActionsCard } from "@/components/analysis/RecommendedActionsCard";
 import { format, formatDistanceToNow } from "date-fns";
@@ -97,6 +98,7 @@ export default function Analysis() {
         portfolio_health_score: latest.health_score ?? 0,
         summary: latest.summary ?? "",
         health_score_breakdown: rawResponse?.health_score_breakdown ?? undefined,
+        thesis_checks: Array.isArray(rawResponse?.thesis_checks) ? rawResponse.thesis_checks : [],
         ideal_allocation: rawResponse?.ideal_allocation ?? null,
         analysis_meta: rawResponse?.analysis_meta ?? undefined,
       } as any);
@@ -400,6 +402,9 @@ function AnalysisTextView({ analysis, positions = [], onLogDecision, onMarkCompl
         </div>
       </section>
 
+
+      {/* Thesis Health */}
+      <ThesisHealthSection checks={(analysis as any).thesis_checks ?? []} />
 
       {/* Trade Recommendations */}
       {analysis.trade_recommendations && analysis.trade_recommendations.length > 0 && (

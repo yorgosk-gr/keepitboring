@@ -544,23 +544,59 @@ export function usePortfolioAnalysis() {
       setCurrentAnalysis(data);
 
       // Save to history
-      const { error } = await supabase.from("analysis_history").insert({
-        user_id: user!.id,
-        health_score: data.portfolio_health_score,
-        allocation_check: data.allocation_check as any,
-        position_alerts: data.position_alerts as any,
-        market_signals: data.market_signals as any,
-        recommended_actions: data.recommended_actions as any,
-        key_risks: [],
-        summary: data.summary,
-        raw_response: data as any,
-      });
+      const { data: inserted, error } = await supabase
+        .from("analysis_history")
+        .insert({
+          user_id: user!.id,
+          health_score: data.portfolio_health_score,
+          allocation_check: data.allocation_check as any,
+          position_alerts: data.position_alerts as any,
+          market_signals: data.market_signals as any,
+          recommended_actions: data.recommended_actions as any,
+          key_risks: [],
+          summary: data.summary,
+          raw_response: data as any,
+        })
+        .select("id")
+        .single();
 
       if (error) {
         console.error("Failed to save analysis history:", error);
       }
 
+      // Persist thesis_checks linked to this analysis for streak tracking.
+      const analysisId = inserted?.id;
+      const checks = Array.isArray((data as any).thesis_checks) ? (data as any).thesis_checks : [];
+      if (analysisId && checks.length > 0) {
+        const totalValue = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
+        const posByTicker = new Map(positions.map((p) => [p.ticker, p]));
+        const rows = checks
+          .filter((c: any) => c && typeof c.ticker === "string")
+          .map((c: any) => {
+            const pos = posByTicker.get(c.ticker);
+            const weight = pos && totalValue > 0 ? ((pos.market_value ?? 0) / totalValue) * 100 : null;
+            return {
+              user_id: user!.id,
+              analysis_id: analysisId,
+              ticker: c.ticker,
+              status: c.status,
+              confidence: c.confidence ?? "medium",
+              evidence: c.evidence ?? null,
+              supporting_insight_ids: Array.isArray(c.supporting_insight_ids) ? c.supporting_insight_ids : [],
+              thesis_snapshot: pos?.thesis_notes ?? null,
+              invalidation_trigger_snapshot: pos?.invalidation_trigger ?? null,
+              recommended_action: c.recommended_action ?? null,
+              position_weight: weight,
+            };
+          });
+        if (rows.length > 0) {
+          const { error: checksErr } = await supabase.from("thesis_checks" as any).insert(rows as any);
+          if (checksErr) console.error("Failed to save thesis checks:", checksErr);
+        }
+      }
+
       queryClient.invalidateQueries({ queryKey: ["analysis_history"] });
+      queryClient.invalidateQueries({ queryKey: ["thesis_check_streaks"] });
       toast.success("Portfolio analysis complete");
     },
     onError: (error) => {

@@ -15,6 +15,7 @@ import { ETFInfoTooltip } from "./ETFInfoTooltip";
 import { NewsletterMentionsBadge } from "./NewsletterMentionsBadge";
 import { useETFMetadata } from "@/hooks/useETFMetadata";
 import { useTickerMentions } from "@/hooks/useTickerMentions";
+import { useThesisStreaks, type ThesisStatus } from "@/hooks/useThesisChecks";
 
 type SortField = "ticker" | "name" | "position_type" | "category" | "exchange" | "currency" | "shares" | "avg_cost" | "current_price" | "market_value" | "gain_loss" | "weight_percent";
 type SortDirection = "asc" | "desc";
@@ -156,6 +157,11 @@ export function PositionsTable({
   // Newsletter mentions for held tickers
   const allTickers = useMemo(() => positions.map(p => p.ticker), [positions]);
   const { data: tickerMentions = {} } = useTickerMentions(allTickers);
+  const { data: thesisStreaks = [] } = useThesisStreaks();
+  const thesisStreakByTicker = useMemo(
+    () => new Map(thesisStreaks.map((s) => [s.ticker, s])),
+    [thesisStreaks]
+  );
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -366,6 +372,34 @@ export function PositionsTable({
                         {tickerMentions[position.ticker]?.length > 0 && (
                           <NewsletterMentionsBadge mentions={tickerMentions[position.ticker]} />
                         )}
+                        {(() => {
+                          const streak = thesisStreakByTicker.get(position.ticker);
+                          if (!streak) return null;
+                          const styles: Record<ThesisStatus, string> = {
+                            invalidated: "text-destructive border-destructive/40 bg-destructive/10",
+                            reinforced: "text-emerald-500 border-emerald-500/40 bg-emerald-500/10",
+                            stale: "text-amber-500 border-amber-500/40 bg-amber-500/10",
+                            silent: "text-muted-foreground border-border bg-muted/30",
+                          };
+                          const label: Record<ThesisStatus, string> = {
+                            invalidated: "INV", reinforced: "REI", stale: "STL", silent: "—",
+                          };
+                          return (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className={`text-[10px] font-mono font-semibold px-1 py-0.5 rounded border ${styles[streak.current_status]}`}>
+                                    {label[streak.current_status]}{streak.streak_length > 1 ? `×${streak.streak_length}` : ""}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <p className="font-semibold capitalize">{streak.current_status} · {streak.streak_length} run{streak.streak_length === 1 ? "" : "s"}</p>
+                                  {streak.last_evidence && <p className="text-xs mt-1">{streak.last_evidence}</p>}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        })()}
                       </div>
                     </td>
                     <td className="py-3 text-muted-foreground max-w-[120px] truncate text-xs">

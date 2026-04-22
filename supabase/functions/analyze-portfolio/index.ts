@@ -521,6 +521,22 @@ serve(async (req) => {
     const ruleEvaluation = computeRuleEvaluation(
       positions, rules, etf_classifications, cash_balance ?? 0, total_portfolio_value ?? 0, risk_profile
     );
+
+    // ── Prior thesis streaks (feeds escalation logic) ──────────────
+    const heldTickers = (positions ?? []).map((p: any) => p.ticker).filter(Boolean);
+    let priorStreaks: any[] = [];
+    if (heldTickers.length > 0) {
+      const { data: streakRows, error: streakErr } = await supabase
+        .from("thesis_check_streaks")
+        .select("ticker, current_status, streak_length, last_checked_at, last_evidence, last_recommended_action")
+        .eq("user_id", user.id)
+        .in("ticker", heldTickers);
+      if (streakErr) {
+        console.warn("thesis streak fetch failed (non-fatal):", streakErr.message);
+      } else {
+        priorStreaks = streakRows ?? [];
+      }
+    }
     console.log("Rule evaluation computed:", JSON.stringify({
       main: ruleEvaluation.main_allocation_issues,
       soft: ruleEvaluation.soft_issues,
@@ -647,7 +663,16 @@ These MUST be consistent with trade_recommendations — same trades, same direct
   "health_score_breakdown": [
     { "rule": string, "current": number, "target": string, "status": "breach" | "ok", "points_deducted": number }
   ],
-  "thesis_checks": [],
+  "thesis_checks": [
+    {
+      "ticker": string,
+      "status": "invalidated" | "reinforced" | "stale" | "silent",
+      "confidence": "high" | "medium" | "low",
+      "evidence": string,
+      "supporting_insight_ids": [string],
+      "recommended_action": "SELL" | "TRIM" | "REVIEW" | "HOLD" | "ADD"
+    }
+  ],
   "portfolio_health_score": number,
   "summary": string
 }
@@ -659,7 +684,32 @@ HARD LIMIT: EXACTLY 3 sentences. MAXIMUM 60 words. If you exceed 60 words, delet
 3) What's working. One sentence, ≤ 15 words.
 No labels, no preamble. Start directly with the action. MUST NOT contradict allocation_check.
 
-BANNED: Never use the word "thesis". thesis_checks must always be [].`;
+═══ THESIS HEALTH (thesis_checks) ═══
+Produce one entry per HELD position meeting ANY of these criteria:
+  • Has non-empty thesis_notes — evaluate against recent insights + brief.
+  • Has position_weight ≥ 2% but no thesis_notes — emit status="silent".
+Skip positions with weight <2% and no thesis.
+
+Classification:
+  • "invalidated" — insights contradict thesis OR invalidation_trigger hit. recommended_action: SELL or TRIM.
+  • "reinforced"  — insights align with thesis, or strategy/brief reinforces it. recommended_action: HOLD or ADD.
+  • "stale"       — thesis exists but no recent relevant insight coverage. recommended_action: REVIEW.
+  • "silent"      — meaningful position with no written thesis. recommended_action: REVIEW.
+
+confidence: "high" when multiple corroborating insights; "medium" when single strong signal; "low" when inferred.
+evidence: ≤ 30 words citing specific numbers/insights. Quote the driving fact (e.g. "Direct -7%, margins -130bps per Q3 release").
+supporting_insight_ids: FK IDs from the insights you cite, if any.
+
+ESCALATION (use PRIOR_THESIS_STREAKS):
+  • If a ticker has been "invalidated" for ≥2 consecutive prior runs, escalate recommended_action to SELL (not TRIM/REVIEW).
+  • If "reinforced" for ≥3 runs and position is underweight vs target, recommended_action may be ADD.
+  • Use streak_length to anchor confidence — long streaks should read "high" confidence unless evidence weakened.
+
+INTEGRATION WITH TRADE RECOMMENDATIONS:
+  • Any ticker with status="invalidated" MUST appear in trade_recommendations as SELL or TRIM, with reasoning that cites the thesis break.
+  • Never recommend HOLD for an invalidated ticker.
+
+BANNED: Do not use the prose word "thesis" in summary or recommended_actions text. The thesis_checks array is where that signal lives.`;
 
     // ── User Prompt ──────────────────────────────────────────────────
     const bubbleInsights = (insights ?? []).filter((i: any) => i.insight_type === "bubble_signal");
@@ -742,6 +792,11 @@ ${stock_fundamentals.map((f: any) => `${f.ticker}: ROIC=${f.roic ?? "N/A"}%, Ear
 
 RULE EVALUATION (precomputed — use as ground truth for ALL rule statuses and percentages):
 ${JSON.stringify(ruleEvaluation, null, 2)}
+
+PRIOR_THESIS_STREAKS (from previous analysis runs — use for escalation):
+${priorStreaks.length > 0
+  ? priorStreaks.map((s: any) => `- ${s.ticker}: ${s.current_status} x ${s.streak_length} run(s), last ${s.last_checked_at}, action=${s.last_recommended_action ?? "n/a"}, evidence="${(s.last_evidence ?? "").substring(0, 120)}"`).join("\n")
+  : "No prior thesis check history — this is the first run or a cold start."}
 
 ${risk_profile ? `RISK PROFILE:
 - Profile: ${(risk_profile.profile ?? 'balanced')}
@@ -997,6 +1052,18 @@ JSON OUTPUT:
 
     // ── Enforce cash constraint server-side ───────────────────────────
     analysisResult = enforceCashConstraint(analysisResult, cash_balance ?? 0, total_portfolio_value ?? 0);
+
+    // ── Deterministic health score (don't trust Claude for arithmetic) ──
+    // The breakdown is computed server-side in computeRuleEvaluation. Overwrite
+    // Claude's breakdown and score so the number is always 100 − Σ deductions.
+    const serverBreakdown = ruleEvaluation?.health_score_breakdown ?? [];
+    const totalDeducted = serverBreakdown.reduce(
+      (sum: number, item: any) => sum + (item.points_deducted ?? 0),
+      0
+    );
+    const computedScore = Math.min(100, Math.max(10, 100 - totalDeducted));
+    analysisResult.health_score_breakdown = serverBreakdown;
+    analysisResult.portfolio_health_score = computedScore;
 
     // ── Parse ideal allocation (best-effort, don't fail the whole response) ──
     let idealAllocation = null;
