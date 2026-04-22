@@ -3,20 +3,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-export type PortfolioMode = "capital_preservation" | "balanced" | "aggressive";
-
 export interface UserSettings {
   alertSeverityThreshold: "all" | "warning" | "critical";
   emailAlerts: boolean;
   onboardingCompleted: boolean;
-  portfolioMode: PortfolioMode;
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
   alertSeverityThreshold: "all",
   emailAlerts: false,
   onboardingCompleted: false,
-  portfolioMode: "balanced",
 };
 
 const SETTINGS_KEY = "keepitboring-settings";
@@ -39,18 +35,6 @@ export function useSettings() {
         }
       }
 
-      // Load portfolio_mode from DB
-      if (user) {
-        const { data } = await supabase
-          .from("user_settings")
-          .select("portfolio_mode")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (data?.portfolio_mode) {
-          merged = { ...merged, portfolioMode: data.portfolio_mode as PortfolioMode };
-        }
-      }
-
       setSettings(merged);
       setIsLoading(false);
     };
@@ -61,13 +45,6 @@ export function useSettings() {
     const newSettings = { ...settings, ...updates };
     setSettings(newSettings);
     localStorage.setItem(`${SETTINGS_KEY}-${user?.id}`, JSON.stringify(newSettings));
-
-    // Persist portfolio_mode to DB
-    if (updates.portfolioMode && user) {
-      await supabase
-        .from("user_settings")
-        .upsert({ user_id: user.id, portfolio_mode: updates.portfolioMode }, { onConflict: "user_id" });
-    }
 
     toast.success("Settings saved");
   };

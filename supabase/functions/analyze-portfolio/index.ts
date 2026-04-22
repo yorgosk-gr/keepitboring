@@ -508,7 +508,6 @@ serve(async (req) => {
       intelligence_brief,
       etf_classifications,
       stock_fundamentals,
-      portfolio_mode,
       risk_profile,
       behavioral_alignment,
       portfolio_strategy,
@@ -575,7 +574,7 @@ Return ONLY a raw JSON object. No markdown, no prose, no code fences.
 - Intelligence Brief: market signals layer. Use as research input for trade direction.
 - SECTOR_MOMENTUM: "hot" = avoid new BUYs. "cold" = review positions. Never overrides HARD rules.
 - ETF_OVERLAP_ANALYSIS: use effective_exposure for true geographic exposures.
-- Portfolio mode + Risk profile: interpretation lens. Never overrides HARD rules.
+- Risk profile: interpretation lens and allocation targets. Never overrides HARD rules.
 
 ═══ DECISION PRIORITIES ═══
 1) HARD rules (binding — must fix with trades, deduct score)
@@ -825,8 +824,6 @@ ${(() => {
 
 ${behavioral_alignment ? `BEHAVIORAL ALIGNMENT:
 - Aligned ratio: ${behavioral_alignment.aligned_ratio} (${behavioral_alignment.aligned_count}/${behavioral_alignment.total_signals} recent trades matched stated profile)` : "No behavioral signals available."}
-
-PORTFOLIO MODE: ${portfolio_mode ?? "balanced"}
 
 ${portfolio_strategy ? `PORTFOLIO STRATEGY BRIEF (living document — all recommendations must align):
 - Mandate: ${portfolio_strategy.mandate || "Not set"}

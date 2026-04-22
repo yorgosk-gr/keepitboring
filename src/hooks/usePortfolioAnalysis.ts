@@ -486,7 +486,6 @@ export function usePortfolioAnalysis() {
           stock_fundamentals: stockFundamentals,
           etf_overlap: etfOverlapData,
           sector_momentum: sectorMomentum,
-          portfolio_mode: settings.portfolioMode ?? "balanced",
           risk_profile: activeProfile ? {
             profile: activeProfile.profile,
             score: activeProfile.score,
