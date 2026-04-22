@@ -388,8 +388,19 @@ function TypeOverviewCards({
 }
 
 /* ─── Main panel ─── */
+type WindowOption = 7 | 15 | 30 | 90 | "all";
+const WINDOW_OPTIONS: { value: WindowOption; label: string }[] = [
+  { value: 7, label: "7d" },
+  { value: 15, label: "15d" },
+  { value: 30, label: "30d" },
+  { value: 90, label: "90d" },
+  { value: "all", label: "All" },
+];
+
 export function AllInsightsPanel() {
-  const { insights, isLoading, toggleStar, toggleExclude } = useAllInsights();
+  const [windowDays, setWindowDays] = useState<WindowOption>(15);
+  const [minQuality, setMinQuality] = useState<number>(3);
+  const { insights, isLoading, toggleStar, toggleExclude } = useAllInsights(windowDays);
   const { positions } = usePositions();
   const portfolioTickers = positions.map((p) => p.ticker.toUpperCase());
 
@@ -409,6 +420,10 @@ export function AllInsightsPanel() {
     if (!showExcluded) result = result.filter((i) => !i.excluded_from_brief);
     if (starredOnly) result = result.filter((i) => i.is_starred);
     if (activeTypeFilter) result = result.filter((i) => i.insight_type === activeTypeFilter);
+    if (minQuality > 1) {
+      // Keep nulls (pre-migration) so old insights don't silently vanish.
+      result = result.filter((i) => i.quality_score == null || i.quality_score >= minQuality);
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
@@ -419,7 +434,7 @@ export function AllInsightsPanel() {
       );
     }
     return result;
-  }, [insights, starredOnly, showExcluded, activeTypeFilter, searchQuery]);
+  }, [insights, starredOnly, showExcluded, activeTypeFilter, minQuality, searchQuery]);
 
   const groups = useMemo(() => {
     const map = new Map<string, InsightWithSource[]>();
@@ -565,6 +580,39 @@ export function AllInsightsPanel() {
                 <Star className={cn("w-3.5 h-3.5", starredOnly && "fill-current")} />
                 Starred
               </Button>
+              <div className="flex items-center border border-border rounded-md overflow-hidden h-8">
+                {WINDOW_OPTIONS.map((w) => (
+                  <button
+                    key={w.value}
+                    className={cn(
+                      "px-2 py-1 text-xs font-medium transition-colors",
+                      windowDays === w.value
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    )}
+                    onClick={() => setWindowDays(w.value)}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center border border-border rounded-md overflow-hidden h-8">
+                {[1, 2, 3, 4, 5].map((q) => (
+                  <button
+                    key={q}
+                    className={cn(
+                      "px-2 py-1 text-xs font-medium transition-colors",
+                      minQuality === q
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    )}
+                    onClick={() => setMinQuality(q)}
+                    title={`Show quality ≥ ${q}`}
+                  >
+                    ≥{q}
+                  </button>
+                ))}
+              </div>
               <div className="flex items-center border border-border rounded-md overflow-hidden h-8">
                 {(["type", "source", "sentiment"] as GroupBy[]).map((g) => (
                   <button

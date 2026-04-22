@@ -19,23 +19,26 @@ export interface InsightWithSource {
   upload_date: string;
 }
 
-export function useAllInsights() {
+export function useAllInsights(windowDays: number | "all" = 15) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ["all_insights", user?.id],
+    queryKey: ["all_insights", user?.id, windowDays],
     queryFn: async () => {
-      const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
-
-      // First get this user's newsletter IDs from the last 10 days so we
-      // filter at the DB level rather than fetching everything and discarding.
-      const { data: userNewsletters } = await supabase
+      // Filter newsletters at the DB level rather than fetching everything and discarding.
+      let newsletterQuery = supabase
         .from("newsletters")
         .select("id")
         .eq("user_id", user!.id)
-        .eq("is_archived", false)
-        .gte("created_at", tenDaysAgo);
+        .eq("is_archived", false);
+
+      if (windowDays !== "all") {
+        const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString();
+        newsletterQuery = newsletterQuery.gte("created_at", cutoff);
+      }
+
+      const { data: userNewsletters } = await newsletterQuery;
 
       const newsletterIds = (userNewsletters ?? []).map((n: any) => n.id);
       if (newsletterIds.length === 0) return [];

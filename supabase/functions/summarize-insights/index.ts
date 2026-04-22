@@ -186,6 +186,7 @@ serve(async (req) => {
       crowded_trades: result.crowded_trades ?? [],
       weekly_priority: result.weekly_priority ?? null,
       temporal_shifts: result.temporal_shifts ?? [],
+      valuation_mentions: result.valuation_mentions ?? [],
       action_items: [], market_themes: [],
       crowded_trades_legacy: result.crowded_trades ?? [],
       newsletters_analyzed: newsletters_count,
@@ -263,5 +264,16 @@ JSON schema:
     {"sector": "...", "direction": "overweight|underweight|neutral", "conviction": "high|medium|low", "portfolio_tickers": [], "reasoning": "one sentence", "signal_type": "consensus|edge|divergent", "earnings_pattern": "beats|misses|mixed|no_data"}
   ],
   "weekly_priority": "one sentence — the top signal this week",
-  "signal_quality": "high|medium|low"
-}`;
+  "signal_quality": "high|medium|low",
+  "valuation_mentions": [
+    {"asset": "asset name (e.g. S&P 500, energy sector, EM equities, 10y Treasury)", "metric": "metric name (e.g. forward P/E, CAPE, dividend yield, spread)", "value": "current value as quoted (e.g. 22x, 3.8%, 350bps)", "vs_history": "high|low|neutral|unknown", "source_snippet": "short quoted/paraphrased context (≤ 20 words)"}
+  ]
+}
+
+VALUATION MENTIONS — extraction rules:
+- Scan newsletter insights for any explicit valuation comparison (P/E, CAPE, EV/EBITDA, dividend yield, credit spread, bond yield, price vs book, etc.) with context.
+- Include only mentions that compare current value to history, median, peers, or an explicit level (e.g. "cheapest since 2020", "22x vs 10y median of 17x", "tightest spreads in a decade").
+- If the newsletter calls something "expensive", "cheap", "stretched", "compressed", etc. with a numeric anchor, capture it.
+- Omit vague claims with no number ("overvalued" alone = skip).
+- Max 8 entries. Prefer index/sector-level over single-ticker mentions unless the ticker is widely held.
+- If no explicit valuation comparisons appear, return an empty array.`;

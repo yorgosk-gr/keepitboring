@@ -522,6 +522,27 @@ serve(async (req) => {
       positions, rules, etf_classifications, cash_balance ?? 0, total_portfolio_value ?? 0, risk_profile
     );
 
+    // ── Valuation context (FRED + newsletter mentions) ─────────────
+    // Pull the latest observation per series_key from the global table.
+    const { data: rawValuationRows, error: valErr } = await supabase
+      .from("valuation_context")
+      .select("series_key, value, value_text, as_of, source, label, interpretation, metadata")
+      .order("as_of", { ascending: false })
+      .limit(200);
+    if (valErr) {
+      console.warn("valuation_context fetch failed (non-fatal):", valErr.message);
+    }
+    const valuationRowsBySeries: Record<string, any> = {};
+    for (const row of rawValuationRows ?? []) {
+      if (!valuationRowsBySeries[row.series_key]) {
+        valuationRowsBySeries[row.series_key] = row;
+      }
+    }
+    const valuationAnchors = Object.values(valuationRowsBySeries);
+    const newsletterValuationMentions = Array.isArray(intelligence_brief?.valuation_mentions)
+      ? intelligence_brief.valuation_mentions
+      : [];
+
     // ── Prior thesis streaks (feeds escalation logic) ──────────────
     const heldTickers = (positions ?? []).map((p: any) => p.ticker).filter(Boolean);
     let priorStreaks: any[] = [];
@@ -561,6 +582,13 @@ Return ONLY a raw JSON object. No markdown, no prose, no code fences.
 2) Intelligence Brief themes (drives trade direction)
 3) SOFT rules (observe only — no score impact, no forced trades)
 4) DIAGNOSTIC rules (informational — no score, no trades)
+
+═══ SENTIMENT VS. VALUATION — ANTI-MOMENTUM GUARDRAIL ═══
+Newsletter sentiment and sector momentum are lagging signals: writers often turn bullish AFTER a rally and bearish after a drop. Do not treat them as forward-looking on their own.
+- When sentiment/momentum is bullish BUT valuation context flags the asset as extended (high CAPE, stretched P/E, tight spreads vs history), treat it as a FADE, not a BUY. Prefer HOLD or TRIM.
+- When sentiment is bearish BUT valuation is cheap vs history, that is a contrarian BUY candidate (respecting HARD rules and risk profile).
+- Never recommend a BUY solely because a sector/ticker is trending up in newsletters or scored "hot" in SECTOR_MOMENTUM. Every BUY must cite at least one of: (a) a HARD rule breach needing this asset to fix it, (b) a valuation anchor, (c) an independent fundamental or thesis-driven reason from the brief.
+- If VALUATION_CONTEXT is absent or silent on an asset, err on the side of HOLD over BUY when the only positive signal is sentiment/momentum.
 
 ═══ REBALANCING LOGIC — THE MOST IMPORTANT RULE ═══
 When cash > 10%, deploying cash into underweight asset classes AUTOMATICALLY fixes multiple breaches at once.
@@ -754,6 +782,21 @@ USE THIS BRIEF to drive trade recommendations. Reference specific themes, tilts,
 
 ${stock_fundamentals?.length > 0 ? `STOCK FUNDAMENTALS:
 ${stock_fundamentals.map((f: any) => `${f.ticker}: ROIC=${f.roic ?? "N/A"}%, Earnings Yield=${f.earnings_yield ?? "N/A"}%, P/E=${f.pe_ratio ?? "N/A"}, D/E=${f.debt_to_equity ?? "N/A"}, Revenue Growth=${f.revenue_growth_yoy ?? "N/A"}%, FCF Yield=${f.free_cash_flow_yield ?? "N/A"}%, Gross Margin=${f.gross_margin ?? "N/A"}%${f.notes ? ` (${f.notes})` : ""}`).join("\n")}` : "No stock fundamentals available."}
+
+VALUATION_CONTEXT (macro/valuation anchors — use as anti-momentum guardrail per system prompt):
+${valuationAnchors.length > 0
+  ? "FRED_ANCHORS:\n" + valuationAnchors.map((v: any) => `- [${v.series_key}] ${v.label ?? ""}: ${v.value ?? v.value_text ?? "n/a"} (as_of ${v.as_of}). ${v.interpretation ?? ""}${v.metadata?.level ? ` Level=${v.metadata.level}.` : ""}`).join("\n")
+  : "FRED_ANCHORS: none available — valuation guardrail should default to caution on momentum-only BUYs."}
+
+${newsletterValuationMentions.length > 0
+  ? `NEWSLETTER_VALUATION_MENTIONS:\n${newsletterValuationMentions.map((m: any) => `- ${m.asset ?? "?"}: ${m.metric ?? ""} ${m.value ?? ""} (vs_history=${m.vs_history ?? "unknown"}). ${m.source_snippet ?? ""}`).join("\n")}`
+  : "NEWSLETTER_VALUATION_MENTIONS: none extracted from current brief."}
+
+INTERPRETATION GUIDE:
+- FRED level="extended" means the asset class implied by that series is priced richly vs 10y history → do NOT recommend new BUYs in that asset class on sentiment alone.
+- FRED level="cheap" means contrarian BUY candidate (respecting HARD rules, risk profile, and strategy brief).
+- Newsletter valuation mentions with vs_history="high" → treat the named asset as extended; with vs_history="low" → cheap; with "unknown" → ignore.
+- If both sources are silent on an asset, apply the default from the system prompt's SENTIMENT VS. VALUATION block (err toward HOLD).
 
 RULE EVALUATION (precomputed — use as ground truth for ALL rule statuses and percentages):
 ${JSON.stringify(ruleEvaluation, null, 2)}
@@ -953,7 +996,7 @@ EVIDENCE:
 
 ESCALATION (use PRIOR_THESIS_STREAKS):
   • Ticker "invalidated" for ≥2 consecutive prior runs → recommended_action = SELL (not TRIM/REVIEW).
-  • Ticker "reinforced" for ≥3 runs AND underweight vs target → recommended_action may be ADD.
+  • Ticker "reinforced" for ≥3 runs AND underweight vs target → recommended_action may be ADD, BUT ONLY IF valuation context does not flag the asset as extended (high CAPE, stretched P/E, tight spreads vs history). If VALUATION_CONTEXT shows the asset is expensive vs its own history or vs peers, downgrade ADD to HOLD — a reinforced thesis that has already played out in price is not a buy signal. If VALUATION_CONTEXT is absent or silent on this asset, default to HOLD (do not escalate to ADD on sentiment streaks alone).
   • Long streaks warrant "high" confidence unless evidence has weakened.
 
 OUTPUT JSON:
@@ -985,6 +1028,14 @@ PRIOR_THESIS_STREAKS:
 ${priorStreaks.length > 0
   ? priorStreaks.map((s: any) => `- ${s.ticker}: ${s.current_status} x ${s.streak_length} run(s), action=${s.last_recommended_action ?? "n/a"}`).join("\n")
   : "No prior history — cold start."}
+
+VALUATION_CONTEXT (use to guard the reinforced→ADD escalation per system prompt):
+${valuationAnchors.length > 0
+  ? valuationAnchors.map((v: any) => `- ${v.series_key}: ${v.value ?? v.value_text ?? "n/a"} level=${v.metadata?.level ?? "neutral"} (${v.interpretation ?? ""})`).join("\n")
+  : "No FRED anchors available."}
+${newsletterValuationMentions.length > 0
+  ? "\n" + newsletterValuationMentions.map((m: any) => `- ${m.asset}: ${m.metric} ${m.value} vs_history=${m.vs_history}`).join("\n")
+  : ""}
 
 Return ONLY the JSON object with thesis_checks.`;
 
