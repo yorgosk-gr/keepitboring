@@ -30,11 +30,23 @@ export function useRecommendationTrackRecord() {
         0,
       );
 
+      const analysisIds = (history ?? []).map((h: any) => h.id);
+      if (analysisIds.length === 0) {
+        return {
+          totalRecommendations: 0,
+          followed: 0,
+          followRate: 0,
+          withOutcome: 0,
+          correct: 0,
+          hitRate: 0,
+        };
+      }
+
       const { data: decisions, error: decErr } = await supabase
         .from("decision_log")
         .select("source_analysis_id, was_correct, outcome_30d")
         .eq("user_id", user!.id)
-        .not("source_analysis_id", "is", null);
+        .in("source_analysis_id", analysisIds);
       if (decErr) throw decErr;
 
       const followed = (decisions ?? []).length;

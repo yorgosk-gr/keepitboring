@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -77,6 +77,7 @@ export function LogDecisionModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
   const [checklistPassed, setChecklistPassed] = useState(false);
+  const didPrefillRef = useRef(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -100,6 +101,7 @@ export function LogDecisionModal({
     if (!open) {
       setChecklistPassed(false);
       setShowChecklist(false);
+      didPrefillRef.current = false;
     }
   }, [open, checklistPassed]);
 
@@ -110,49 +112,59 @@ export function LogDecisionModal({
     return "buy";
   };
 
-  // Helper to extract ticker from recommendation action text
-  const extractTicker = (actionText: string): string | null => {
-    const tickerMatch = actionText.match(/\b([A-Z]{1,5})\b/);
-    return tickerMatch ? tickerMatch[1] : null;
+  const ACTION_VERBS = /^(BUY|SELL|HOLD|TRIM|EXIT|REDUCE|ADD|ROTATE|REBALANCE)$/i;
+
+  const extractTicker = (rec: RecommendedAction): string | null => {
+    for (const trade of rec.trades_involved ?? []) {
+      const cleaned = trade.replace(/^(BUY|SELL|HOLD)\s+/i, "").trim();
+      const m = cleaned.match(/\b([A-Z][A-Z0-9]{0,5})\b/);
+      if (m && !ACTION_VERBS.test(m[1])) return m[1];
+    }
+    const matches = rec.action.match(/\b[A-Z][A-Z0-9]{0,5}\b/g) ?? [];
+    for (const m of matches) if (!ACTION_VERBS.test(m)) return m;
+    return null;
   };
 
-  // Update form when position, defaultAction, or recommendation prop changes
+  // One-shot prefill: runs once per open. Guarded so React Query refetches
+  // (positions) don't stomp in-flight user edits.
   useEffect(() => {
-    if (position) {
-      form.setValue("position_id", position.id);
-    }
-    if (defaultAction) {
-      form.setValue("action_type", defaultAction as FormValues["action_type"]);
-    }
+    if (!open || didPrefillRef.current) return;
+    if (!position && !defaultAction && !recommendation) return;
+    if (recommendation && positions.length === 0) return; // wait for positions
+
+    if (position) form.setValue("position_id", position.id);
+    if (defaultAction) form.setValue("action_type", defaultAction as FormValues["action_type"]);
 
     if (recommendation) {
       form.setValue("action_type", extractActionType(recommendation.action));
 
-      const ticker = extractTicker(recommendation.action);
+      const ticker = extractTicker(recommendation);
       const matchingPosition = ticker
         ? positions.find(p => p.ticker.toUpperCase() === ticker.toUpperCase())
         : null;
       if (matchingPosition) {
         form.setValue("position_id", matchingPosition.id);
-        // Prefill entry_price with the current market price — most of the time that's
-        // what you'll execute at. One fewer field to type for the one-click path.
-        if (matchingPosition.current_price && !form.getValues("entry_price")) {
+        if (matchingPosition.current_price) {
           form.setValue("entry_price", matchingPosition.current_price.toFixed(2));
         }
       }
 
-      const prefillReasoning = `Based on analysis recommendation:\n\nAction: ${recommendation.action}\n\nReasoning: ${recommendation.reasoning}`;
-      form.setValue("reasoning", prefillReasoning);
+      form.setValue(
+        "reasoning",
+        `Based on analysis recommendation:\n\nAction: ${recommendation.action}\n\nReasoning: ${recommendation.reasoning}`,
+      );
 
       const confidenceMap = { high: 8, medium: 6, low: 4 };
       form.setValue("confidence_level", confidenceMap[recommendation.confidence] || 5);
 
-      // Default invalidation trigger if blank — better to have something than reject submit.
-      if (!form.getValues("invalidation_triggers")) {
-        form.setValue("invalidation_triggers", "Thesis-level signal contradicts the recommendation reasoning, or underlying allocation breach is resolved by other means.");
-      }
+      form.setValue(
+        "invalidation_triggers",
+        "Thesis-level signal contradicts the recommendation reasoning, or underlying allocation breach is resolved by other means.",
+      );
     }
-  }, [position, defaultAction, recommendation, positions]);
+
+    didPrefillRef.current = true;
+  }, [open, position, defaultAction, recommendation, positions]);
 
   const handleSubmit = async (values: FormValues) => {
     if (!user) return;

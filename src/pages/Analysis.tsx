@@ -249,11 +249,21 @@ export default function Analysis() {
               positions={positions}
               diffMap={diffRecommendations(
                 currentAnalysis.recommended_actions,
-                history.filter((h) => h.id !== currentAnalysis.id).map((h) => ({ recommended_actions: h.recommended_actions })),
+                history
+                  .filter((h) =>
+                    currentAnalysis.id
+                      ? h.id !== currentAnalysis.id
+                      : !currentAnalysis.created_at || h.created_at < currentAnalysis.created_at,
+                  )
+                  .map((h) => ({ recommended_actions: h.recommended_actions })),
               )}
               droppedActions={findDroppedRecommendations(
                 currentAnalysis.recommended_actions,
-                history.find((h) => h.id !== currentAnalysis.id)?.recommended_actions ?? null,
+                history.find((h) =>
+                  currentAnalysis.id
+                    ? h.id !== currentAnalysis.id
+                    : !currentAnalysis.created_at || h.created_at < currentAnalysis.created_at,
+                )?.recommended_actions ?? null,
               )}
               onLogDecision={(trade) => {
                 setLogDecisionRec({
