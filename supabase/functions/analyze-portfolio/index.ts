@@ -663,16 +663,6 @@ These MUST be consistent with trade_recommendations — same trades, same direct
   "health_score_breakdown": [
     { "rule": string, "current": number, "target": string, "status": "breach" | "ok", "points_deducted": number }
   ],
-  "thesis_checks": [
-    {
-      "ticker": string,
-      "status": "invalidated" | "reinforced" | "stale" | "silent",
-      "confidence": "high" | "medium" | "low",
-      "evidence": string,
-      "supporting_insight_ids": [string],
-      "recommended_action": "SELL" | "TRIM" | "REVIEW" | "HOLD" | "ADD"
-    }
-  ],
   "portfolio_health_score": number,
   "summary": string
 }
@@ -684,32 +674,7 @@ HARD LIMIT: EXACTLY 3 sentences. MAXIMUM 60 words. If you exceed 60 words, delet
 3) What's working. One sentence, ≤ 15 words.
 No labels, no preamble. Start directly with the action. MUST NOT contradict allocation_check.
 
-═══ THESIS HEALTH (thesis_checks) ═══
-Produce one entry per HELD position meeting ANY of these criteria:
-  • Has non-empty thesis_notes — evaluate against recent insights + brief.
-  • Has position_weight ≥ 2% but no thesis_notes — emit status="silent".
-Skip positions with weight <2% and no thesis.
-
-Classification:
-  • "invalidated" — insights contradict thesis OR invalidation_trigger hit. recommended_action: SELL or TRIM.
-  • "reinforced"  — insights align with thesis, or strategy/brief reinforces it. recommended_action: HOLD or ADD.
-  • "stale"       — thesis exists but no recent relevant insight coverage. recommended_action: REVIEW.
-  • "silent"      — meaningful position with no written thesis. recommended_action: REVIEW.
-
-confidence: "high" when multiple corroborating insights; "medium" when single strong signal; "low" when inferred.
-evidence: ≤ 30 words citing specific numbers/insights. Quote the driving fact (e.g. "Direct -7%, margins -130bps per Q3 release").
-supporting_insight_ids: FK IDs from the insights you cite, if any.
-
-ESCALATION (use PRIOR_THESIS_STREAKS):
-  • If a ticker has been "invalidated" for ≥2 consecutive prior runs, escalate recommended_action to SELL (not TRIM/REVIEW).
-  • If "reinforced" for ≥3 runs and position is underweight vs target, recommended_action may be ADD.
-  • Use streak_length to anchor confidence — long streaks should read "high" confidence unless evidence weakened.
-
-INTEGRATION WITH TRADE RECOMMENDATIONS:
-  • Any ticker with status="invalidated" MUST appear in trade_recommendations as SELL or TRIM, with reasoning that cites the thesis break.
-  • Never recommend HOLD for an invalidated ticker.
-
-BANNED: Do not use the prose word "thesis" in summary or recommended_actions text. The thesis_checks array is where that signal lives.`;
+BANNED: Do not use the prose word "thesis" in summary or recommended_actions text. Thesis health is evaluated in a separate pass.`;
 
     // ── User Prompt ──────────────────────────────────────────────────
     const bubbleInsights = (insights ?? []).filter((i: any) => i.insight_type === "bubble_signal");
@@ -940,8 +905,91 @@ JSON OUTPUT:
   "tax_note": "1-2 sentences on tax efficiency for UAE resident."
 }`;
 
-    // ── Run both AI calls in parallel ──────────────────────────────────
-    const [response, idealResponse] = await Promise.all([
+    // ── Dedicated thesis-health prompt (runs in parallel) ─────────────
+    // Smaller, focused call — isolates failure and keeps the main analysis fast.
+    const heldForThesis = (positions ?? []).map((p: any) => {
+      const mv = p.market_value ?? 0;
+      const weight = total_portfolio_value && total_portfolio_value > 0
+        ? (mv / total_portfolio_value) * 100
+        : 0;
+      return {
+        ticker: p.ticker,
+        name: p.name,
+        weight_percent: parseFloat(weight.toFixed(2)),
+        thesis_notes: p.thesis_notes || null,
+        invalidation_trigger: p.invalidation_trigger || null,
+        confidence_level: p.confidence_level || null,
+      };
+    });
+    const relevantInsightsForThesis = (insights ?? []).filter((i: any) =>
+      i.tickers_mentioned?.some((t: string) =>
+        heldForThesis.some((p: any) => p.ticker === t)
+      )
+    );
+
+    const thesisSystemPrompt = `You are a thesis-health evaluator. You classify each position's investment thesis as invalidated, reinforced, stale, or silent based on newsletter insights and prior-run streaks.
+
+RESPONSE FORMAT: Return ONLY a raw JSON object. No markdown, no prose, no code fences.
+
+SCOPE — emit one entry per position meeting ANY of:
+  • Has non-empty thesis_notes — evaluate against recent insights + brief.
+  • Has weight_percent ≥ 2% but no thesis_notes — emit status="silent".
+Skip positions with weight < 2% AND no thesis.
+
+CLASSIFICATION:
+  • "invalidated" — insights contradict thesis OR invalidation_trigger hit. recommended_action: SELL or TRIM.
+  • "reinforced"  — insights align with thesis, or brief reinforces it. recommended_action: HOLD or ADD.
+  • "stale"       — thesis exists but no recent relevant insight coverage. recommended_action: REVIEW.
+  • "silent"      — meaningful position with no written thesis. recommended_action: REVIEW.
+
+CONFIDENCE:
+  • "high"   — multiple corroborating insights or explicit invalidation trigger hit.
+  • "medium" — single strong signal.
+  • "low"    — inferred from absence or weak signal.
+
+EVIDENCE:
+  • ≤ 30 words citing specific numbers/insights (e.g. "Direct -7%, margins -130bps per Q3 release").
+  • supporting_insight_ids: FK IDs from the insights you cite, if available.
+
+ESCALATION (use PRIOR_THESIS_STREAKS):
+  • Ticker "invalidated" for ≥2 consecutive prior runs → recommended_action = SELL (not TRIM/REVIEW).
+  • Ticker "reinforced" for ≥3 runs AND underweight vs target → recommended_action may be ADD.
+  • Long streaks warrant "high" confidence unless evidence has weakened.
+
+OUTPUT JSON:
+{
+  "thesis_checks": [
+    {
+      "ticker": string,
+      "status": "invalidated" | "reinforced" | "stale" | "silent",
+      "confidence": "high" | "medium" | "low",
+      "evidence": string,
+      "supporting_insight_ids": [string],
+      "recommended_action": "SELL" | "TRIM" | "REVIEW" | "HOLD" | "ADD"
+    }
+  ]
+}`;
+
+    const thesisUserPrompt = `POSITIONS:
+${JSON.stringify(heldForThesis, null, 2)}
+
+RELEVANT NEWSLETTER INSIGHTS (${relevantInsightsForThesis.length}):
+${relevantInsightsForThesis.map((i: any) => `- id=${i.id} [${i.source_name ?? "Newsletter"}] tickers=${(i.tickers_mentioned ?? []).join(",")} sentiment=${i.sentiment} — ${i.content}`).join("\n") || "None"}
+
+${intelligence_brief ? `INTELLIGENCE BRIEF (summary):
+Weekly Priority: ${intelligence_brief.weekly_priority || "N/A"}
+Sector Tilts: ${(intelligence_brief.sector_tilts || []).map((st: any) => `${st.sector}:${st.direction}/${st.conviction}`).join(", ") || "None"}
+Country Tilts: ${(intelligence_brief.country_tilts || []).map((ct: any) => `${ct.region}:${ct.direction}/${ct.conviction}`).join(", ") || "None"}` : "No brief available."}
+
+PRIOR_THESIS_STREAKS:
+${priorStreaks.length > 0
+  ? priorStreaks.map((s: any) => `- ${s.ticker}: ${s.current_status} x ${s.streak_length} run(s), action=${s.last_recommended_action ?? "n/a"}`).join("\n")
+  : "No prior history — cold start."}
+
+Return ONLY the JSON object with thesis_checks.`;
+
+    // ── Run three AI calls in parallel ─────────────────────────────────
+    const [response, idealResponse, thesisResponse] = await Promise.all([
       fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
@@ -967,6 +1015,20 @@ JSON OUTPUT:
           model: "claude-sonnet-4-5-20250929",
           system: idealSystemPrompt,
           messages: [{ role: "user", content: `Generate the ideal ${budgetFormatted} portfolio using Ireland-domiciled UCITS ETFs. Return only the JSON object.` }],
+          max_tokens: 4000,
+        }),
+      }),
+      fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-5-20250929",
+          system: thesisSystemPrompt,
+          messages: [{ role: "user", content: thesisUserPrompt }],
           max_tokens: 4000,
         }),
       }),
@@ -1089,6 +1151,34 @@ JSON OUTPUT:
 
     // Attach ideal allocation to the main response
     analysisResult.ideal_allocation = idealAllocation;
+
+    // ── Parse thesis checks (best-effort, don't fail the whole response) ──
+    let thesisChecks: any[] = [];
+    try {
+      if (thesisResponse.ok) {
+        const thesisData = await thesisResponse.json();
+        const thesisContent = thesisData.content?.[0]?.text?.trim() || "";
+        if (thesisContent && thesisData.stop_reason !== "max_tokens") {
+          let thesisJson = thesisContent;
+          thesisJson = thesisJson.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+          const firstBrace = thesisJson.indexOf("{");
+          const lastBrace = thesisJson.lastIndexOf("}");
+          if (firstBrace !== -1 && lastBrace > firstBrace) {
+            thesisJson = thesisJson.substring(firstBrace, lastBrace + 1);
+          }
+          thesisJson = thesisJson.replace(/,\s*([}\]])/g, '$1');
+          const parsed = JSON.parse(thesisJson);
+          if (Array.isArray(parsed.thesis_checks)) {
+            thesisChecks = parsed.thesis_checks;
+          }
+        }
+      } else {
+        console.warn("Thesis fetch not ok:", thesisResponse.status);
+      }
+    } catch (thesisErr) {
+      console.warn("Thesis parsing failed (non-fatal):", thesisErr);
+    }
+    analysisResult.thesis_checks = thesisChecks;
 
     return new Response(JSON.stringify(analysisResult), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
