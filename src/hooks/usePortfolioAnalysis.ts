@@ -252,8 +252,17 @@ export function usePortfolioAnalysis() {
       // Get unique newsletter count
       const uniqueNewsletterIds = new Set(selectedInsights.map((i) => i.newsletter_id));
 
-      // Use cached ib_accounts.cash_balance (same query key as useDashboardData)
-      const cashBalance = Number(ibAccountQuery.data?.cash_balance ?? 0);
+      // Fetch cash_balance directly at mutation time — the cached query may not
+      // have resolved yet when the user clicks "Run Analysis", and a missing value
+      // silently collapses total_portfolio_value to non-cash only, producing 0%
+      // cash in the analysis output.
+      const { data: ibAccountRow, error: ibAccountErr } = await supabase
+        .from("ib_accounts")
+        .select("cash_balance")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (ibAccountErr) throw ibAccountErr;
+      const cashBalance = Number(ibAccountRow?.cash_balance ?? 0);
 
       // Filter out any cash-type positions (defensive — IB doesn't normally put cash here)
       const CASH_ASSET_CLASSES = new Set(["CASH", "FX", "FXCONV"]);
