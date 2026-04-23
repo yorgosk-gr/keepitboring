@@ -1,24 +1,12 @@
 import { Settings as SettingsIcon } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
 import { ApiConfigSection } from "@/components/settings/ApiConfigSection";
-import { NotificationSection } from "@/components/settings/NotificationSection";
-import { DataManagementSection } from "@/components/settings/DataManagementSection";
-import { StorageDashboardSection } from "@/components/settings/StorageDashboardSection";
 import { IBConnectionSection } from "@/components/settings/IBConnectionSection";
 
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Settings() {
-  const {
-    settings,
-    isLoading,
-    updateSettings,
-    exportAllData,
-    exportDecisionLog,
-    clearAllAlerts,
-    resetToDefaultRules,
-    deleteAllData,
-  } = useSettings();
+  const { isLoading } = useSettings();
 
   if (isLoading) {
     return (
@@ -59,22 +47,6 @@ export default function Settings() {
         <IBConnectionSection />
 
         <ApiConfigSection />
-
-        <StorageDashboardSection />
-        
-        
-        <NotificationSection 
-          settings={settings} 
-          onUpdate={updateSettings} 
-        />
-        
-        <DataManagementSection
-          onExportAll={exportAllData}
-          onExportDecisions={exportDecisionLog}
-          onClearAlerts={clearAllAlerts}
-          onResetRules={resetToDefaultRules}
-          onDeleteAll={deleteAllData}
-        />
       </div>
     </div>
   );
